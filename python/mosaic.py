@@ -4,10 +4,11 @@ This module wraps crowdsource.py to allow large CCDs to be individually fit
 while maintaining consistent source on the boundaries between CCDs.
 """
 
+import sys
+import time
 import pdb
 import numpy
 import crowdsource
-from collections import OrderedDict
 
 
 def in_bounds(x, y, xbound, ybound):
@@ -26,6 +27,10 @@ def fit_sections(im, psf, nx, ny, overlap=50, weight=None, **kw):
     skyim = numpy.zeros_like(im)
     stars = numpy.zeros(0, dtype=[('x', 'f4'), ('y', 'f4'), ('flux', 'f4'),
                                   ('primary', 'i4'), ('psf', 'i4')])
+    t0 = time.time()
+    if kw.get('verbose', False):
+        print('Starting new CCD at %s' % time.ctime())
+        sys.stdout.flush()
     psfs = []
     for i in range(nx):
         for j in range(ny):
@@ -68,6 +73,11 @@ def fit_sections(im, psf, nx, ny, overlap=50, weight=None, **kw):
             psfs.append(psf0)
             modelim[spri] = model0[sfit]
             skyim[spri] = model0[sfit]
-            # import csplot
+            if kw.get('verbose', False):
+                t1 = time.time()
+                print('Fit tile (%d, %d) of (%d, %d); %d sec elapsed' %
+                      (i+1, j+1, nx, ny, t1-t0))
+                t0 = t1            # import csplot
+                sys.stdout.flush()
             # pdb.set_trace()
     return stars, modelim, skyim, psfs

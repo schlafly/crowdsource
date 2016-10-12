@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import sys
 import pdb
 import argparse
 import numpy
@@ -11,19 +12,21 @@ from astropy import wcs
 
 
 def read_data(imfn, ivarfn, dqfn, extname):
-    imdei = fits.getdata(imfn, extname=extname).copy()
-    imdew = fits.getdata(ivarfn, extname=extname).copy()
-    imded = fits.getdata(dqfn, extname=extname).copy()
-    # actually need to do each CCD and merge
-    # follow policy:
-    # HDU 0: primary image header
-    # HDU 1: CCD 1 header
-    # HDU 2: CCD 1 catalog
-    # HDU 3: CCD 2 header
-    # HDU 4: CCD 2 catalog
-    # ...
+    import warnings
+    with warnings.catch_warnings(record=True) as wlist:
+        warnings.simplefilter('always')
+        imdei = fits.getdata(imfn, extname=extname).copy()
+        imdew = fits.getdata(ivarfn, extname=extname).copy()
+        imded = fits.getdata(dqfn, extname=extname).copy()
+    # suppress endless nonstandard keyword warnings on read
+    for warning in wlist:
+        if 'following header keyword' in str(warning.message):
+            continue
+        else:
+            print(warning)
     mzerowt = (imded != 0) | (imdew < 0.) | ~numpy.isfinite(imdew)
     imdew[mzerowt] = 0.
+    imdew[:] = numpy.sqrt(imdew)
     return imdei, imdew, imded
 
 
@@ -43,6 +46,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
             continue
         if verbose:
             print('Fitting %s, extension %s.' % (imfn, name))
+            sys.stdout.flush()
         im, wt, dq = read_data(imfn, ivarfn, dqfn, name)
         hdr = fits.getheader(imfn, extname=name)
         fwhm = hdr['FWHM']
@@ -50,7 +54,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
         psf = crowdsource.center_psf(psf)
         res = mosaic.fit_sections(im, psf, 4, 2, weight=wt,
                                   psfderiv=numpy.gradient(-psf),
-                                  refit_psf=True)
+                                  refit_psf=True, verbose=verbose)
         cat, modelim, skyim, psfs = res
         wcs0 = wcs.WCS(hdr)
         ra, dec = wcs0.all_pix2world(cat['x'], cat['y'], 0.)
@@ -58,6 +62,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
         cat = rec_append_fields(cat, ['ra', 'dec'], [ra, dec])
         if verbose:
             print('Writing %s, found %d sources.' % (outfn, len(cat)))
+            sys.stdout.flush()
         hdr['EXTNAME'] = hdr['EXTNAME']+'_HDR'
         fits.append(outfn, numpy.array(psfs), hdr)
         fits.append(outfn, cat)
@@ -73,8 +78,10 @@ if __name__ == "__main__":
 
     parser.add_argument('--outfn', '-o', type=str,
                         default=None, help='output file name')
+    parser.add_argument('--verbose', '-v', action='store_true')
     parser.add_argument('imfn', type=str, help='Image file name')
     parser.add_argument('ivarfn', type=str, help='Inverse variance file name')
     parser.add_argument('dqfn', type=str, help='Data quality file name')
     args = parser.parse_args()
-    process_image(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn)
+    process_image(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn,
+                  verbose=args.verbose)

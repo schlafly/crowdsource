@@ -24,7 +24,7 @@ def shift(im, offset, **kw):
     """Wrapper for scipy.ndimage.interpolation.shift"""
     from scipy.ndimage.interpolation import shift
     if 'order' not in kw:
-        kw['order'] = 3 # ~0.6 mmag; order=4 ~0.2 mmag
+        kw['order'] = 4  # order 3: ~0.6 mmag; order=4 ~0.2 mmag
     if 'mode' not in kw:
         kw['mode'] = 'nearest'
     if 'output' not in kw:
@@ -64,26 +64,39 @@ def sim_image(nx, ny, nstar, fwhm, noise, return_psf=False, nskyx=3, nskyy=3):
     return ret
 
 
-def significance_image(im, ivar, psf):
+def significance_image(im, isig, psf):
     # assume, for the moment, the image has already been sky-subtracted
     # stampszo2 = (psf.shape[0]-1)/2
     from scipy.ndimage.filters import convolve
-    sigim = convolve(im*ivar, psf, mode='reflect', origin=0)
-    varim = convolve(ivar, psf**2., mode='reflect', origin=0)
+    sigim = convolve(im*isig**2., psf, mode='reflect', origin=0)
+    varim = convolve(isig**2., psf**2., mode='reflect', origin=0)
     ivarim = 1./(varim + (varim == 0) * 1e12)
     return sigim * numpy.sqrt(ivarim)
 
 
-def peakfind(im, sigim, weight, threshhold=5):
-    fac = 0.4
-    data_max = filters.maximum_filter(im*numpy.sqrt(weight), 3)
+def peakfind(im, sigim, isig, threshhold=5):
+    fac = 0.3
+    data_max = filters.maximum_filter(im*isig, 3)
     sig_max = filters.maximum_filter(sigim, 3)
-    brightpeak = numpy.nonzero((data_max == im*numpy.sqrt(weight)) &
-                               (im*numpy.sqrt(weight) > threshhold/fac))
+    isig_min = filters.minimum_filter(isig, 3)
+    # don't accept a source where isig != 0, but isig_min = 0
+    # this excludes sources on the edges of masked regions, but not
+    # sources in the centers of masked regions (saturated stars)
+    exclude = (isig_min == 0) & (isig > 0)
+    brightpeak = numpy.nonzero((data_max == im*isig) &
+                               (im*isig > threshhold/fac) & ~exclude)
     faintpeak = numpy.nonzero((sig_max == sigim) & (sigim > threshhold) &
-                              (im*numpy.sqrt(weight) <= threshhold/fac))
+                              (im*isig <= threshhold/fac) & ~exclude)
     return [numpy.concatenate([b, f]) for b, f in zip(brightpeak, faintpeak)]
     # return numpy.nonzero((data_max == im) & (im > 0) & (sigim > threshhold))
+
+
+def peaksig(x, y, im, modelim, psf):
+    sigstat1 = (im/numpy.clip(modelim, 0.3, numpy.inf))[x, y]
+    from scipy.ndimage.filters import convolve
+    sigstat2 = (im/numpy.clip(convolve(modelim, psf, mode='reflect', origin=0),
+                              0.3, numpy.inf))[x, y]
+    return sigstat1, sigstat2
 
 
 def build_model(x, y, flux, nx, ny, psf=None, psflist=None):
@@ -143,7 +156,6 @@ def fit_once(im, x, y, psf, weight=None, psfderiv=None, nskyx=0, nskyy=0,
         model (ndarray[NX, NY]): best fit model image
         sky (ndarray(NX, NY]): best fit model sky
     """
-    guess = None
     # sparse matrix, with rows at first equal to the fluxes at each peak
     # later add in the derivatives at each peak
     stampsz = psf.shape[0]
@@ -155,12 +167,12 @@ def fit_once(im, x, y, psf, weight=None, psfderiv=None, nskyx=0, nskyy=0,
         weight = numpy.ones_like(im)
     weight = numpy.pad(weight, [stampszo2, stampszo2], constant_values=0.,
                        mode='constant')
+    weight[weight == 0.] = 1.e-20
     pix = numpy.arange(stampsz*stampsz, dtype='i4')
     # convention: x is the first index, y is the second
     # sorry.
     xpix = pix // stampsz
     ypix = pix % stampsz
-    yloc, xloc, values = [], [], []
     xp = numpy.round(x).astype('i4')
     yp = numpy.round(y).astype('i4')
     xf = x - xp
@@ -171,44 +183,78 @@ def fit_once(im, x, y, psf, weight=None, psfderiv=None, nskyx=0, nskyy=0,
     xe = xp - stampszo2 + stampszo2
     ye = yp - stampszo2 + stampszo2
     repeat = 1 if not psfderiv else 3
-    for i in range(len(xe)):
-        for _ in range(repeat):
-            xloc.append(numpy.ravel_multi_index(((xe[i]+xpix), (ye[i]+ypix)),
-                                                im.shape))
-    xloc = numpy.concatenate(xloc)
-    yloc = (numpy.arange(len(x)*repeat, dtype='i4').reshape(-1, 1) *
-            numpy.ones(len(xpix), dtype='i4').reshape(1, -1)).ravel()
-    valarr = []
-    for i in xrange(len(xe)):
-        wt = weight[xe[i]:xe[i]+stampsz, ye[i]:ye[i]+stampsz]
-        valarr += [(shift(psf, [xf[i], yf[i]],
-                          output=numpy.dtype('f4'))*wt).ravel()]
-        if psfderiv:
-            valarr += [(p*wt).ravel() for p in psfderiv]
-    values = numpy.concatenate(valarr)
     nskypar = nskyx * nskyy
+    npixpsf = psf.shape[0]*psf.shape[1]
+    npixim = im.shape[0]*im.shape[1]
+    xloc = numpy.zeros(len(x)*repeat*npixpsf + nskypar*npixim, dtype='i4')
+    yloc = numpy.zeros(len(xloc), dtype='i4')
+    values = numpy.zeros(len(yloc), dtype='f4')
+    colnorm = numpy.zeros(len(x)*repeat+nskypar, dtype='f4')
+    first = 0
+    for i in range(len(xe)):
+        wt = weight[xe[i]:xe[i]+stampsz, ye[i]:ye[i]+stampsz]
+        for j in range(repeat):
+            xloc[first:first+npixpsf] = (
+                numpy.ravel_multi_index(((xe[i]+xpix), (ye[i]+ypix)),
+                                        im.shape)).reshape(-1)
+            yloc[first:first+npixpsf] = i*repeat+j
+            if j == 0:
+                values[first:first+npixpsf] = (
+                    shift(psf, [xf[i], yf[i]],
+                          output=numpy.dtype('f4'))*wt).reshape(-1)
+            else:
+                values[first:first+npixpsf] = (psfderiv[j-1]*wt).reshape(-1)
+            first += npixpsf
+    tvalues = values[:first].reshape(-1, npixpsf)  # view
+    colnorm[:repeat*len(xe)] = numpy.sqrt(numpy.sum(tvalues**2., axis=1))
+    colnorm[:repeat*len(xe)] += colnorm[:repeat*len(xe)] == 0.
+    tvalues /= colnorm[:repeat*len(xe)].reshape(-1, 1)
+
     if nskypar != 0:
-        xloc, yloc, values = add_sky_parameters(nx+stampszo2*2, ny+stampszo2*2,
-                                                nskyx, nskyy,
-                                                xloc, yloc, values, weight)
+        sxloc, syloc, svalues = sky_parameters(nx+stampszo2*2, ny+stampszo2*2,
+                                               nskyx, nskyy, weight)
+        startidx = len(x)*repeat
+        nskypix = len(sxloc[0])
+        for i in range(len(sxloc)):
+            xloc[first:first+nskypix] = sxloc[i]
+            yloc[first:first+nskypix] = startidx+syloc[i]
+            colnorm[startidx+i] = numpy.sqrt(numpy.sum(svalues[i]**2.))
+            colnorm[startidx+i] += (colnorm[startidx+i] == 0.)
+            values[first:first+nskypix] = svalues[i] / colnorm[startidx+i]
+            first += nskypix
     shape = (im.shape[0]*im.shape[1], len(x)*repeat+nskypar)
-    mdelete = in_padded_region(xloc, im.shape, stampszo2)
-    xloc = xloc[~mdelete]
-    yloc = yloc[~mdelete]
-    values = values[~mdelete]
+
     from scipy import sparse
-    mat = sparse.coo_matrix((values, (xloc, yloc)), shape=shape,
+    # prun output suggests playing with matrix types here might
+    # bear fruit.
+    # next optimization to try: build csr matrix directly,
+    # not from values, (xloc, yloc)
+    # looks like it will require sorting by xloc, then resorting,
+    # then a unique, ... might not be faster than the built-in
+    # transformations.
+    # not much more than 15% to buy here in ideal case.
+    # but it's still true that lsqr is ~1/3 of fit_once, which is
+    # 80% of time.
+    #mat = sparse.csr_matrix((values, (xloc, yloc)), shape=shape,
+    #                        dtype='f4')
+    csc_indptr = numpy.array([i*npixpsf for i in range(len(xe)*repeat+1)])
+    if nskypar != 0:
+        csc_indptr = numpy.concatenate([csc_indptr, [
+            csc_indptr[-1] + i*nskypix for i in range(1, nskypar+1)]])
+    mat = sparse.csc_matrix((values, xloc, csc_indptr), shape=shape,
                             dtype='f4')
     if guess is not None:
         # guess is a guess for the fluxes and sky; no derivatives.
         guessvec = numpy.zeros(len(xe)*repeat+nskypar, dtype='f4')
         guessvec[0:len(xe)*repeat:repeat] = guess[0:len(xe)]
         guessvec[len(xe)*repeat:] = guess[len(xe):]
+        guessvec *= colnorm
     else:
         guessvec = None
-    flux = lsqr_cp(mat, (im*weight).ravel(), atol=1.e-3, btol=1.e-3,
+    flux = lsqr_cp(mat, (im*weight).ravel(), atol=1.e-4, btol=1.e-4,
                    guess=guessvec)
     model = mat.dot(flux[0]).reshape(*im.shape)
+    flux[0][:] = flux[0][:] / colnorm
     im = im[stampszo2:-stampszo2, stampszo2:-stampszo2]
     model = model[stampszo2:-stampszo2, stampszo2:-stampszo2]
     weight = weight[stampszo2:-stampszo2, stampszo2:-stampszo2]
@@ -245,28 +291,30 @@ def lsqr_cp(aa, bb, guess=None, **kw):
     # allow guesses: solving Ax = b is the same as solving A(x-x*) = b-Ax*.
     # => A(dx) = b-Ax*.  So we can solve for dx instead, then return dx+x*.
     # this might improve speed?
-    from scipy.sparse import diags, linalg
+    from scipy.sparse import linalg
+
+    if guess is not None:
+        bb2 = bb - aa.dot(guess)
+        if 'btol' in kw:
+            fac = numpy.sum(bb**2.)**(0.5)/numpy.sum(bb2**2.)**0.5
+            kw['btol'] = kw['btol']*numpy.clip(fac, 0.1, 10.)
+    else:
+        bb2 = bb.copy()
 
     # column preconditioning:
-    aacsc = aa.tocsc().copy()
-    norm = numpy.array(aacsc.multiply(aacsc).sum(axis=0)).squeeze()
-    norm = norm + (norm == 0)
-    aacsc = aacsc.dot(diags(norm**(-0.5)))
+    # no longer necessary: built into fit_once
+    # aacsc = aa.tocsc().copy()
+    # norm = numpy.array(aacsc.multiply(aacsc).sum(axis=0)).squeeze()
+    # norm = norm + (norm == 0)
+    # aacsc = aacsc.dot(diags(norm**(-0.5)))
     # aacsc has columns of constant norm.
 
-    bb2 = bb.copy()
     normbb = numpy.sum(bb2**2.)
     bb2 /= normbb**(0.5)
-    # allow guesses:
-    if guess is not None:
-        bb2 = (bb2 - aa.dot(guess)/normbb**(0.5)).astype('f4')
-        if 'btol' in kw:
-            kw['btol'] = kw['btol']*normbb**(0.5)/numpy.sum(bb2**2.)**(0.5)
-            print kw['btol']
-            kw['btol'] = numpy.min([kw['btol'], 0.1])
-    par = linalg.lsqr(aacsc, bb2, **kw)
+    par = linalg.lsqr(aa, bb2, **kw)
     # or lsmr; lsqr seems to be better
-    par[0][:] *= norm**(-0.5)*normbb**(0.5)
+    # par[0][:] *= norm**(-0.5)*normbb**(0.5)
+    par[0][:] *= normbb**0.5
     if guess is not None:
         par[0][:] += guess
     return par
@@ -274,6 +322,29 @@ def lsqr_cp(aa, bb, guess=None, **kw):
 
 def compute_centroids(x, y, psf, flux, resid, weight, psfderiv=None,
                       return_psfstack=False):
+    # way more complicated than I'd like.
+    # we just want the weighted centroids.
+    # these are sum(x * I * W) / sum(I * W)
+    # if we use the PSF model for W, it turns out these are always?
+    # biased too small by exactly? one half.
+    # So that's straightforward.
+    # It turns out that if the PSF is asymmetric, these are further biased
+    # by a constant; we subtract that with x3 and y3 below.  In principle
+    # those don't need to be in the loop (though if the PSF varies that's
+    # another story).
+    # Then we additionally want to downweight pixels with high noise.
+    # I'm sure there's a correct prescription here, but instead we just
+    # weight by inverse variance, which feels right.
+    # this can kick out random fractions of flux, and easily lead to, e.g.,
+    # only using pixels from the right side of the PSF in the weight
+    # computation.  This may introduce both multiplicative and additive
+    # biases.  The additive part we subtract by explicitly calculating
+    # how biased our model star would be (imm), when we compute the
+    # centroid with weights (im1) and without weights (im2).
+    # I don't know how to think about the multiplicative bias, and am
+    # okay for the moment acknowledging that the centroids of stars on
+    # masked regions will be problematic.
+
     # centroid is sum(x * weight) / sum(weight)
     # we'll make the weights = psf * image
     # we want to compute the centroids on the image after the other sources
@@ -310,117 +381,91 @@ def compute_centroids(x, y, psf, flux, resid, weight, psfderiv=None,
     weight = numpy.pad(weight, [stampszo2, stampszo2], constant_values=0.,
                        mode='constant')
     repeat = 3 if psfderiv else 1
-    if return_psfstack:
-        psfstack = []
-        residstack = []
-        weightstack = []
-    for i in range(len(x)):
-        # way more complicated than I'd like.
-        # we just want the weighted centroids.
-        # these are sum(x * I * W) / sum(I * W)
-        # if we use the PSF model for W, it turns out these are always?
-        # biased too small by exactly? one half.
-        # So that's straightforward.
-        # It turns out that if the PSF is asymmetric, these are further biased
-        # by a constant; we subtract that with x3 and y3 below.  In principle
-        # those don't need to be in the loop (though if the PSF varies that's
-        # another story.
-        # Then we additionally want to downweight pixels with high noise.
-        # I'm sure there's a correct prescription here, but instead we just
-        # weight by inverse variance, which feels right.
-        # this can kick out random fractions of flux, and easily lead to, e.g.,
-        # only using pixels from the right side of the PSF in the weight
-        # computation.  This may introduce both multiplicative and additive
-        # biases.  The additive part we subtract by explicitly calculating
-        # how biased our model star would be (imm), when we compute the
-        # centroid with weights (im1) and without weights (im2).
-        # I don't know how to think about the multiplicative bias, and am
-        # okay for the moment acknowledging that the centroids of stars on
-        # masked regions will be problematic.
-
-        if (xp[i] != x[i]) or (yp[i] != y[i]):
-            offset = [x[i]-xp[i], y[i]-yp[i]]
-            psf0 = shift(psf, offset, output=numpy.dtype('f4'))
-            if psfderiv is None:
-                psfderiv0 = None
-            else:
-                # psfderiv0 = [shift(p, offset, output=numpy.dtype('f4'))
-                #             for p in psfderiv]
-                psfderiv0 = psfderiv
-        else:
-            psf0 = psf
-            psfderiv0 = psfderiv
-            offset = [0., 0.]
-        wstamp = weight[xe[i]:xe[i]+stampsz, ye[i]:ye[i]+stampsz]
-        imr = resid[xe[i]:xe[i]+stampsz, ye[i]:ye[i]+stampsz]
-        imm = psf0*flux[repeat*i]
-        if psfderiv:
-            imm += psfderiv0[0]*flux[repeat*i+1]+psfderiv0[1]*flux[repeat*i+2]
-        im0 = (imm + imr) * psf0 * wstamp
-        im1 = imm * psf0 * wstamp
-        im2 = imm * psf0
-        im3 = psf0 * psf0
-        sim0 = numpy.sum(im0)
-        sim1 = numpy.sum(im1)
-        sim2 = numpy.sum(im2)
-        sim3 = numpy.sum(im3)
-        sim0 = sim0 + (sim0 == 0)*1e-9
-        sim1 = sim1 + (sim1 == 0)*1e-9
-        sim2 = sim2 + (sim2 == 0)*1e-9
-        sim3 = sim3 + (sim3 == 0)*1e-9
-        x1 = numpy.sum(dx*im1)/sim1
-        y1 = numpy.sum(dy*im1)/sim1
-        x2 = numpy.sum(dx*im2)/sim2
-        y2 = numpy.sum(dy*im2)/sim2
-        x3 = numpy.sum(dx*im3)/sim3
-        y3 = numpy.sum(dy*im3)/sim3
-        xcen[i] = numpy.sum(dx*im0)/sim0-offset[0]-(x1-x2)-(x3-offset[0])
-        ycen[i] = numpy.sum(dy*im0)/sim0-offset[1]-(y1-y2)-(y3-offset[1])
-        if return_psfstack:
-            psfstack.append((imm+imr).copy())
-            residstack.append(imr.copy())
-            weightstack.append(wstamp.copy())
-        # if (xe[i] > 100) and (ye[i] > 100) and (flux[repeat*i] > 10000):
-        #     pdb.set_trace()
+    xf = x - xp
+    yf = y - yp
+    residst = numpy.array([resid[xe0:xe0+stampsz, ye0:ye0+stampsz]
+                           for (xe0, ye0) in zip(xe, ye)])
+    # only use inner 19 pixels for weighting
+    weightst = numpy.array([weight[xe0:xe0+stampsz, ye0:ye0+stampsz]
+                            for (xe0, ye0) in zip(xe, ye)])
+    psfst = numpy.array([shift(psf, [xf0, yf0], output=numpy.dtype('f4'))
+                         for (xf0, yf0) in zip(xf, yf)])
+    modelst = psfst * flux[:len(x)*repeat:repeat].reshape(-1, 1, 1)
+    if psfderiv is not None:
+        for i, psfderiv0 in enumerate(psfderiv):
+            modelst += (psfderiv0[None, :, :] *
+                        flux[i+1:len(x)*repeat:repeat].reshape(-1, 1, 1))
+    cen = []
+    use = (numpy.abs(dx) <= 9)*(numpy.abs(dy) <= 9)
+    usest = use[None, :, :]
+    denom0 = numpy.sum((modelst+residst)*psfst*weightst*usest, axis=(1, 2))
+    denom1 = numpy.sum(modelst*psfst*weightst*usest, axis=(1, 2))
+    denom2 = numpy.sum(modelst*psfst*usest, axis=(1, 2))
+    denom3 = numpy.sum(psf*psf*usest)
+    for (dc, off) in [(dx, xf), (dy, yf)]:
+        # the centroids
+        numer0 = numpy.sum(
+            dc[None, :, :]*(modelst+residst)*psfst*weightst*usest, axis=(1, 2))
+        # difference between 1 & 2 is bias due to weights
+        numer1 = numpy.sum(dc[None, :, :]*modelst*psfst*weightst*usest,
+                           axis=(1, 2))
+        numer2 = numpy.sum(dc[None, :, :]*modelst*psfst*usest,
+                           axis=(1, 2))
+        # bias for asymmetric PSFs
+        numer3 = numpy.sum(dc*psf*psf*use)
+        c0 = numer0 / (denom0 + (denom0 == 0))
+        c1 = numer1 / (denom1 + (denom1 == 0))
+        c2 = numer2 / (denom2 + (denom2 == 0))
+        c3 = numer3 / (denom3 + (denom3 == 0))
+        cen.append(c0 - off - (c1 - c2) - c3)
+    xcen, ycen = cen
     xcen *= 2
     ycen *= 2
     res = (xcen, ycen)
     if return_psfstack:
-        res = res + ((numpy.array(psfstack), numpy.array(residstack),
-                      numpy.array(weightstack)),)
+        res = res + ((modelst+residst, residst, weightst),)
     return res
 
 
 def estimate_sky_background(im, sdev=None):
     """Find peak of count distribution; pretend this is the sky background."""
-    from scipy.stats.mstats import mquantiles
-    from scipy.special import erf
-    q05, med, q7 = mquantiles(im, prob=[0.05, 0.5, 0.7])
-    if sdev is None:
-        sdev = 1.5*numpy.sqrt(med/4.)
-        # appropriate for DECam images; gain ~ 4
-    lb, ub = q05, q7
+    # for some reason, I have found this hard to work robustly.  Replace with
+    # median at the moment.
 
-    def objective(par, lb, ub):
-        mask = (im > lb) & (im < ub)
-        nobs = numpy.sum(mask)
-        chi = (im[mask]-par)/sdev
-        norm = 0.5*(erf((ub-par)/(numpy.sqrt(2)*sdev)) -
-                    erf((lb-par)/(numpy.sqrt(2)*sdev)))
-        if norm <= 1.e-6:
-            normchi2 = 1e10
-        else:
-            normchi2 = 2*nobs*numpy.log(norm)
-        return numpy.sum(chi**2.)+normchi2
+    return numpy.median(im)
+    # from scipy.stats.mstats import mquantiles
+    # from scipy.special import erf
+    # q05, med, q7 = mquantiles(im, prob=[0.05, 0.5, 0.7])
+    # if sdev is None:
+    #     if med > 0:
+    #         sdev = 1.5*numpy.sqrt(med/4.)
+    #     else:
+    #         q16, q84 = mquantiles(im, prob=[0.16, 0.84])
+    #         sdev = (q84-q16)/2.
+    #     # appropriate for DECam images; gain ~ 4
+    # lb, ub = q05, q7
 
-    from scipy.optimize import minimize_scalar
-    par = minimize_scalar(objective, bracket=[lb, ub], args=(lb, ub))
-    lb, ub = par['x']-sdev/2., par['x']+sdev/2.
-    par = minimize_scalar(objective, bracket=[lb, ub], args=(lb, ub))
-    return par['x']
+    # def objective(par, lb, ub):
+    #     mask = (im > lb) & (im < ub)
+    #     nobs = numpy.sum(mask)
+    #     chi = (im[mask]-par)/sdev
+    #     norm = 0.5*(erf((ub-par)/(numpy.sqrt(2)*sdev)) -
+    #                 erf((lb-par)/(numpy.sqrt(2)*sdev)))
+    #     if norm <= 1.e-6:
+    #         normchi2 = 1e10
+    #     else:
+    #         normchi2 = 2*nobs*numpy.log(norm)
+    #     return numpy.sum(chi**2.)+normchi2
+
+    # from scipy.optimize import minimize_scalar
+    # par = minimize_scalar(objective, bracket=[lb, ub], args=(lb, ub))
+    # lb, ub = par['x']-sdev, par['x']+sdev
+    # par = minimize_scalar(objective, bracket=[lb, ub], args=(lb, ub))
+    # pdb.set_trace()
+    # return par['x']
 
 
-def initial_sky_filter(im, sz=100):
+def initial_sky_filter(im, weight=None, sz=200):
     """Remove sky from image."""
     nx, ny = im.shape[0]/sz, im.shape[1]/sz
     xg = -sz/2. + sz*numpy.arange(nx+2)
@@ -432,8 +477,12 @@ def initial_sky_filter(im, sz=100):
             sx, sy = i*sz, j*sz
             ex = numpy.min([sx+sz, im.shape[0]])
             ey = numpy.min([sy+sz, im.shape[1]])
+            if weight is not None:
+                use = weight[sx:ex, sy:ey] > 0
+            else:
+                use = numpy.ones_like(im[sx:ey, sy:ey], dtype='bool')
             val[i+1, j+1] = (
-                estimate_sky_background(im[sx:ex, sy:ey].reshape(-1)))
+                estimate_sky_background(im[sx:ex, sy:ey][use].reshape(-1)))
     # I can't figure out how to ask for any kind of reasonable extrapolation
     # off the grid.  I'm going to extend xg, yg, val to compensate.
     val[0, :] = val[1, :]-(val[2, :]-val[1, :])
@@ -463,36 +512,43 @@ def fit_im(im, psf, threshhold=0.3, weight=None, psfderiv=None,
                                  psflist=psflist)
         im = im.copy()-fixedmodel
     else:
-        fixedmodel = None
+        fixedmodel = numpy.zeros_like(im)
     if (nskyx != 0) or (nskyy != 0):
-        imbs = initial_sky_filter(im)
+        imbs = initial_sky_filter(im, weight=weight)
     else:
         imbs = im
     if isinstance(weight, int):
         weight = numpy.ones_like(im)*weight
     sigim = significance_image(imbs, weight, psf)
+    # because of inaccuracy of initial sky subtraction, this is guaranteed to
+    # go less deep than five sigma.
     x, y = peakfind(imbs, sigim, weight)
     if verbose:
         print('Found %d initial sources.' % len(x))
-    # pdb.set_trace()
+    #pdb.set_trace()
 
     # first fit; brightest sources
     flux, model, sky = fit_once(im, x, y, psf, psfderiv=psfderiv,
                                 weight=weight, nskyx=nskyx, nskyy=nskyy)
     sigim_res = significance_image(im - model, weight, psf)
     x2, y2 = peakfind(im - model, sigim_res, weight)
+    # should reach 5 sigma.
 
     # accept only peaks where im / numpy.clip(model, threshhold) > 0.3
-    sigstat = ((im-model)/numpy.clip(model-sky, 0.3, numpy.inf))[x2, y2]
-    m = sigstat > threshhold
+    sigstat1, sigstat2 = peaksig(x2, y2, im-model, model+fixedmodel-sky, psf)
+    pdb.set_trace()
+
+    m = (sigstat1 > threshhold) & (sigstat2 > threshhold)
     x2, y2 = x2[m], y2[m]
+    if len(x2) > len(x):
+        pdb.set_trace()
     if verbose:
         print('Found %d additional sources.' % len(x2))
     x = numpy.concatenate([x, x2])
     y = numpy.concatenate([y, y2])
 
     # now fit sources that may have been too blended to detect initially
-    # pdb.set_trace()
+    #pdb.set_trace()
     guessflux, guesssky = unpack_fitpar(flux[0], len(x)-len(x2),
                                         psfderiv is not None)
     guess = numpy.concatenate([guessflux, numpy.zeros(len(x2)), guesssky])
@@ -501,14 +557,16 @@ def fit_im(im, psf, threshhold=0.3, weight=None, psfderiv=None,
                                 guess=guess)
     xcen, ycen, stamps = compute_centroids(x, y, psf, flux[0], im-model,
                                            weight, psfderiv=psfderiv,
-                                           return_psfstack=True)
+                                           return_psfstack=refit_psf)
     if refit_psf:
         shiftx = xcen + x - numpy.round(x)
         shifty = ycen + y - numpy.round(y)
-        psf = find_psf(x, shiftx, y, shifty, stamps[0], stamps[1], stamps[2])
-        if psfderiv is not None:
-            psfderiv = numpy.gradient(-psf)
-    # pdb.set_trace()
+        npsf = find_psf(x, shiftx, y, shifty, stamps[0], stamps[1], stamps[2])
+        if npsf is not None:
+            psf = npsf
+            if psfderiv is not None:
+                psfderiv = numpy.gradient(-psf)
+        del stamps
     m = (numpy.abs(xcen) < 3) & (numpy.abs(ycen) < 3)
     x = x.astype('f4')
     y = y.astype('f4')
@@ -517,24 +575,25 @@ def fit_im(im, psf, threshhold=0.3, weight=None, psfderiv=None,
     x[m] = numpy.clip(x[m], 0, im.shape[0]-1)
     y[m] = numpy.clip(y[m], 0, im.shape[1]-1)
     guessflux, guesssky = unpack_fitpar(flux[0], len(x), psfderiv is not None)
-    keep = cull_near(x, y, guessflux)
+    keep = cull_near(x, y, guessflux) & (guessflux > 0) & m
     x = x[keep]
     y = y[keep]
 
     sigim_res = significance_image(im - model, weight, psf)
     x3, y3 = peakfind(im - model, sigim_res, weight)
 
-    # accept only peaks where im / numpy.clip(model, threshhold) > 0.3
-    sigstat = ((im-model)/numpy.clip(model-sky, 0.3, numpy.inf))[x3, y3]
-    m = sigstat > threshhold
+    sigstat1, sigstat2 = peaksig(x3, y3, im-model, model+fixedmodel-sky, psf)
+    m = (sigstat1 > threshhold) | (sigstat2 > threshhold)
     x3, y3 = x3[m], y3[m]
+    if len(x3) > len(x):
+        pdb.set_trace()
     if verbose:
         print('Found %d additional sources.' % len(x3))
     x = numpy.concatenate([x, x3])
     y = numpy.concatenate([y, y3])
 
     # now fit with improved locations
-    # pdb.set_trace()
+    #pdb.set_trace()
     guessflux, guesssky = unpack_fitpar(flux[0], len(keep),
                                         psfderiv is not None)
     guess = numpy.concatenate([guessflux[keep], numpy.zeros(len(x3)),
@@ -553,14 +612,12 @@ def fit_im(im, psf, threshhold=0.3, weight=None, psfderiv=None,
     x[m] = numpy.clip(x[m], 0, im.shape[0]-1)
     y[m] = numpy.clip(y[m], 0, im.shape[1]-1)
     guessflux, guesssky = unpack_fitpar(flux[0], len(x), psfderiv is not None)
-    keep = cull_near(x, y, guessflux)
+    keep = cull_near(x, y, guessflux) & (guessflux > 0) & m
     x = x[keep]
     y = y[keep]
 
     # final fit with final locations; no psfderiv allowed, positions are fixed.
     # pdb.set_trace()
-    guessflux, guesssky = unpack_fitpar(flux[0], len(keep),
-                                        psfderiv is not None)
     guess = numpy.concatenate([guessflux[keep], guesssky])
     flux, model, sky = fit_once(im, x, y, psf, psfderiv=None,
                                 weight=weight, nskyx=nskyx, nskyy=nskyy,
@@ -603,27 +660,23 @@ def sky_model(coeff, nx, ny):
     return im
 
 
-def add_sky_parameters(nx, ny, nskyx, nskyy, xloc, yloc, values, weight):
+def sky_parameters(nx, ny, nskyx, nskyy, weight):
     # yloc: just add rows to the end according to the current largest row
     # in there
     nskypar = nskyx * nskyy
-    newxloc = [numpy.arange(nx*ny, dtype='i4')]*nskypar
+    xloc = [numpy.arange(nx*ny, dtype='i4')]*nskypar
     # for the moment, don't take advantage of the bounded support.
-    newyloc = [numpy.max(yloc) + 1 + i*numpy.ones((nx, ny), dtype='i4').ravel()
-               for i in range(nskypar)]
-    newvalues = [(sky_model_basis(i, j, nskyx, nskyy, nx, ny)*weight).ravel()
-                 for i in range(nskyx) for j in range(nskyy)]
-    for i in range(nskypar):
-        m = newvalues[i] != 0
-        newxloc[i] = newxloc[i][m]
-        newyloc[i] = newyloc[i][m]
-        newvalues[i] = newvalues[i][m]
-    # print('Think about what is going on with the padding?
+    yloc = [i*numpy.ones((nx, ny), dtype='i4').ravel()
+            for i in range(nskypar)]
+    values = [(sky_model_basis(i, j, nskyx, nskyy, nx, ny)*weight).ravel()
+              for i in range(nskyx) for j in range(nskyy)]
+    # for i in range(nskypar):
+    #     m = values[i] != 0
+    #     xloc[i] = xloc[i][m]
+    #     yloc[i] = yloc[i][m]
+    #     values[i] = values[i][m]
     # We're now passing nx & ny for the padded image, so the sky
     # extends through the padded region.  Probably fine.
-    xloc = numpy.concatenate([xloc] + newxloc)
-    yloc = numpy.concatenate([yloc] + newyloc)
-    values = numpy.concatenate([values] + newvalues)
     return xloc, yloc, values
 
 
@@ -722,11 +775,13 @@ def center_psf(psf):
     stampsz = psf.shape[0]
     stampszo2 = stampsz // 2
     xc = numpy.arange(stampsz, dtype='f4')-stampszo2
+    xc *= numpy.abs(xc) <= 9  # only use the inner 19 pixels for centroiding
     xc = xc.reshape(-1, 1)
     yc = xc.copy().reshape(1, -1)
     for _ in range(3):
-        xcen = numpy.sum(xc*psf)/numpy.sum(psf)
-        ycen = numpy.sum(yc*psf)/numpy.sum(psf)
+        inner19 = (numpy.abs(xc) < 9)*(numpy.abs(yc) < 9)
+        xcen = numpy.sum(xc*psf*inner19)/numpy.sum(psf*inner19)
+        ycen = numpy.sum(yc*psf*inner19)/numpy.sum(psf*inner19)
         psf = shift(psf, [-xcen, -ycen], output=numpy.dtype('f4'))
     psf /= numpy.sum(psf)
     psf = psf.astype('f4')
@@ -741,11 +796,14 @@ def find_psf(xcen, shiftx, ycen, shifty, psfstack, residstack, weightstack):
     psfqf = (numpy.sum(psfstack*(weightstack > 0), axis=(1, 2)) /
              numpy.sum(psfstack, axis=(1, 2)))
     totalflux = numpy.sum(psfstack, axis=(1, 2))
-    chi2 = numpy.sum(residstack**2.*((weightstack+1.e-10)**-1. +
-                                     (0.3*psfstack)**2.)**-1.,
+    chi2 = numpy.sum(residstack**2.*((weightstack+1.e-10)**-2. +
+                                     (0.2*psfstack)**2.)**-1.,
                      axis=(1, 2))
     okpsf = ((numpy.abs(psfqf - 1) < 0.03) & (totalflux > 5000) &
              (chi2 < 1.5*len(psfstack[0].reshape(-1))))
+    if numpy.sum(okpsf) <= 5:
+        print('Fewer than 5 stars accepted in image, keeping original PSF')
+        return None
     psfstack = psfstack[okpsf, :, :]
     weightstack = weightstack[okpsf, :, :]
     residstack = residstack[okpsf, :, :]
@@ -764,6 +822,7 @@ def find_psf(xcen, shiftx, ycen, shifty, psfstack, residstack, weightstack):
     # select some reasonable sample of the PSFs
     totalflux = numpy.sum(psfstack, axis=(1, 2))
     psfstack /= totalflux.reshape(-1, 1, 1)
+    weightstack *= totalflux.reshape(-1, 1, 1)
     tpsf = numpy.median(psfstack, axis=0)
     tpsf = center_psf(tpsf)
     return tpsf
