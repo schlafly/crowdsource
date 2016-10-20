@@ -25,6 +25,7 @@ def fit_sections(im, psf, nx, ny, overlap=50, weight=None, **kw):
     bdry = numpy.clip(bdy + overlap, 0, im.shape[0])
     modelim = numpy.zeros_like(im)
     skyim = numpy.zeros_like(im)
+    prisofar = numpy.zeros_like(im, dtype='bool')
     stars = numpy.zeros(0, dtype=[('x', 'f4'), ('y', 'f4'), ('flux', 'f4'),
                                   ('primary', 'i4'), ('psf', 'i4')])
     t0 = time.time()
@@ -45,6 +46,9 @@ def fit_sections(im, psf, nx, ny, overlap=50, weight=None, **kw):
             mfixed &= ~in_bounds(stars['x'], stars['y'],
                                  [bdx[i]-0.5, bdx[i+1]-0.5],
                                  [bdy[j]-0.5, bdy[j+1]-0.5])
+            xp, yp = (numpy.round(c).astype('i4')
+                      for c in (stars['x'], stars['y']))
+            mfixed &= (stars['primary'] == 1) | (prisofar[xp, yp] == 0)
             fixedstars = {f: stars[f][mfixed] for f in stars.dtype.names}
             fixedstars['x'] -= bdlx[i]
             fixedstars['y'] -= bdly[j]
@@ -72,7 +76,8 @@ def fit_sections(im, psf, nx, ny, overlap=50, weight=None, **kw):
             stars = numpy.append(stars, newstars)
             psfs.append(psf0)
             modelim[spri] = model0[sfit]
-            skyim[spri] = model0[sfit]
+            skyim[spri] = sky0[sfit]
+            prisofar[spri] = sky0[sfit]
             if kw.get('verbose', False):
                 t1 = time.time()
                 print('Fit tile (%d, %d) of (%d, %d); %d sec elapsed' %

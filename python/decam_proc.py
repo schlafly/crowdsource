@@ -11,6 +11,12 @@ from astropy.io import fits
 from astropy import wcs
 
 
+def read(imfn, extname):
+    ivarfn = imfn.replace('_ooi_', '_oow_')
+    dqfn = imfn.replace('_ooi_', '_ood_')
+    return read_data(imfn, ivarfn, dqfn, extname)
+
+
 def read_data(imfn, ivarfn, dqfn, extname):
     import warnings
     with warnings.catch_warnings(record=True) as wlist:
@@ -50,14 +56,13 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
         im, wt, dq = read_data(imfn, ivarfn, dqfn, name)
         hdr = fits.getheader(imfn, extname=name)
         fwhm = hdr['FWHM']
-        psf, dpsfdx, dpsfdy = crowdsource.moffat_psf(fwhm)
-        psf = crowdsource.center_psf(psf)
-        res = mosaic.fit_sections(im, psf, 4, 2, weight=wt,
+        psf = crowdsource.moffat_psf(fwhm, stampsz=59, deriv=False)
+        res = mosaic.fit_sections(im, psf, 1, 1, weight=wt,
                                   psfderiv=numpy.gradient(-psf),
                                   refit_psf=True, verbose=verbose)
         cat, modelim, skyim, psfs = res
         wcs0 = wcs.WCS(hdr)
-        ra, dec = wcs0.all_pix2world(cat['x'], cat['y'], 0.)
+        ra, dec = wcs0.all_pix2world(cat['y'], cat['x'], 0.)
         from matplotlib.mlab import rec_append_fields
         cat = rec_append_fields(cat, ['ra', 'dec'], [ra, dec])
         if verbose:
