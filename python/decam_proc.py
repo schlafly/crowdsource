@@ -37,7 +37,7 @@ def read_data(imfn, ivarfn, dqfn, extname):
 
 
 def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
-                  verbose=False, nproc=numpy.inf):
+                  outdir=None, verbose=False, nproc=numpy.inf):
     with fits.open(imfn) as hdulist:
         extnames = [hdu.name for hdu in hdulist]
     if 'PRIMARY' not in extnames:
@@ -45,6 +45,8 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
     prihdr = fits.getheader(imfn, extname='PRIMARY')
     if outfn is None or len(outfn) == 0:
         outfn = os.path.splitext(os.path.basename(imfn))[0]+'.cat.fits'
+    if outdir is not None:
+        outfn = os.path.join(outdir, outfn)
     fits.writeto(outfn, None, prihdr, clobber=clobber)
     count = 0
     for name in extnames:
@@ -84,9 +86,11 @@ if __name__ == "__main__":
     parser.add_argument('--outfn', '-o', type=str,
                         default=None, help='output file name')
     parser.add_argument('--verbose', '-v', action='store_true')
+    parser.add_argument('--outdir', '-d', help='output directory',
+                        type=str, default=None)
     parser.add_argument('imfn', type=str, help='Image file name')
     parser.add_argument('ivarfn', type=str, help='Inverse variance file name')
     parser.add_argument('dqfn', type=str, help='Data quality file name')
     args = parser.parse_args()
     process_image(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn,
-                  verbose=args.verbose)
+                  verbose=args.verbose, outdir=args.outdir)
