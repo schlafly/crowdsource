@@ -68,7 +68,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
         from matplotlib.mlab import rec_append_fields
         cat = rec_append_fields(cat, ['ra', 'dec'], [ra, dec])
         if verbose:
-            print('Writing %s, found %d sources.' % (outfn, len(cat)))
+            print('Writing %s %s, found %d sources.' % (outfn, name, len(cat)))
             sys.stdout.flush()
         hdr['EXTNAME'] = hdr['EXTNAME']+'_HDR'
         fits.append(outfn, numpy.array(psfs), hdr)
