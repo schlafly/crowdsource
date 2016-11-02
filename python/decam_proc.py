@@ -30,7 +30,8 @@ def read_data(imfn, ivarfn, dqfn, extname):
             continue
         else:
             print(warning)
-    mzerowt = (imded != 0) | (imdew < 0.) | ~numpy.isfinite(imdew)
+    mzerowt = (((imded != 0) & (imded != 7)) |
+               (imdew < 0.) | ~numpy.isfinite(imdew))
     imdew[mzerowt] = 0.
     imdew[:] = numpy.sqrt(imdew)
     return imdei, imdew, imded

@@ -9,6 +9,7 @@ import time
 import pdb
 import numpy
 import crowdsource
+from collections import OrderedDict
 
 
 def in_bounds(x, y, xbound, ybound):
@@ -26,6 +27,9 @@ def fit_sections(im, psf, nx, ny, overlap=50, weight=None, **kw):
     modelim = numpy.zeros_like(im)
     skyim = numpy.zeros_like(im)
     prisofar = numpy.zeros_like(im, dtype='bool')
+    # this holder for stars gets filled out more completely later after
+    # the first fit; for the moment, we just want the critical fields to
+    # exist
     stars = numpy.zeros(0, dtype=[('x', 'f4'), ('y', 'f4'), ('flux', 'f4'),
                                   ('primary', 'i4'), ('psf', 'i4')])
     t0 = time.time()
@@ -62,18 +66,22 @@ def fit_sections(im, psf, nx, ny, overlap=50, weight=None, **kw):
             res0 = crowdsource.fit_im(im[sall].copy(), tpsf,
                                       weight=weight[sall].copy(),
                                       fixedstars=fixedstars, **kw)
-            x0, y0, flux0, skypar0, model0, sky0, psf0 = res0
-            x0 += bdlx[i]
-            y0 += bdly[j]
-            primary0 = in_bounds(x0, y0,
+            newstars, skypar0, model0, sky0, psf0 = res0
+            newstars['x'] += bdlx[i]
+            newstars['y'] += bdly[j]
+            primary0 = in_bounds(newstars['x'], newstars['y'],
                                  [bdx[i]-0.5, bdx[i+1]-0.5],
                                  [bdy[j]-0.5, bdy[j+1]-0.5])
-            # pdb.set_trace()
-            newstars = numpy.array(zip(
-                x0, y0, flux0, primary0,
-                len(psfs)*numpy.ones(len(x0), dtype='i4')),
-                dtype=stars.dtype)
-            stars = numpy.append(stars, newstars)
+            newstars['primary'] = primary0
+            newstars['psf'] = (numpy.ones(len(newstars['x']), dtype='i4') *
+                               len(psfs))
+            dtypenames = newstars.keys()
+            dtypeformats = [newstars[n].dtype for n in dtypenames]
+            dtype = dict(names=dtypenames, formats=dtypeformats)
+            newstars = numpy.fromiter(zip(*newstars.itervalues()),
+                                      dtype=dtype, count=len(newstars['x']))
+            stars = (newstars if len(stars) == 0
+                     else numpy.append(stars, newstars))
             psfs.append(psf0)
             modelim[spri] = model0[sfit]
             skyim[spri] = sky0[sfit]

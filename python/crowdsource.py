@@ -18,13 +18,16 @@ import numpy
 import scipy
 import pdb
 import scipy.ndimage.filters as filters
+from collections import OrderedDict
 
 
 def shift(im, offset, **kw):
     """Wrapper for scipy.ndimage.interpolation.shift"""
     from scipy.ndimage.interpolation import shift
     if 'order' not in kw:
-        kw['order'] = 4  # order 3: ~0.6 mmag; order=4 ~0.2 mmag
+        kw['order'] = 4
+        # 1" Gaussian: 60 umag; 0.75": 0.4 mmag; 0.5": 4 mmag
+        # order=3 roughly 5x worse.
     if 'mode' not in kw:
         kw['mode'] = 'nearest'
     if 'output' not in kw:
@@ -49,7 +52,6 @@ def sim_image(nx, ny, nstar, fwhm, noise, return_psf=False, nskyx=3, nskyy=3):
         -(xc.reshape(-1, 1)**2. + yc.reshape(1, -1)**2.) /
         2./sigma**2.).astype('f4')
     flux = 1./numpy.random.power(1.2, nstar)
-    # pdb.set_trace()
     for i in range(nstar):
         fracshiftx = x[i]-numpy.round(x[i])
         fracshifty = y[i]-numpy.round(y[i])
@@ -99,22 +101,17 @@ def peakfind(im, model, isig, psf, keepsat=False, threshhold=5,
     if len(brightpeak[0]) > 0:
         mb, mf, dbf = match_xy(brightpeak[0], brightpeak[1],
                                faintpeak[0], faintpeak[1])
-        hasbrightneighbor = numpy.zeros(len(faintpeak[0]), dtype='bool')
-        hasbrightneighbor[mf[dbf < 1.1]] = True
+        hasbrightneighbor = dbf < 1.1
         faintpeak = [fp[~hasbrightneighbor] for fp in faintpeak]
-        if not numpy.all(hasbrightneighbor == (dbf < 1.1)):
-            pdb.set_trace()
     x, y = [numpy.concatenate([b, f]) for b, f in zip(brightpeak, faintpeak)]
     fluxratio = im[x, y]/numpy.clip(model[x, y], 0.1, numpy.inf)
     sigratio = (im[x, y]*isig[x, y])/numpy.clip(modelsigim[x, y], 0.1,
                                                 numpy.inf)
-    # sigratio2 = sigim[x, y]/numpy.clip(model[x, y]*isig[x, y], 0.1, numpy.inf)
     sigratio2 = sigim[x, y]/numpy.clip(modelsigim[x, y], 0.1, numpy.inf)
     keepsatcensrc = keepsat & (isig[x, y] == 0)
     m = ((isig[x, y] > 0) | keepsatcensrc)  # ~saturated, or saturated & keep
     m = m & ((sigratio2 > blendthreshhold*2) |
              ((fluxratio > blendthreshhold) & (sigratio > blendthreshhold/4.)))
-    # pdb.set_trace()
     return x[m], y[m]
 
 
@@ -189,7 +186,7 @@ def fit_once(im, x, y, psf, weight=None, psfderiv=None, nskyx=0, nskyy=0,
     # later add in the derivatives at each peak
     if sz is None:
         sz = numpy.ones(len(x), dtype='i4')*psf.shape[0]
-    stampsz = numpy.max(sz)
+    stampsz = psf.shape[0]
     stampszo2 = stampsz // 2
     szo2 = sz // 2
     nx, ny = im.shape
@@ -470,7 +467,8 @@ def compute_centroids(x, y, psf, flux, im, resid, weight, psfderiv=None,
     xcen, ycen = (c*(2 if not simple else 1) for c in cen)
     # weighting biases centroids small by factor of 2 in gaussian case,
     # at least
-    res = (xcen, ycen, (modelst+residst, residst, weightst, imst))
+    res = (xcen, ycen, (modelst+residst, imst, modelst, weightst))
+    # modelst+residst, residst, weightst, imst))
     return res
 
 
@@ -508,7 +506,6 @@ def estimate_sky_background(im, sdev=None):
     # par = minimize_scalar(objective, bracket=[lb, ub], args=(lb, ub))
     # lb, ub = par['x']-sdev, par['x']+sdev
     # par = minimize_scalar(objective, bracket=[lb, ub], args=(lb, ub))
-    # pdb.set_trace()
     # return par['x']
 
 
@@ -650,22 +647,27 @@ def fit_im(im, psf, threshhold=0.3, weight=None, psfderiv=None,
         flux, model, _ = fit_once(im-sky, xa, ya, psf, psfderiv=tpsfderiv,
                                   sz=sz, weight=weight, guess=guess,
                                   nskyx=0, nskyy=0)
+        centroids = compute_centroids(xa, ya, psf, flux[0], im-sky,
+                                      im-model-sky,
+                                      weight, psfderiv=tpsfderiv,
+                                      simple=(i == 0))
+        xcen, ycen, stamps = centroids
         if i == niter - 1:
+            tflux, tskypar = unpack_fitpar(flux[0], len(xa), False)
+            stats = compute_stats(xa-numpy.round(xa), ya-numpy.round(ya),
+                                  stamps[0], stamps[0]-stamps[2],
+                                  stamps[3], stamps[1], psf,
+                                  tflux, psfderiv=psfderiv)
             break
         modelnosat = subtract_satstars(model, weight, xa, ya, flux[0],
                                        psf, psfderiv=psfderiv)
         guessflux, guesssky = unpack_fitpar(flux[0], len(xa),
                                             psfderiv is not None)
-        centroids = compute_centroids(xa, ya, psf, flux[0], im-sky,
-                                      im-model-sky,
-                                      weight, psfderiv=psfderiv,
-                                      simple=(i == 0))
-        xcen, ycen, stamps = centroids
         if refit_psf:
             shiftx = xcen + xa - numpy.round(xa)
             shifty = ycen + ya - numpy.round(ya)
             npsf = find_psf(xa, shiftx, ya, shifty,
-                            stamps[0], stamps[1], stamps[2], stamps[3], psf)
+                            stamps[0], stamps[3], stamps[1], psf)
             if npsf is not None:
                 psf = npsf
                 if psfderiv is not None:
@@ -674,7 +676,6 @@ def fit_im(im, psf, threshhold=0.3, weight=None, psfderiv=None,
         xa, ya = (numpy.clip(c, -0.4999, s-0.50001)
                   for c, s in zip((xa+xcen, ya+ycen), im.shape))
         keep = (guessflux > 0) & (cull_near(xa, ya, guessflux))
-        # pdb.set_trace()
         xa, ya = (c[keep] for c in (xa, ya))
         guessflux = guessflux[keep]
         if i == 0:
@@ -685,8 +686,42 @@ def fit_im(im, psf, threshhold=0.3, weight=None, psfderiv=None,
     if fixedmodel is not None:
         model += fixedmodel
     flux, skypar = unpack_fitpar(flux[0], len(xa), False)
-    res = (xa, ya, flux, skypar, model+sky, sky, psf)
+    stars = OrderedDict([('x', xa), ('y', ya), ('flux', flux)] +
+                        [(f, stats[f]) for f in stats])
+    res = (stars, skypar, model+sky, sky, psf)
     return res
+
+
+def compute_stats(xs, ys, psfstack, residstack, weightstack, imstack, psf,
+                  flux, psfderiv=None):
+    psf = central_stamp(psf)
+    if psfderiv is not None:
+        psfderiv = [central_stamp(p) for p in psfderiv]
+    qf = (numpy.sum(psf[None, :, :]*(weightstack > 0), axis=(1, 2)) /
+          numpy.sum(psf[None, :, :], axis=(1, 2)))
+    fluxunc = numpy.sum(psf[None, :, :]**2.*weightstack**2., axis=(1, 2))
+    fluxunc = fluxunc + (fluxunc == 0)*1e-20
+    fluxunc = fluxunc**(-0.5)
+    posunc = [numpy.zeros(len(qf), dtype='f4'),
+              numpy.zeros(len(qf), dtype='f4')]
+    if psfderiv is not None:
+        for i, p in enumerate(psfderiv):
+            dp = numpy.sum((p[None, :, :]*weightstack*flux[:, None, None])**2.,
+                           axis=(1, 2))
+            dp = dp + (dp == 0)*1e-40
+            dp = dp**(-0.5)
+            posunc[i] = dp
+    rchi2 = numpy.sum(residstack**2.*weightstack**2.*psf[None, :, :],
+                      axis=(1, 2)) / (qf + (qf == 0.)*1e-20)
+    fracfluxn = numpy.sum(psfstack*(weightstack > 0)*psf[None, :, :],
+                          axis=(1, 2))
+    fracfluxd = numpy.sum(imstack*(weightstack > 0)*psf[None, :, :],
+                          axis=(1, 2))
+    fracfluxd = fracfluxd + (fracfluxd == 0)*1e-20
+    fracflux = fracfluxn / fracfluxd
+    return OrderedDict([('dflux', fluxunc),
+                        ('dx', posunc[0]), ('dy', posunc[1]),
+                        ('qf', qf), ('rchi2', rchi2), ('fracflux', fracflux)])
 
 
 def sky_model_basis(i, j, nskyx, nskyy, nx, ny):
@@ -776,7 +811,8 @@ def match_xy(x1, y1, x2, y2, neighbors=1):
     m2 = numpy.repeat(numpy.arange(len(vec2), dtype='i4'), neighbors)
     dist = dist.ravel()
     dist = dist
-    return m1, m2, dist
+    m = m1 < len(x1)  # possible if fewer than neighbors elements in x1.
+    return m1[m], m2[m], dist[m]
 
 
 def gaussian_psf(fwhm, stampsz=19, deriv=True):
@@ -850,7 +886,6 @@ def center_psf(psf):
     stampsz = cpsf.shape[0]
     stampszo2 = stampsz // 2
     xc = numpy.arange(stampsz, dtype='f4')-stampszo2
-    xc *= numpy.abs(xc) <= 9  # only use the inner 19 pixels for centroiding
     xc = xc.reshape(-1, 1)
     yc = xc.copy().reshape(1, -1)
     for _ in range(3):
@@ -862,7 +897,7 @@ def center_psf(psf):
     return psf
 
 
-def find_psf(xcen, shiftx, ycen, shifty, psfstack, residstack, weightstack,
+def find_psf(xcen, shiftx, ycen, shifty, psfstack, weightstack,
              imstack, psf):
     """Find PSF from stamps."""
     # let's just go ahead and correlate the noise
@@ -871,9 +906,6 @@ def find_psf(xcen, shiftx, ycen, shifty, psfstack, residstack, weightstack,
     psfqf = (numpy.sum(psfstack*(weightstack > 0), axis=(1, 2)) /
              numpy.sum(psfstack, axis=(1, 2)))
     totalflux = numpy.sum(psfstack, axis=(1, 2))
-    chi2 = numpy.sum(residstack**2.*((weightstack+1.e-10)**-2. +
-                                     (0.2*psfstack)**2.)**-1.,
-                     axis=(1, 2))
     timflux = numpy.sum(imstack, axis=(1, 2))
     toneflux = numpy.sum(psfstack, axis=(1, 2))
     tmedflux = numpy.median(psfstack, axis=(1, 2))
@@ -882,8 +914,7 @@ def find_psf(xcen, shiftx, ycen, shifty, psfstack, residstack, weightstack,
                   numpy.clip(timflux, 100, numpy.inf))
     okpsf = ((numpy.abs(psfqf - 1) < 0.03) &
              (numpy.abs(shiftx) < 0.5) & (numpy.abs(shifty) < 0.5) &
-             (tfracflux > 0.5) & (tfracflux2 > 0.2))  # &
-             # (chi2 < 1.5*len(psfstack[0].reshape(-1))))
+             (tfracflux > 0.5) & (tfracflux2 > 0.2))
     if numpy.sum(okpsf) > 100:
         okpsf = okpsf & (totalflux > -numpy.sort(-totalflux[okpsf])[99])
     if numpy.sum(okpsf) <= 5:
@@ -891,7 +922,6 @@ def find_psf(xcen, shiftx, ycen, shifty, psfstack, residstack, weightstack,
         return None
     psfstack = psfstack[okpsf, :, :]
     weightstack = weightstack[okpsf, :, :]
-    residstack = residstack[okpsf, :, :]
     totalflux = totalflux[okpsf]
     xcen = xcen[okpsf]
     ycen = ycen[okpsf]
@@ -900,8 +930,8 @@ def find_psf(xcen, shiftx, ycen, shifty, psfstack, residstack, weightstack,
     for i in range(psfstack.shape[0]):
         psfstack[i, :, :] = shift(psfstack[i, :, :], [-shiftx[i], -shifty[i]])
         if (numpy.abs(xr[i]) > 0) or (numpy.abs(yr[i]) > 0):
-            residstack[i, :, :] = shift(residstack[i, :, :], [-xr[i], -yr[i]])
-            weightstack[i, :, :] = shift(residstack[i, :, :], [-xr[i], -yr[i]],
+            weightstack[i, :, :] = shift(weightstack[i, :, :],
+                                         [-xr[i], -yr[i]],
                                          mode='constant', cval=0.)
         # our best guess as to the PSFs & their weights
     # select some reasonable sample of the PSFs
@@ -934,6 +964,12 @@ def find_psf(xcen, shiftx, ycen, shifty, psfstack, residstack, weightstack,
     npsfcen[:, :] = tpsf*wt+(1-wt)*npsfcen[:, :]
     npsf /= numpy.sum(npsf)
     return npsf
+
+
+def neff_fwhm(stamp):
+    """FWHM-like quantity derived from N_eff = numpy.sum(PSF**2.)**-1"""
+    norm = numpy.sum(stamp)
+    return 1.18 * numpy.sqrt(numpy.sum((stamp/norm)**2.)**-1./numpy.pi)
 
 
 sample = """
