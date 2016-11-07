@@ -60,7 +60,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
         hdr = fits.getheader(imfn, extname=name)
         fwhm = hdr['FWHM']
         psf = crowdsource.moffat_psf(fwhm, stampsz=59, deriv=False)
-        res = mosaic.fit_sections(im, psf, 1, 1, weight=wt,
+        res = mosaic.fit_sections(im, psf, 4, 2, weight=wt, dq=dq,
                                   psfderiv=numpy.gradient(-psf),
                                   refit_psf=True, verbose=verbose)
         cat, modelim, skyim, psfs = res
@@ -72,7 +72,8 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
             print('Writing %s %s, found %d sources.' % (outfn, name, len(cat)))
             sys.stdout.flush()
         hdr['EXTNAME'] = hdr['EXTNAME']+'_HDR'
-        fits.append(outfn, numpy.array(psfs), hdr)
+        # fits.append(outfn, numpy.array(psfs), hdr)
+        fits.append(outfn, modelim, hdr)
         fits.append(outfn, cat)
         hdrcat = fits.getheader(outfn, -1)
         hdrcat['EXTNAME'] = hdr['EXTNAME'][:-4] + '_CAT'

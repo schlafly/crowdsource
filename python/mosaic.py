@@ -17,7 +17,7 @@ def in_bounds(x, y, xbound, ybound):
             (y > ybound[0]) & (y <= ybound[1]))
 
 
-def fit_sections(im, psf, nx, ny, overlap=50, weight=None, **kw):
+def fit_sections(im, psf, nx, ny, overlap=50, weight=None, dq=None, **kw):
     bdx = numpy.round(numpy.linspace(0, im.shape[0], nx+1)).astype('i4')
     bdlx = numpy.clip(bdx - overlap, 0, im.shape[0])
     bdrx = numpy.clip(bdx + overlap, 0, im.shape[0])
@@ -65,6 +65,7 @@ def fit_sections(im, psf, nx, ny, overlap=50, weight=None, **kw):
                 tpsf = psfs[-ny]
             res0 = crowdsource.fit_im(im[sall].copy(), tpsf,
                                       weight=weight[sall].copy(),
+                                      dq=dq[sall].copy(),
                                       fixedstars=fixedstars, **kw)
             newstars, skypar0, model0, sky0, psf0 = res0
             newstars['x'] += bdlx[i]
@@ -93,4 +94,7 @@ def fit_sections(im, psf, nx, ny, overlap=50, weight=None, **kw):
                 t0 = t1            # import csplot
                 sys.stdout.flush()
             # pdb.set_trace()
+    stars = stars[stars['primary'] == 1]
+    from matplotlib.mlab import rec_drop_fields
+    stars = rec_drop_fields(stars, ['primary'])
     return stars, modelim, skyim, psfs

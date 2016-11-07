@@ -162,7 +162,8 @@ def in_padded_region(flatcoord, imshape, pad):
     return m
 
 
-def fit_once(im, x, y, psf, weight=None, psfderiv=None, nskyx=0, nskyy=0,
+def fit_once(im, x, y, psf, weight=None,
+             psfderiv=None, nskyx=0, nskyy=0,
              guess=None, sz=None):
     """Fit fluxes for psfs at x & y in image im.
 
@@ -593,7 +594,7 @@ def subtract_satstars(model, weight, x, y, flux, psf, psfderiv=None):
     return model-bmodel
 
 
-def fit_im(im, psf, threshhold=0.3, weight=None, psfderiv=None,
+def fit_im(im, psf, threshhold=0.3, weight=None, dq=None, psfderiv=None,
            nskyx=0, nskyy=0, refit_psf=False, fixedstars=None,
            verbose=False):
     niter = 5
@@ -658,6 +659,7 @@ def fit_im(im, psf, threshhold=0.3, weight=None, psfderiv=None,
                                   stamps[0], stamps[0]-stamps[2],
                                   stamps[3], stamps[1], psf,
                                   tflux, psfderiv=psfderiv)
+            stats['flags'] = compute_flags(xa, ya, dq)
             break
         modelnosat = subtract_satstars(model, weight, xa, ya, flux[0],
                                        psf, psfderiv=psfderiv)
@@ -722,6 +724,17 @@ def compute_stats(xs, ys, psfstack, residstack, weightstack, imstack, psf,
     return OrderedDict([('dflux', fluxunc),
                         ('dx', posunc[0]), ('dy', posunc[1]),
                         ('qf', qf), ('rchi2', rchi2), ('fracflux', fracflux)])
+
+
+def compute_flags(xa, ya, dq):
+    m = numpy.ones(len(xa), dtype='bool')
+    for c, sz in zip((xa, ya), dq.shape):
+        m = m & (c > -0.5) & (c < sz - 0.5)
+    flags = numpy.zeros(len(xa), dtype='i4')
+    flags[~m] = 999
+    xp, yp = (numpy.round(c[m]).astype('i4') for c in (xa, ya))
+    flags[m] = dq[xp, yp]
+    return flags
 
 
 def sky_model_basis(i, j, nskyx, nskyy, nx, ny):
