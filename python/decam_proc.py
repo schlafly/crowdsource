@@ -90,13 +90,15 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
         hdr['EXTNAME'] = hdr['EXTNAME']+'_HDR'
         # fits.append(outfn, numpy.array(psfs), hdr)
         fits.append(outfn, modelim, hdr)
-        fits.append(outfn, cat)
-        hdrcat = fits.getheader(outfn, -1)
-        hdrcat['EXTNAME'] = hdr['EXTNAME'][:-4] + '_CAT'
-        fits.update(outfn, cat, hdrcat, -1)
+        hducat = fits.TableHDU(cat)
+        hducat.name = hdr['EXTNAME'][:-4] + '_CAT'
+        hdulist = fits.open(outfn)
+        hdulist.append(hducat)
+        hdulist.close()
         count += 1
         if count > nproc:
             break
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Fit DECam frame')
