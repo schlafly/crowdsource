@@ -38,7 +38,7 @@ def read_data(imfn, ivarfn, dqfn, extname):
 
 
 def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
-                  outdir=None, verbose=False, nproc=numpy.inf):
+                  outdir=None, verbose=False, nproc=numpy.inf, resume=False):
     with fits.open(imfn) as hdulist:
         extnames = [hdu.name for hdu in hdulist]
     if 'PRIMARY' not in extnames:
@@ -48,10 +48,26 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
         outfn = os.path.splitext(os.path.basename(imfn))[0]+'.cat.fits'
     if outdir is not None:
         outfn = os.path.join(outdir, outfn)
-    fits.writeto(outfn, None, prihdr, clobber=clobber)
+    if not resume or not os.path.exists(outfn):
+        fits.writeto(outfn, None, prihdr, clobber=clobber)
+        extnamesdone = None
+    else:
+        hdulist = fits.open(outfn)
+        extnamesdone = []
+        for hdu in hdulist:
+            if hdu.name == 'PRIMARY':
+                continue
+            ext, exttype = hdu.name.split('_')
+            if exttype != 'CAT':
+                continue
+            extnamesdone.append(ext)
+        hdulist.close()
     count = 0
     for name in extnames:
         if name is 'PRIMARY':
+            continue
+        if extnamesdone is not None and name in extnamesdone:
+            print('Skipping %s, extension %s; already done.' % (imfn, name))
             continue
         if verbose:
             print('Fitting %s, extension %s.' % (imfn, name))
