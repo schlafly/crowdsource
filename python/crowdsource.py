@@ -926,13 +926,18 @@ def find_psf(xcen, shiftx, ycen, shifty, psfstack, weightstack,
     tfracflux2 = ((toneflux-tmedflux*psfstack.shape[1]*psfstack.shape[2]) /
                   numpy.clip(timflux, 100, numpy.inf))
     okpsf = ((numpy.abs(psfqf - 1) < 0.03) &
-             (numpy.abs(shiftx) < 0.5) & (numpy.abs(shifty) < 0.5) &
              (tfracflux > 0.5) & (tfracflux2 > 0.2))
-    if numpy.sum(okpsf) > 100:
-        okpsf = okpsf & (totalflux > -numpy.sort(-totalflux[okpsf])[99])
+    if numpy.sum(okpsf) > 0:
+        shiftxm = numpy.median(shiftx[okpsf])
+        shiftym = numpy.median(shifty[okpsf])
+        okpsf = (okpsf &
+                 (numpy.abs(shiftx-shiftxm) < 1.) &
+                 (numpy.abs(shifty-shiftym) < 1.))
     if numpy.sum(okpsf) <= 5:
         print('Fewer than 5 stars accepted in image, keeping original PSF')
         return None
+    if numpy.sum(okpsf) > 100:
+        okpsf = okpsf & (totalflux > -numpy.sort(-totalflux[okpsf])[99])
     psfstack = psfstack[okpsf, :, :]
     weightstack = weightstack[okpsf, :, :]
     totalflux = totalflux[okpsf]
