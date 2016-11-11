@@ -88,13 +88,13 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
             print('Writing %s %s, found %d sources.' % (outfn, name, len(cat)))
             sys.stdout.flush()
         hdr['EXTNAME'] = hdr['EXTNAME']+'_HDR'
-        # fits.append(outfn, numpy.array(psfs), hdr)
-        fits.append(outfn, modelim, hdr)
-        hducat = fits.TableHDU(cat)
+        fits.append(outfn, numpy.array(psfs), hdr)
+        hducat = fits.BinTableHDU(cat)
         hducat.name = hdr['EXTNAME'][:-4] + '_CAT'
-        hdulist = fits.open(outfn)
+        hdulist = fits.open(outfn, mode='append')
         hdulist.append(hducat)
-        hdulist.close()
+        # hdulist.writeto(outfn)
+        hdulist.close(closed=True)
         count += 1
         if count > nproc:
             break
