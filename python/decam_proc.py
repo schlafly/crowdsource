@@ -108,7 +108,8 @@ if __name__ == "__main__":
     parser.add_argument('--verbose', '-v', action='store_true')
     parser.add_argument('--outdir', '-d', help='output directory',
                         type=str, default=None)
-    parser.add_argument('--resume', '-r', help='resume if file already exists')
+    parser.add_argument('--resume', '-r', action='store_true',
+                        help='resume if file already exists')
     parser.add_argument('imfn', type=str, help='Image file name')
     parser.add_argument('ivarfn', type=str, help='Inverse variance file name')
     parser.add_argument('dqfn', type=str, help='Data quality file name')
