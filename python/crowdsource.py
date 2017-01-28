@@ -339,11 +339,15 @@ def lsqr_cp(aa, bb, guess=None, **kw):
     normbb = numpy.sum(bb2**2.)
     bb2 /= normbb**(0.5)
     par = linalg.lsqr(aa, bb2, **kw)
+    # for some reason, everything ends up as double precision after this
     # or lsmr; lsqr seems to be better
     # par[0][:] *= norm**(-0.5)*normbb**(0.5)
     par[0][:] *= normbb**0.5
     if guess is not None:
         par[0][:] += guess
+    par = list(par)
+    par[0] = par[0].astype('f4')
+    par[9] = par[9].astype('f4')
     return par
 
 
@@ -427,8 +431,8 @@ def compute_centroids(x, y, psf, flux, im, resid, weight, psfderiv=None,
     im = numpy.pad(im, [stampszo2, stampszo2], constant_values=0.,
                    mode='constant')
     repeat = 3 if psfderiv else 1
-    xf = x - xp
-    yf = y - yp
+    xf = (x - xp).astype('f4')
+    yf = (y - yp).astype('f4')
     residst = numpy.array([resid[xe0:xe0+stampsz, ye0:ye0+stampsz]
                            for (xe0, ye0) in zip(xe, ye)])
     weightst = numpy.array([weight[xe0:xe0+stampsz, ye0:ye0+stampsz]
@@ -460,6 +464,8 @@ def compute_centroids(x, y, psf, flux, im, resid, weight, psfderiv=None,
                            axis=(1, 2))
         # bias for asymmetric PSFs
         numer3 = numpy.sum(dc*psf*psf)
+        numer0, numer1, numer2, numer3 = [
+            numer.astype('f4') for numer in (numer0, numer1, numer2, numer3)]
         c0 = numer0 / (denom0 + (denom0 == 0))
         c1 = numer1 / (denom1 + (denom1 == 0))
         c2 = numer2 / (denom2 + (denom2 == 0))
@@ -630,7 +636,8 @@ def fit_im(im, psf, threshhold=0.3, weight=None, dq=None, psfderiv=None,
             if len(xa) > 0 and len(xn) > 0:
                 keep = neighbor_dist(xn, yn, xa, ya) > 1.5
                 xn, yn = (c[keep] for c in (xn, yn))
-            xa, ya = numpy.concatenate([xa, xn]), numpy.concatenate([ya, yn])
+            xa, ya = (numpy.concatenate([xa, xn]).astype('f4'),
+                      numpy.concatenate([ya, yn]).astype('f4'))
             if verbose:
                 print('Iteration %d, found %d sources.' % (i+1, len(xn)))
         else:
@@ -703,7 +710,7 @@ def compute_stats(xs, ys, psfstack, residstack, weightstack, imstack, psf,
           numpy.sum(psf[None, :, :], axis=(1, 2)))
     fluxunc = numpy.sum(psf[None, :, :]**2.*weightstack**2., axis=(1, 2))
     fluxunc = fluxunc + (fluxunc == 0)*1e-20
-    fluxunc = fluxunc**(-0.5)
+    fluxunc = (fluxunc**(-0.5)).astype('f4')
     posunc = [numpy.zeros(len(qf), dtype='f4'),
               numpy.zeros(len(qf), dtype='f4')]
     if psfderiv is not None:
@@ -712,15 +719,15 @@ def compute_stats(xs, ys, psfstack, residstack, weightstack, imstack, psf,
                            axis=(1, 2))
             dp = dp + (dp == 0)*1e-40
             dp = dp**(-0.5)
-            posunc[i] = dp
+            posunc[i][:] = dp
     rchi2 = numpy.sum(residstack**2.*weightstack**2.*psf[None, :, :],
-                      axis=(1, 2)) / (qf + (qf == 0.)*1e-20)
+                      axis=(1, 2)) / (qf + (qf == 0.)*1e-20).astype('f4')
     fracfluxn = numpy.sum(psfstack*(weightstack > 0)*psf[None, :, :],
                           axis=(1, 2))
     fracfluxd = numpy.sum(imstack*(weightstack > 0)*psf[None, :, :],
                           axis=(1, 2))
     fracfluxd = fracfluxd + (fracfluxd == 0)*1e-20
-    fracflux = fracfluxn / fracfluxd
+    fracflux = (fracfluxn / fracfluxd).astype('f4')
     return OrderedDict([('dflux', fluxunc),
                         ('dx', posunc[0]), ('dy', posunc[1]),
                         ('qf', qf), ('rchi2', rchi2), ('fracflux', fracflux)])
