@@ -682,7 +682,7 @@ def fit_im(im, psf, threshhold=0.3, weight=None, dq=None, psfderiv=None,
                 if psfderiv is not None:
                     psfderiv = numpy.gradient(-psf)
         xcen, ycen = (numpy.clip(c, -3, 3) for c in (xcen, ycen))
-        xa, ya = (numpy.clip(c, -0.4999, s-0.50001)
+        xa, ya = (numpy.clip(c, -0.4999, s-0.5001)
                   for c, s in zip((xa+xcen, ya+ycen), im.shape))
         keep = (guessflux > 0) & (cull_near(xa, ya, guessflux))
         xa, ya = (c[keep] for c in (xa, ya))
