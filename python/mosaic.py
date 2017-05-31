@@ -9,7 +9,6 @@ import time
 import pdb
 import numpy
 import crowdsource
-from collections import OrderedDict
 
 
 def in_bounds(x, y, xbound, ybound):
@@ -17,13 +16,14 @@ def in_bounds(x, y, xbound, ybound):
             (y > ybound[0]) & (y <= ybound[1]))
 
 
-def fit_sections(im, psf, nx, ny, overlap=50, weight=None, dq=None, **kw):
+def fit_sections(im, psf, nx, ny, overlap=50, weight=None, dq=None,
+                 blist=None, **kw):
     bdx = numpy.round(numpy.linspace(0, im.shape[0], nx+1)).astype('i4')
     bdlx = numpy.clip(bdx - overlap, 0, im.shape[0])
     bdrx = numpy.clip(bdx + overlap, 0, im.shape[0])
     bdy = numpy.round(numpy.linspace(0, im.shape[1], ny+1)).astype('i4')
-    bdly = numpy.clip(bdy - overlap, 0, im.shape[0])
-    bdry = numpy.clip(bdy + overlap, 0, im.shape[0])
+    bdly = numpy.clip(bdy - overlap, 0, im.shape[1])
+    bdry = numpy.clip(bdy + overlap, 0, im.shape[1])
     modelim = numpy.zeros_like(im)
     skyim = numpy.zeros_like(im)
     prisofar = numpy.zeros_like(im, dtype='bool')
@@ -47,26 +47,37 @@ def fit_sections(im, psf, nx, ny, overlap=50, weight=None, dq=None, **kw):
             mfixed = in_bounds(stars['x'], stars['y'],
                                [bdlx[i]-0.5, bdrx[i+1]-0.5],
                                [bdly[j]-0.5, bdry[j+1]-0.5])
+            ol2 = overlap / 2
             mfixed &= ~in_bounds(stars['x'], stars['y'],
-                                 [bdx[i]-0.5, bdx[i+1]-0.5],
-                                 [bdy[j]-0.5, bdy[j+1]-0.5])
+                                 [bdx[i]-0.5-ol2, bdx[i+1]-0.5+ol2],
+                                 [bdy[j]-0.5-ol2, bdy[j+1]-0.5+ol2])
             xp, yp = (numpy.round(c).astype('i4')
                       for c in (stars['x'], stars['y']))
             mfixed &= (stars['primary'] == 1) | (prisofar[xp, yp] == 0)
             fixedstars = {f: stars[f][mfixed] for f in stars.dtype.names}
             fixedstars['x'] -= bdlx[i]
             fixedstars['y'] -= bdly[j]
-            fixedstars['stamp'] = psfs
+            fixedstars['psfob'] = psfs
+            fixedstars['offset'] = (bdlx[i], bdly[j])
             if (i == 0) and (j == 0):
                 tpsf = psf
             elif j != 0:
                 tpsf = psfs[-1]
             else:
                 tpsf = psfs[-ny]
+            if blist is not None:  # cut to bright stars in subimage
+                mb = ((blist[0] >= bdlx[i]) & (blist[0] <= bdrx[i+1]) &
+                      (blist[1] >= bdly[j]) & (blist[1] <= bdry[j+1]))
+                blist0 = [blist[0][mb]-bdlx[i], blist[1][mb]-bdly[j]]
+                # offset X & Y to new positions
+            else:
+                blist0 = None
             res0 = crowdsource.fit_im(im[sall].copy(), tpsf,
                                       weight=weight[sall].copy(),
                                       dq=dq[sall].copy(),
-                                      fixedstars=fixedstars, **kw)
+                                      fixedstars=fixedstars,
+                                      blist=blist0,
+                                      **kw)
             newstars, skypar0, model0, sky0, psf0 = res0
             newstars['x'] += bdlx[i]
             newstars['y'] += bdly[j]
@@ -83,6 +94,7 @@ def fit_sections(im, psf, nx, ny, overlap=50, weight=None, dq=None, **kw):
                                       dtype=dtype, count=len(newstars['x']))
             stars = (newstars if len(stars) == 0
                      else numpy.append(stars, newstars))
+            psf0.offset = (bdlx[i], bdly[j])
             psfs.append(psf0)
             modelim[spri] = model0[sfit]
             skyim[spri] = sky0[sfit]
@@ -93,7 +105,6 @@ def fit_sections(im, psf, nx, ny, overlap=50, weight=None, dq=None, **kw):
                       (i+1, j+1, nx, ny, t1-t0))
                 t0 = t1            # import csplot
                 sys.stdout.flush()
-            # pdb.set_trace()
     stars = stars[stars['primary'] == 1]
     from matplotlib.mlab import rec_drop_fields
     stars = rec_drop_fields(stars, ['primary'])
