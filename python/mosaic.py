@@ -68,7 +68,8 @@ def fit_sections(im, psf, nx, ny, overlap=50, weight=None, dq=None,
             if blist is not None:  # cut to bright stars in subimage
                 mb = ((blist[0] >= bdlx[i]) & (blist[0] <= bdrx[i+1]) &
                       (blist[1] >= bdly[j]) & (blist[1] <= bdry[j+1]))
-                blist0 = [blist[0][mb]-bdlx[i], blist[1][mb]-bdly[j]]
+                blist0 = [blist[0][mb]-bdlx[i], blist[1][mb]-bdly[j],
+                          blist[2][mb]]
                 # offset X & Y to new positions
             else:
                 blist0 = None

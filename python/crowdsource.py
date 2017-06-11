@@ -21,6 +21,7 @@ import scipy.ndimage.filters as filters
 from collections import OrderedDict
 
 nebulosity_maskbit = 2**21
+brightstar_maskbit = 2**23
 
 
 def shift(im, offset, **kw):
@@ -78,8 +79,8 @@ def significance_image(im, model, isig, psf, sz=19):
     sigim = convolve(im*isig**2., psfstamp)
     varim = convolve(isig**2., psfstamp**2.)
     modim = convolve(model*isig**2., psfstamp)
-    varim[varim <= 1e-12] = 0.  # numerical noise starts to set in around here.
-    ivarim = 1./(varim + (varim == 0) * 1e12)
+    varim[varim <= 1e-14] = 0.  # numerical noise starts to set in around here.
+    ivarim = 1./(varim + (varim == 0) * 1e14)
     return sigim*numpy.sqrt(ivarim), modim*numpy.sqrt(ivarim)
 
 
@@ -137,8 +138,9 @@ def peakfind(im, model, isig, dq, psf, keepsat=False, threshhold=5,
     sigratio2 = sigim[x, y]/numpy.clip(modelsigim[x, y], 0.01, numpy.inf)
     keepsatcensrc = keepsat & (isig[x, y] == 0)
     m = ((isig[x, y] > 0) | keepsatcensrc)  # ~saturated, or saturated & keep
-    if dq is not None and numpy.any(dq[x, y] & nebulosity_maskbit):
-        nebulosity = (dq[x, y] & nebulosity_maskbit) != 0
+    nodeblendbits = nebulosity_maskbit | brightstar_maskbit
+    if dq is not None and numpy.any(dq[x, y] & nodeblendbits):
+        nebulosity = (dq[x, y] & nodeblendbits) != 0
         blendthreshhold = numpy.ones_like(x)*blendthreshhold
         blendthreshhold[nebulosity] = 100
         msharp = ~nebulosity | psfvalsharpcut(x, y, sigim, isig, psfstamp)
@@ -300,7 +302,7 @@ def fit_once(im, x, y, psfs, weight=None,
     repeat = 1 if not psfderiv else 3
     nskypar = nskyx * nskyy
     npixim = im.shape[0]*im.shape[1]
-    xloc = numpy.zeros(repeat*numpy.sum(sz*sz) +
+    xloc = numpy.zeros(repeat*numpy.sum(sz*sz).astype('i4') +
                        nskypar*npixim, dtype='i4')
     yloc = numpy.zeros(len(xloc), dtype='i4')
     values = numpy.zeros(len(yloc), dtype='f4')
@@ -351,7 +353,8 @@ def fit_once(im, x, y, psfs, weight=None,
         # guess is a guess for the fluxes and sky; no derivatives.
         guessvec = numpy.zeros(len(xe)*repeat+nskypar, dtype='f4')
         guessvec[0:len(xe)*repeat:repeat] = guess[0:len(xe)]
-        guessvec[-nskypar:] = guess[-nskypar:]
+        if nskypar > 0:
+            guessvec[-nskypar:] = guess[-nskypar:]
         guessvec *= colnorm
     else:
         guessvec = None
@@ -564,11 +567,12 @@ def get_sizes(x, y, imbs, weight=None, blist=None):
     sz[peakbright <= cutoff] = 19  # for the moment...
     if weight is not None:
         sz[weight[x, y] == 0] = 149  # saturated/off edge sources get big PSF
-    if blist is not None:  # sources near 10th mag sources get very big PSF
+    # sources near 10th mag sources get very big PSF
+    if blist is not None and len(x) > 0:
         for xb, yb in zip(blist[0], blist[1]):
             dist2 = (x-xb)**2 + (y-yb)**2
             indclose = numpy.argmin(dist2)
-            if dist2[indclose] < 5:
+            if dist2[indclose] < 5**2:
                 sz[indclose] = 299
     return sz
 
@@ -610,8 +614,6 @@ def fit_im(im, psf, threshhold=0.3, weight=None, dq=None, psfderiv=True,
         if titer != lastiter:
             # in first passes, do not split sources!
             blendthresh = 2 if titer < 2 else 0.2
-            # print('messing with blendthresh')
-            # blendthresh = 100
             xn, yn = peakfind(im-model-hsky,
                               model-msky, weight, dq, psf,
                               keepsat=(titer == 0),
@@ -619,6 +621,10 @@ def fit_im(im, psf, threshhold=0.3, weight=None, dq=None, psfderiv=True,
             if len(xa) > 0 and len(xn) > 0:
                 keep = neighbor_dist(xn, yn, xa, ya) > 1.5
                 xn, yn = (c[keep] for c in (xn, yn))
+            if blist is not None:
+                xnb, ynb = add_bright_stars(xa, ya, blist, im)
+                xn = numpy.concatenate([xn, xnb]).astype('f4')
+                yn = numpy.concatenate([yn, ynb]).astype('f4')
             xa, ya = (numpy.concatenate([xa, xn]).astype('f4'),
                       numpy.concatenate([ya, yn]).astype('f4'))
             passno = numpy.concatenate([passno, numpy.zeros(len(xn))+titer])
@@ -863,6 +869,24 @@ def match_xy(x1, y1, x2, y2, neighbors=1):
     dist = dist
     m = m1 < len(x1)  # possible if fewer than neighbors elements in x1.
     return m1[m], m2[m], dist[m]
+
+
+def add_bright_stars(xa, ya, blist, im):
+    if len(xa) == 0:
+        return (numpy.array(blist[0], dtype='f4'),
+                numpy.array(blist[1], dtype='f4'))
+    xout = []
+    yout = []
+    for x, y, mag in zip(*blist):
+        if ((x < -0.499) or (x > im.shape[0]-0.501) or
+            (y < -0.499) or (y > im.shape[1]-0.501)):
+            continue
+        dist2 = (x-xa)**2 + (y-ya)**2
+        indclose = numpy.argmin(dist2)
+        if dist2[indclose] > 5**2:
+            xout.append(x)
+            yout.append(y)
+    return (numpy.array(xout, dtype='f4'), numpy.array(yout, dtype='f4'))
 
 
 def find_psf(xcen, shiftx, ycen, shifty, psfstack, weightstack,

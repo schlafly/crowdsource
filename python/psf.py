@@ -792,6 +792,15 @@ def modelstampcorn(param, staticstamp, stampsz=None):
     return modcorn * norm
 
 
+def stamp2model(corn, normalize=-1):
+    stamppar = numpy.zeros((2, 2, corn.shape[-1], corn.shape[-1]),
+                           dtype='f4')
+    stamppar[0, 0, :, :] = corn[0]
+    stamppar[1, 0, :, :] = (corn[1]-corn[0])
+    stamppar[0, 1, :, :] = (corn[2]-corn[0])
+    return VariablePixelizedPSF(stamppar, normalize=normalize)
+
+
 def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
                            isig, pixsz=9, nkeep=200, plot=False,
                            filter='g'):
@@ -825,14 +834,6 @@ def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
     outstampsz = staticstamp.shape[-1]
     normalizesz = 59
     staticstamp /= numpy.sum(central_stamp(staticstamp, normalizesz))
-
-    def stamp2model(corn, normalize=-1):
-        stamppar = numpy.zeros((2, 2, corn.shape[-1], corn.shape[-1]),
-                               dtype='f4')
-        stamppar[0, 0, :, :] = corn[0]
-        stamppar[1, 0, :, :] = (corn[1]-corn[0])
-        stamppar[0, 1, :, :] = (corn[2]-corn[0])
-        return VariablePixelizedPSF(stamppar, normalize=normalize)
 
     def modelconv(param, stampsz=None):
         if stampsz is None:
@@ -895,7 +896,7 @@ def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
     nlinperpar = 3
     extraparam = numpy.zeros(
         1, dtype=[('convparam', 'f4', 3*nlinperpar+1),
-                  ('resparam', 'f4', (3*nlinperpar+1, pixsz, pixsz))])
+                  ('resparam', 'f4', (nlinperpar, pixsz, pixsz))])
     extraparam['convparam'][0, 0:len(res[0])] = res[0]
     extraparam['resparam'][0, 0:resparam.shape[0], :, :] = resparam
     modtotal.extraparam = extraparam

@@ -16,7 +16,8 @@ badpixmaskfn = '/n/fink2/www/eschlafly/decam/badpixmasksefs_comp.fits'
 
 extrabits = ({'badpix': 2**20,
               'diffuse': 2**21,
-              's7unstable': 2**22})
+              's7unstable': 2**22,
+              'brightstar': 2**23})
 
 def read(imfn, extname, **kw):
     ivarfn = imfn.replace('_ooi_', '_oow_')
@@ -166,18 +167,25 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
             if numpy.any(m):
                 yb, xb = wcs0.all_world2pix(brightstars['ra'][m],
                                             brightstars['dec'][m], 0)
+                vmag = brightstars['vtmag'][m]
                 # WCS module and I order x and y differently...
                 m = ((xb > 0) & (xb < im.shape[0] + 1) &
                      (yb > 0) & (yb < im.shape[1] + 1))
                 if numpy.any(m):
                     xb, yb = xb[m], yb[m]
-                    blist = [xb, yb]
+                    vmag = vmag[m]
+                    blist = [xb, yb, vmag]
                 else:
                     blist = None
             else:
                 blist = None
         else:
             blist = None
+
+        if blist is not None:
+            # we did not enable this for first DECaPS v1
+            # dq = mask_very_bright_stars(dq, blist)
+            pass
 
         # the actual fit
         res = mosaic.fit_sections(im, psf, 4, 2, weight=wt, dq=dq,
@@ -250,7 +258,7 @@ def decam_psf(filt, fwhm):
         tpsf = psfmod.moffat_psf(fwhm, stampsz=511, deriv=False)
         return psfmod.SimplePSF(tpsf)
     fname = os.path.join(os.environ['DECAM_DIR'], 'data', 'psfs',
-                         'psf_%s_deconv.fits.gz' % filt[0])
+                         'psf_%s_deconv_mod.fits.gz' % filt[0])
     normalizesz = 59
     tpsf = fits.getdata(fname).T.copy()
     tpsf /= numpy.sum(psfmod.central_stamp(tpsf, normalizesz))
@@ -260,9 +268,16 @@ def decam_psf(filt, fwhm):
         convpsffwhm = numpy.sqrt(fwhm**2.-tpsffwhm**2.)
         convpsf = psfmod.moffat_psf(convpsffwhm, stampsz=39, deriv=False)
         tpsf = convolve(tpsf, convpsf, mode='constant', cval=0., origin=0)
-    tpsf = psfmod.center_psf(tpsf)
-    tpsf /= numpy.sum(psfmod.central_stamp(tpsf, normalizesz))
-    tpsf = psfmod.SimplePSF(tpsf, normalize=normalizesz)
+    tpsf = psfmod.stamp2model(numpy.array([tpsf, tpsf, tpsf, tpsf]),
+                              normalize=normalizesz)
+    nlinperpar = 3
+    pixsz = 9
+    extraparam = numpy.zeros(
+        1, dtype=[('convparam', 'f4', 3*nlinperpar+1),
+                  ('resparam', 'f4', (nlinperpar, pixsz, pixsz))])
+    extraparam['convparam'][0, 0:4] = [convpsffwhm, 1., 0., 1.]
+    extraparam['resparam'][0, :, :, :] = 0.
+    tpsf.extraparam = extraparam
     tpsf.fitfun = partial(psfmod.fit_linear_static_wing, filter=filt)
     return tpsf
 
@@ -291,6 +306,22 @@ def correct_sky_offset(im, weight=None):
     par = leastsq(objective, [guessoff, 0.])[0]
     im[:, half:] -= (par[0] + par[1]*xx)
     return im
+
+
+def mask_very_bright_stars(dq, blist):
+    dq = dq.copy()
+    maskradpermag = 50
+    for x, y, mag in zip(*blist):
+        maskrad = maskradpermag*(11-mag)
+        if maskrad < 50:
+            continue
+        maskrad = numpy.clip(maskrad, 0, 500)
+        xl, xr = numpy.clip([x-maskrad, x+maskrad], 0,
+                            dq.shape[0]-1).astype('i4')
+        yl, yr = numpy.clip([y-maskrad, y+maskrad], 0,
+                            dq.shape[1]-1).astype('i4')
+        dq[xl:xr, yl:yr] |= extrabits['brightstar']
+    return dq
 
 
 if __name__ == "__main__":
