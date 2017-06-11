@@ -49,8 +49,18 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=badpixmaskfn,
     imdew[mzerowt] = 0.
     imdew[:] = numpy.sqrt(imdew)
     if maskdiffuse:
-        import diffuse
-        imded |= (diffuse.excessrmsmask(imdei, imdew) * extrabits['diffuse'])
+        import nebulosity_mask
+        nebmod = getattr(read_data, 'nebmod', None)
+        if nebmod is None:
+            modfn = os.path.join(os.environ['DECAM_DIR'], 'data', 'nebmaskmod',
+                                 'weights', '27th_try')
+            nebmod = nebulosity_mask.load_model(modfn)
+            read_data.nebmod = nebmod
+        nebmask = nebulosity_mask.gen_mask(nebmod, imdei) == 0
+        if numpy.any(nebmask):
+            imded |= (nebmask * extrabits['diffuse'])
+            print('Masking nebulosity, %5.2f' % (
+                numpy.sum(nebmask)/1./numpy.sum(numpy.isfinite(nebmask))))
     if corrects7 and (extname == 'S7'):
         imdei = correct_sky_offset(imdei, weight=imdew)
         half = imded.shape[1] // 2
