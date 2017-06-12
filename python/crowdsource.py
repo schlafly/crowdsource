@@ -621,8 +621,8 @@ def fit_im(im, psf, threshhold=0.3, weight=None, dq=None, psfderiv=True,
             if len(xa) > 0 and len(xn) > 0:
                 keep = neighbor_dist(xn, yn, xa, ya) > 1.5
                 xn, yn = (c[keep] for c in (xn, yn))
-            if blist is not None:
-                xnb, ynb = add_bright_stars(xa, ya, blist, im)
+            if (titer == 0) and (blist is not None):
+                xnb, ynb = add_bright_stars(xn, yn, blist, im)
                 xn = numpy.concatenate([xn, xnb]).astype('f4')
                 yn = numpy.concatenate([yn, ynb]).astype('f4')
             xa, ya = (numpy.concatenate([xa, xn]).astype('f4'),
@@ -872,18 +872,17 @@ def match_xy(x1, y1, x2, y2, neighbors=1):
 
 
 def add_bright_stars(xa, ya, blist, im):
-    if len(xa) == 0:
-        return (numpy.array(blist[0], dtype='f4'),
-                numpy.array(blist[1], dtype='f4'))
     xout = []
     yout = []
     for x, y, mag in zip(*blist):
         if ((x < -0.499) or (x > im.shape[0]-0.501) or
             (y < -0.499) or (y > im.shape[1]-0.501)):
             continue
-        dist2 = (x-xa)**2 + (y-ya)**2
-        indclose = numpy.argmin(dist2)
-        if dist2[indclose] > 5**2:
+        if len(xa) > 0:
+            mindist2 = numpy.min((x-xa)**2 + (y-ya)**2)
+        else:
+            mindist2 = 9999
+        if mindist2 > 5**2:
             xout.append(x)
             yout.append(y)
     return (numpy.array(xout, dtype='f4'), numpy.array(yout, dtype='f4'))

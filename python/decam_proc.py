@@ -262,12 +262,16 @@ def decam_psf(filt, fwhm):
     normalizesz = 59
     tpsf = fits.getdata(fname).T.copy()
     tpsf /= numpy.sum(psfmod.central_stamp(tpsf, normalizesz))
-    tpsffwhm = psfmod.neff_fwhm(tpsf)
+    # omitting central_stamp here places too much
+    # emphasis on the wings relative to the pipeline estimate.
+    tpsffwhm = psfmod.neff_fwhm(psfmod.central_stamp(tpsf))
     from scipy.ndimage.filters import convolve
     if tpsffwhm < fwhm:
         convpsffwhm = numpy.sqrt(fwhm**2.-tpsffwhm**2.)
         convpsf = psfmod.moffat_psf(convpsffwhm, stampsz=39, deriv=False)
         tpsf = convolve(tpsf, convpsf, mode='constant', cval=0., origin=0)
+    else:
+        convpsffwhm = 0.
     tpsf = psfmod.stamp2model(numpy.array([tpsf, tpsf, tpsf, tpsf]),
                               normalize=normalizesz)
     nlinperpar = 3
