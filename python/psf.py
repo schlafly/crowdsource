@@ -558,13 +558,13 @@ def plot_psf_fits(stamp, x, y, model, isig):
             modim[i*sz:(i+1)*sz, j*sz:(j+1)*sz] = modim0-medmodel
     p.figure('psfs')
     p.subplot(1, 3, 1)
-    util_efs.imshow(datim, aspect='equal', vmin=-0.01, vmax=0.01)
+    util_efs.imshow(datim, aspect='equal', vmin=-0.005, vmax=0.005)
     p.title('Stamps')
     p.subplot(1, 3, 2)
-    util_efs.imshow(modim, aspect='equal', vmin=-0.01, vmax=0.01)
+    util_efs.imshow(modim, aspect='equal', vmin=-0.005, vmax=0.005)
     p.title('Model')
     p.subplot(1, 3, 3)
-    util_efs.imshow(datim-modim, aspect='equal', vmin=-0.002, vmax=0.002)
+    util_efs.imshow(datim-modim, aspect='equal', vmin=-0.001, vmax=0.001)
     p.title('Residuals')
     p.draw()
 
@@ -792,6 +792,35 @@ def modelstampcorn(param, staticstamp, stampsz=None):
     return modcorn * norm
 
 
+def modelstampcorn2(param, staticstamp, stampsz=None):
+    from scipy.signal import fftconvolve
+    stampsz = staticstamp.shape[-1] if stampsz is None else stampsz
+    if len(param) > 5:
+        tx = numpy.array([0, 1000, 0])
+        ty = numpy.array([0, 0, 1000])
+        fwhm = param[0]+tx/1000.*param[1]+ty/1000.*param[2]
+        yy = param[3]+tx/1000.*param[4]+ty/1000.*param[5]
+        xy = param[6]+tx/1000.*param[7]+ty/1000.*param[8]
+        beta = param[9]+tx/1000.*param[10]+ty/1000.*param[11]
+        norm = param[12]
+    else:
+        fwhm = param[0]*numpy.ones(3, dtype='f4')
+        yy = param[1]
+        xy = param[2]
+        beta = param[3]
+        norm = param[4]
+    moffats = moffat_psf(fwhm, beta=beta, xy=xy, yy=yy,
+                         stampsz=stampsz+6, deriv=None)
+    tstaticstamp = central_stamp(staticstamp, stampsz+6).copy()
+    modcorn = fftconvolve(moffats, tstaticstamp[None, :, :], mode='same')
+    # the full convolution is nice here, but we could probably replace with
+    # minimal loss of generality with something like the sum of
+    # the Moffat and an image convolved with only the center part of the
+    # PSF.
+    modcorn = central_stamp(modcorn, censize=stampsz).copy()
+    return modcorn * norm
+
+
 def stamp2model(corn, normalize=-1):
     stamppar = numpy.zeros((2, 2, corn.shape[-1], corn.shape[-1]),
                            dtype='f4')
@@ -844,7 +873,8 @@ def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
 
     def chiconv(param):
         tresid = stamp - modelconv(param)
-        return damper(tresid*isig, 3).reshape(-1).astype('f4')
+        chi = damper(tresid*isig, 3).reshape(-1).astype('f4')
+        return chi
 
     stampszo2 = isig.shape[-1] // 2
     nbright = numpy.sum(isig[:, stampszo2, stampszo2] >= min(1000, maxisig))
@@ -858,9 +888,10 @@ def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
         guess = numpy.array([2., 0., 0.,
                              1., 0., 0.,
                              0., 0., 0.,
+                             3., 0., 0.,
                              1.]).astype('f4')
     else:
-        guess = numpy.array([2., 1., 0., 1.]).astype('f4')
+        guess = numpy.array([2., 1., 0., 3., 1.]).astype('f4')
 
     res = optimize.leastsq(chiconv, guess, full_output=True)
 
@@ -895,7 +926,7 @@ def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
     modtotal = stamp2model(cornwing+cornresid, normalize=normalizesz)
     nlinperpar = 3
     extraparam = numpy.zeros(
-        1, dtype=[('convparam', 'f4', 3*nlinperpar+1),
+        1, dtype=[('convparam', 'f4', 4*nlinperpar+1),
                   ('resparam', 'f4', (nlinperpar, pixsz, pixsz))])
     extraparam['convparam'][0, 0:len(res[0])] = res[0]
     extraparam['resparam'][0, 0:resparam.shape[0], :, :] = resparam
@@ -905,4 +936,30 @@ def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
         modstamps = modtotal.render_model(x, y, deriv=False,
                                           stampsz=stamp.shape[-1])
         plot_psf_fits(stamp, x, y, modstamps, isig)
+    return modtotal
+
+
+def linear_static_wing_from_record(record, filter='g'):
+    import os
+    from astropy.io import fits
+    fname = os.path.join(os.environ['DECAM_DIR'], 'data', 'psfs',
+                         'psf_%s_deconv_mod.fits.gz' % filter)
+    staticstamp = fits.getdata(fname).T.copy()
+    outstampsz = staticstamp.shape[-1]
+    normalizesz = 59
+    staticstamp /= numpy.sum(central_stamp(staticstamp, normalizesz))
+    order = 1 if numpy.any(record['resparam'][1:, ...]) else 0
+    nperpar = (order+1)*(order+2)/2
+    modresid = VariablePixelizedPSF(
+        fill_param_matrix(record['resparam'][:nperpar], order), normalize=-1)
+    modwing = stamp2model(modelstampcorn(record['convparam'], staticstamp,
+                                         stampsz=outstampsz))
+    xx = numpy.array([0, 1000, 0])
+    yy = numpy.array([0, 0, 1000])
+    cornwing = modwing.render_model(xx, yy, deriv=False,
+                                    stampsz=outstampsz)
+    cornresid = modresid.render_model(xx, yy, deriv=False,
+                                      stampsz=outstampsz)
+    modtotal = stamp2model(cornwing+cornresid, normalize=normalizesz)
+    modtotal.offset = record['offset']
     return modtotal

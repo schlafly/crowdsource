@@ -30,6 +30,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=badpixmaskfn,
     import warnings
     with warnings.catch_warnings(record=True) as wlist:
         warnings.simplefilter('always')
+        imh = fits.getheader(imfn)
         imdei = fits.getdata(imfn, extname=extname).copy()
         imdew = fits.getdata(ivarfn, extname=extname).copy()
         imded = fits.getdata(dqfn, extname=extname).copy()
@@ -39,8 +40,21 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=badpixmaskfn,
             continue
         else:
             print(warning)
-    # flag 7 does not seem to indicate problems with the pixels.
+    # support old versions of CP with different DQ meanings
+    from distutils.version import LooseVersion
+    if LooseVersion(imh['PLVER']) < LooseVersion('V3.5'):
+        imdedo = imded
+        imded = numpy.zeros_like(imded)
+        imded[(imdedo & 2**7) != 0] = 7
+        imded[(imdedo & 2**4) != 0] = 5
+        imded[(imdedo & 2**6) != 0] = 4
+        imded[(imdedo & 2**1) != 0] = 3
+        imded[(imdedo & 2**0) != 0] = 1
+        # values 2, 8 don't seem to exist in early CP images;
+        # likewise bits 2, 3, 5 don't really have meaning in recent CP images
+        # (interpolated, unused, unused)
     imded = 2**imded
+    # flag 7 does not seem to indicate problems with the pixels.
     mzerowt = (((imded & ~(2**0 | 2**7)) != 0) |
                (imdew < 0.) | ~numpy.isfinite(imdew))
     if badpixmask is not None:

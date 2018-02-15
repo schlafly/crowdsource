@@ -38,34 +38,23 @@ def shift(im, offset, **kw):
     return shift(im, offset, **kw)
 
 
-def sim_image(nx, ny, nstar, fwhm, noise, return_psf=False, nskyx=3, nskyy=3):
+def sim_image(nx, ny, nstar, psf, noise, nskyx=3, nskyy=3, stampsz=19):
     im = numpy.random.randn(nx, ny).astype('f4')*noise
-    stampsz = (6*numpy.ceil(fwhm)+1).astype('i4')
-    stampszo2 = (3*numpy.ceil(fwhm)).astype('i4')
+    stampszo2 = stampsz // 2
     im = numpy.pad(im, [stampszo2, stampszo2], constant_values=-1e6,
                    mode='constant')
     x = numpy.random.rand(nstar).astype('f4')*(nx-1)
     y = numpy.random.rand(nstar).astype('f4')*(ny-1)
-    xp = numpy.round(x).astype('i4')
-    yp = numpy.round(y).astype('i4')
-    xc = numpy.arange(stampsz, dtype='f4')-stampszo2
-    yc = xc.copy()
-    sigma = fwhm / numpy.sqrt(8*numpy.log(2))
-    psf = numpy.exp(
-        -(xc.reshape(-1, 1)**2. + yc.reshape(1, -1)**2.) /
-        2./sigma**2.).astype('f4')
-    flux = 1./numpy.random.power(1.2, nstar)
+    flux = 1./numpy.random.power(1.0, nstar)
     for i in range(nstar):
-        fracshiftx = x[i]-numpy.round(x[i])
-        fracshifty = y[i]-numpy.round(y[i])
-        psf2 = shift(psf, [fracshiftx, fracshifty], output=numpy.dtype('f4'))
-        im[xp[i]:xp[i]+stampsz, yp[i]:yp[i]+stampsz] += psf2*flux[i]
+        stamp = psf(x[i], y[i], stampsz=stampsz)
+        xl = numpy.round(x[i]).astype('i4')
+        yl = numpy.round(y[i]).astype('i4')
+        im[xl:xl+stampsz, yl:yl+stampsz] += stamp*flux[i]
     if (nskyx != 0) or (nskyy != 0):
         im += sky_model(100*numpy.random.rand(nskyx, nskyy).astype('f4'),
                         im.shape[0], im.shape[1])
     ret = im[stampszo2:-stampszo2, stampszo2:-stampszo2], x, y, flux
-    if return_psf:
-        ret = (ret, psf)
     return ret
 
 
@@ -74,7 +63,10 @@ def significance_image(im, model, isig, psf, sz=19):
     # assume, for the moment, the image has already been sky-subtracted
     def convolve(im, kernel):
         from scipy.signal import fftconvolve
-        return fftconvolve(im, kernel, mode='same')
+        return fftconvolve(im, kernel[::-1, ::-1], mode='same')
+        #identical to 1e-8 or so
+        #from scipy.ndimage.filters import convolve
+        #return convolve(im, kernel[::-1, ::-1], mode='nearest')
     psfstamp = psfmod.central_stamp(psf, sz).copy()
     sigim = convolve(im*isig**2., psfstamp)
     varim = convolve(isig**2., psfstamp**2.)
@@ -89,7 +81,7 @@ def significance_image_lbs(im, model, isig, psf, sz=19):
 
     def convolve(im, kernel):
         from scipy.signal import fftconvolve
-        return fftconvolve(im, kernel, mode='same')
+        return fftconvolve(im, kernel[::-1, ::-1], mode='same')
 
     def convolve_flat(im, sz):
         from scipy.ndimage.filters import convolve
@@ -166,7 +158,7 @@ def psfvalsharpcut(x, y, sigim, isig, psf):
     # in nebulous region, there should be a peak of these around the PSF
     # size, plus a bunch of diffuse things (psfval ~ 0).
     from scipy.signal import fftconvolve
-    pp = fftconvolve(psf, psf, mode='same')
+    pp = fftconvolve(psf, psf[::-1, ::-1], mode='same')
     half = psf.shape[0] // 2
     ppcen = pp[half, half]
     psfval1pp = 1-(pp[half-1, half]+pp[half+1, half])/(2*ppcen)
@@ -218,7 +210,7 @@ def build_model(x, y, flux, nx, ny, psf=None, psflist=None, psfderiv=False,
         for j in range(repeat):
             im[xe[i]:xe[i]+stampsz, ye[i]:ye[i]+stampsz] += psfs[i, j, :, :]
     im = im[stampszo2:-stampszo2, stampszo2:-stampszo2]
-    # ignoring varying PSF sizes.  We only use maximum size here.
+    # ignoring varying PSF sizes!
     return im
 
 
@@ -493,6 +485,10 @@ def compute_centroids(x, y, psflist, flux, im, resid, weight):
         fluxnz = fluxnz + (fluxnz == 0)
         xcen[ind] = flux[repeat*ind+1]/fluxnz
         ycen[ind] = flux[repeat*ind+2]/fluxnz
+    # stamps: 0: neighbor-subtracted images,
+    # 1: images,
+    # 2: psfs with shifts
+    # 3: psfs without shifts
     res = (xcen, ycen, (modelst+residst, imst, modelst, weightst, psfst))
     return res
 
@@ -577,7 +573,7 @@ def get_sizes(x, y, imbs, weight=None, blist=None):
     return sz
 
 
-def fit_im(im, psf, threshhold=0.3, weight=None, dq=None, psfderiv=True,
+def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
            nskyx=0, nskyy=0, refit_psf=False, fixedstars=None,
            verbose=False, miniter=4, maxiter=10, blist=None):
     if fixedstars is not None and len(fixedstars['x']) > 0:
@@ -609,7 +605,7 @@ def fit_im(im, psf, threshhold=0.3, weight=None, dq=None, psfderiv=True,
 
     while True:
         titer += 1
-        hsky = sky_im(im-model, weight=weight)
+        hsky = sky_im(im-model, weight=weight, npix=20)
         lsky = sky_im(im-model, weight=weight, npix=10*roughfwhm)
         if titer != lastiter:
             # in first passes, do not split sources!
@@ -638,16 +634,16 @@ def fit_im(im, psf, threshhold=0.3, weight=None, dq=None, psfderiv=True,
                     len(xa) > 40000):
                 lastiter = titer + 1
         sz = get_sizes(xa, ya, im-hsky, weight=weight, blist=blist)
-        tpsfderiv = psfderiv if lastiter != titer else False
-        psfs = build_psf_list(xa, ya, psf, sz, psfderiv=tpsfderiv)
         if guessflux is not None:
             guess = numpy.concatenate([guessflux, numpy.zeros_like(xn),
                                        guesssky])
         else:
             guess = None
+        sky = hsky if titer >= 2 else lsky
         # in final iteration, no longer allow shifting locations; just fit
         # centroids.
-        sky = hsky if titer >= 2 else lsky
+        tpsfderiv = psfderiv if lastiter != titer else False
+        psfs = build_psf_list(xa, ya, psf, sz, psfderiv=tpsfderiv)
         flux, model, msky = fit_once(im-sky, xa, ya, psfs, psfderiv=tpsfderiv,
                                      weight=weight, guess=guess,
                                      nskyx=1, nskyy=1)
@@ -669,27 +665,31 @@ def fit_im(im, psf, threshhold=0.3, weight=None, dq=None, psfderiv=True,
         guessflux, guesssky = unpack_fitpar(flux[0], len(xa),
                                             psfderiv)
         if refit_psf and len(xa) > 0:
-            # shiftx = xcen + xa - numpy.round(xa)
-            # shifty = ycen + ya - numpy.round(ya)
-            # npsf = find_psf(xa, shiftx, ya, shifty,
-            #                 stamps[0], stamps[3], stamps[1])
+            # how far the centroids of the model PSFs would
+            # be from (0, 0) if instantiated there
+            # this initial definition includes the known offset (since
+            # we instantiated off a pixel center), and the model offset
             xe, ye = psfmod.simple_centroid(
                 psfmod.central_stamp(stamps[4], censize=stamps[0].shape[-1]))
+            # now we subtract the known offset
             xe -= xa-numpy.round(xa)
             ye -= ya-numpy.round(ya)
             if hasattr(psf, 'fitfun'):
                 psffitfun = psf.fitfun
+                npsf = psffitfun(xa, ya, xcen+xe, ycen+ye, stamps[0],
+                                 stamps[1], stamps[2], stamps[3], nkeep=200)
+                if npsf is not None:
+                    npsf.fitfun = psffitfun
             else:
-                from functools import partial
-                psffitfun = partial(psfmod.fit_variable_moffat_psf,
-                                    order=1, pixsz=9)
-            npsf = psffitfun(xa, ya, xcen+xe, ycen+ye, stamps[0], stamps[1],
-                             stamps[2], stamps[3], nkeep=200)
+                shiftx = xcen + xe + xa - numpy.round(xa)
+                shifty = ycen + ye + ya - numpy.round(ya)
+                npsf = find_psf(xa, shiftx, ya, shifty,
+                                stamps[0], stamps[3], stamps[1])
+            # we removed the centroid offset of the model PSFs;
+            # we need to correct the positions to compensate
             xa += xe
             ya += ye
-            if npsf is not None:
-                npsf.fitfun = psffitfun
-                psf = npsf
+            psf = npsf
         xcen, ycen = (numpy.clip(c, -3, 3) for c in (xcen, ycen))
         xa, ya = (numpy.clip(c, -0.499, s-0.501)
                   for c, s in zip((xa+xcen, ya+ycen), im.shape))
@@ -775,6 +775,7 @@ def compute_lbs_flux(stamp, psf, isig, apcor):
     flux = (sumisig2*numpy.sum(psf*stamp*isig**2, axis=(1, 2)) -
             sumpsfisig2*numpy.sum(stamp*isig**2, axis=(1, 2)))/det
     flux *= apcor
+    unc *= apcor
     return flux, unc
 
 
@@ -961,13 +962,3 @@ def find_psf(xcen, shiftx, ycen, shifty, psfstack, weightstack,
     npsf /= numpy.sum(npsf)
     return psfmod.SimplePSF(npsf, normalize=-1)
 
-
-sample = """
-sample code:
-
-psf, dpsfdx, dpsfdy = psfmod.gaussian_psf(fwhm, 19)
-reload(crowdsource) ; im, xt, yt, fluxt = crowdsource.sim_image(1000, 1000, 30000, 5., 3.) ; clf() ; util_efs.imshow(im, arange(1000), arange(1000), vmax=20, aspect='equal') ; xlim(0, 300) ; ylim(0, 300)
-reload(crowdsource) ; sigim = crowdsource.significance_image(im, im*0+3.**2., psf)
-reload(crowdsource) ; xydat = crowdsource.peakfind(im, sigim, 3.)
-reload(crowdsource) ;  x2, y2, flux2, model2 = crowdsource.fit_im(im, psf, 3., 0.3, psfderiv=[dpsfdx, dpsfdy])
-"""
