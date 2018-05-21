@@ -19,6 +19,7 @@ extrabits = ({'badpix': 2**20,
               's7unstable': 2**22,
               'brightstar': 2**23})
 
+
 def read(imfn, extname, **kw):
     ivarfn = imfn.replace('_ooi_', '_oow_')
     dqfn = imfn.replace('_ooi_', '_ood_')
