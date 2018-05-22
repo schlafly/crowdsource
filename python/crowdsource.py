@@ -561,6 +561,8 @@ def get_sizes(x, y, imbs, weight=None, blist=None):
     cutoff = 1000
     sz[peakbright > cutoff] = 59
     sz[peakbright <= cutoff] = 19  # for the moment...
+    cutoff2 = 10000
+    sz[peakbright > cutoff2] = 149
     if weight is not None:
         sz[weight[x, y] == 0] = 149  # saturated/off edge sources get big PSF
     # sources near 10th mag sources get very big PSF
