@@ -86,7 +86,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=badpixmaskfn,
 
 def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
                   outdir=None, verbose=False, nproc=numpy.inf, resume=False,
-                  outmodelfn=None, profile=False):
+                  outmodelfn=None, profile=False, maskdiffuse=True):
     if profile:
         import cProfile
         import pstats
@@ -160,7 +160,8 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
         if verbose:
             print('Fitting %s, extension %s.' % (imfn, name))
             sys.stdout.flush()
-        im, wt, dq = read_data(imfn, ivarfn, dqfn, name)
+        im, wt, dq = read_data(imfn, ivarfn, dqfn, name, 
+                               maskdiffuse=maskdiffuse)
         hdr = fits.getheader(imfn, extname=name)
         fwhm = hdr.get('FWHM', numpy.median(fwhms))
         if fwhm <= 0.:
@@ -357,6 +358,8 @@ if __name__ == "__main__":
                         help='resume if file already exists')
     parser.add_argument('--profile', '-p', action='store_true',
                         help='print profiling statistics')
+    parser.add_argument('--no-mask-diffuse', action='store_true',
+                        help='turn off nebulosity masking')
     parser.add_argument('imfn', type=str, help='Image file name')
     parser.add_argument('ivarfn', type=str, help='Inverse variance file name')
     parser.add_argument('dqfn', type=str, help='Data quality file name')
@@ -364,4 +367,5 @@ if __name__ == "__main__":
     process_image(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn,
                   outmodelfn=args.outmodelfn,
                   verbose=args.verbose, outdir=args.outdir,
-                  resume=args.resume, profile=args.profile)
+                  resume=args.resume, profile=args.profile, 
+                  maskdiffuse=(not args.no_mask_diffuse))

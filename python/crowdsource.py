@@ -254,7 +254,7 @@ def fit_once(im, x, y, psfs, weight=None,
         weight (ndarray[NX, NY] float): weight for image
         psfderiv (tuple(ndarray[sz, sz] float)): x, y derivatives of psf image
         nskyx (int): number of sky pixels in x direction (0 or >= 3)
-        nskyy (int): numpy. of sky pixels in y direction (0 or >= 3)
+        nskyy (int): number of sky pixels in y direction (0 or >= 3)
 
     Returns:
         tuple(flux, model, sky)

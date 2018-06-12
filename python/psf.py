@@ -569,6 +569,34 @@ def plot_psf_fits(stamp, x, y, model, isig):
     p.draw()
 
 
+def plot_psf_fits_brightness(stamp, x, y, model, isig):
+    from matplotlib import pyplot as p
+    import util_efs
+    datim = numpy.zeros((stamp.shape[1]*10, stamp.shape[1]*10), dtype='f4')
+    modim = numpy.zeros((stamp.shape[1]*10, stamp.shape[1]*10), dtype='f4')
+    medmodel = numpy.median(model, axis=0)
+    s = numpy.argsort(-numpy.median(isig, axis=(1, 2)))
+    sz = stamp.shape[-1]
+    for i in range(10):
+        for j in range(10):
+            ind = s[i*10+j]
+            datim0 = stamp[ind, :, :]
+            modim0 = model[ind, :, :]
+            datim[i*sz:(i+1)*sz, j*sz:(j+1)*sz] = datim0-medmodel
+            modim[i*sz:(i+1)*sz, j*sz:(j+1)*sz] = modim0-medmodel
+    p.figure('psfs')
+    p.subplot(1, 3, 1)
+    util_efs.imshow(datim, aspect='equal', vmin=-0.005, vmax=0.005)
+    p.title('Stamps')
+    p.subplot(1, 3, 2)
+    util_efs.imshow(modim, aspect='equal', vmin=-0.005, vmax=0.005)
+    p.title('Model')
+    p.subplot(1, 3, 3)
+    util_efs.imshow(datim-modim, aspect='equal', vmin=-0.001, vmax=0.001)
+    p.title('Residuals')
+    p.draw()
+
+
 def damper(chi, damp):
     return 2*damp*numpy.sign(chi)*(numpy.sqrt(1+numpy.abs(chi)/damp)-1)
 
@@ -888,10 +916,10 @@ def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
         guess = numpy.array([2., 0., 0.,
                              1., 0., 0.,
                              0., 0., 0.,
-                             3., 0., 0.,
+                             # 3., 0., 0.,
                              1.]).astype('f4')
     else:
-        guess = numpy.array([2., 1., 0., 3., 1.]).astype('f4')
+        guess = numpy.array([2., 1., 0., 1.]).astype('f4')
 
     res = optimize.leastsq(chiconv, guess, full_output=True)
 
@@ -963,3 +991,49 @@ def linear_static_wing_from_record(record, filter='g'):
     modtotal = stamp2model(cornwing+cornresid, normalize=normalizesz)
     modtotal.offset = record['offset']
     return modtotal
+
+
+def wise_psf_fit(x, y, xcen, ycen, stamp, imstamp, modstamp,
+                 isig, pixsz=9, nkeep=200, plot=False,
+                 filter='w1'):
+    # clean and shift the PSFs first.
+    shiftx = xcen + x - numpy.round(x)
+    shifty = ycen + y - numpy.round(y)
+    okpsf = select_stamps(stamp, imstamp, isig, shiftx, shifty)
+    if numpy.sum(okpsf) == 0:
+        return None
+    x, y, xcen, ycen = (q[okpsf] for q in (x, y, xcen, ycen))
+    stamp, modstamp, isig, imstamp, shiftx, shifty = (
+        q[okpsf] for q in (stamp, modstamp, isig, imstamp, shiftx, shifty))
+    if len(x) > nkeep:
+        fluxes = numpy.sum(stamp, axis=(1, 2))
+        s = numpy.argsort(-fluxes)
+        okpsf = (fluxes >= fluxes[s][nkeep-1])
+        x, y, xcen, ycen = (q[okpsf] for q in (x, y, xcen, ycen))
+        stamp, modstamp, isig, imstamp, shiftx, shifty = (
+            q[okpsf] for q in (stamp, modstamp, isig, imstamp, shiftx, shifty))
+    stamp, isig = shift_and_normalize_stamps(stamp, modstamp, isig,
+                                             shiftx, shifty)
+    maxisig = 1./(0.1*0.001)
+    isig0 = isig.copy()
+    isig = numpy.clip(isig, 0., maxisig)
+
+    wisepsffn = '/n/fink2/ameisner/crowdsource_wise/psf_%s_cosmos.fits' % filter
+    from astropy.io import fits
+    psfstamp = fits.getdata(wisepsffn)
+    psfstamp = numpy.clip(psfstamp, 1e-9, numpy.inf)
+    stampsz = isig.shape[-1]
+    stampszo2 = stampsz // 2
+    psfstamp /= numpy.sum(central_stamp(psfstamp, censize=stampsz))
+
+    resid = (stamp - central_stamp(psfstamp, censize=stampsz)).astype('f4')
+    resid_cen = central_stamp(resid, censize=pixsz)
+    isig_cen = central_stamp(isig, censize=pixsz)
+    residmed = numpy.median(resid_cen, axis=0)
+    newstamp = psfstamp.copy()
+    central_stamp(newstamp, censize=pixsz)[:, :] += residmed
+    if plot:
+        modstamp = central_stamp(newstamp, censize=stampsz)
+        modstamp = modstamp[None, ...]*numpy.ones((stamp.shape[0], 1, 1))
+        plot_psf_fits_brightness(stamp, x, y, modstamp, isig0)
+    return SimplePSF(newstamp)
