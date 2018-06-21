@@ -992,11 +992,9 @@ def linear_static_wing_from_record(record, filter='g'):
     modtotal.offset = record['offset']
     return modtotal
 
-
-wisecosmospsffn = '/n/fink2/ameisner/crowdsource_wise/psf_%s_cosmos.fits'
 def wise_psf_fit(x, y, xcen, ycen, stamp, imstamp, modstamp,
                  isig, pixsz=9, nkeep=200, plot=False,
-                 filter='w1', fname=wisecosmospsffn):
+                 filter='w1', psfstamp=None):
     # clean and shift the PSFs first.
     shiftx = xcen + x - numpy.round(x)
     shifty = ycen + y - numpy.round(y)
@@ -1020,7 +1018,7 @@ def wise_psf_fit(x, y, xcen, ycen, stamp, imstamp, modstamp,
     isig = numpy.clip(isig, 0., maxisig)
 
     from astropy.io import fits
-    psfstamp = fits.getdata(fname)
+    #psfstamp = fits.getdata(fname)
     psfstamp = numpy.clip(psfstamp, 1e-9, numpy.inf)
     stampsz = isig.shape[-1]
     stampszo2 = stampsz // 2
