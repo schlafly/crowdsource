@@ -577,7 +577,8 @@ def get_sizes(x, y, imbs, weight=None, blist=None):
 
 def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
            nskyx=0, nskyy=0, refit_psf=False, fixedstars=None,
-           verbose=False, miniter=4, maxiter=10, blist=None):
+           verbose=False, miniter=4, maxiter=10, blist=None,
+           maxstars=40000):
     if fixedstars is not None and len(fixedstars['x']) > 0:
         fixedpsflist = {'psfob': fixedstars['psfob'], 'ind': fixedstars['psf']}
         fixedmodel = build_model(fixedstars['x'], fixedstars['y'],
@@ -608,7 +609,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
     while True:
         titer += 1
         hsky = sky_im(im-model, weight=weight, npix=20)
-        lsky = sky_im(im-model, weight=weight, npix=10*roughfwhm)
+        lsky = sky_im(im-model, weight=weight, npix=50*roughfwhm)
         if titer != lastiter:
             # in first passes, do not split sources!
             blendthresh = 2 if titer < 2 else 0.2
@@ -633,7 +634,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         if titer != lastiter:
             if (titer == maxiter-1) or (
                     (titer >= miniter-1) and (len(xn) < 100)) or (
-                    len(xa) > 40000):
+                    len(xa) > maxstars):
                 lastiter = titer + 1
         sz = get_sizes(xa, ya, im-hsky, weight=weight, blist=blist)
         if guessflux is not None:
@@ -702,11 +703,15 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         # (small) stamp is saturated.
         # these stars all have very bright inferred fluxes
         # i.e., 50k saturates, so we can cut there.
-        keep = (((guessflux/fluxunc > 3) | (guessflux > 1e5)) &
-                cull_near(xa, ya, guessflux))
+        brightenough = (guessflux/fluxunc > 3) | (guessflux > 1e5)
+        isolatedenough = cull_near(xa, ya, guessflux)
+        keep = brightenough & isolatedenough
         xa, ya = (c[keep] for c in (xa, ya))
         passno = passno[keep]
         guessflux = guessflux[keep]
+        if verbose and numpy.sum(~keep) > 0:
+            print('Nearby removed: %d.  Faint removed: %d' % 
+                  (numpy.sum(~isolatedenough), numpy.sum(~brightenough)))
         # should probably also subtract these stars from the model image
         # which is used for peak finding.  But the faint stars should
         # make little difference?
@@ -843,7 +848,7 @@ def cull_near(x, y, flux):
     if len(x) == 0:
         return numpy.ones(len(x), dtype='bool')
     m1, m2, dist = match_xy(x, y, x, y, neighbors=4)
-    m = (dist < 1.5) & (flux[m1] < flux[m2]) & (m1 != m2)
+    m = (dist < 1) & (flux[m1] < flux[m2]) & (m1 != m2)
     keep = numpy.ones(len(x), dtype='bool')
     keep[m1[m]] = 0
     keep[flux < 0] = 0

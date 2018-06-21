@@ -40,13 +40,11 @@ if __name__ == "__main__":
     ivarfn = args.ivarfn[0]
     flagfn = args.flagfn[0]
     if getattr(args, 'psffn', None):
-        # stamp = numpy.clip(fits.getdata(args.psffn), 1e-10, numpy.inf)
-        stamp = fits.getdata(args.psffn)
-        stamp[stamp < 0] = 0.
+        stamp = numpy.clip(fits.getdata(args.psffn), 1e-10, numpy.inf)
         stamp = stamp / numpy.sum(stamp)
         psf = psfmod.SimplePSF(stamp)
         from functools import partial
-        psf.fitfun = partial(psfmod.wise_psf_fit, fname=args.psffn)
+        psf.fitfun = partial(psfmod.wise_psf_fit, psfstamp=stamp)
     else:
         print('using moffat')
         psf = psfmod.SimplePSF(psfmod.moffat_psf(2.5, beta=2.5)[0])
