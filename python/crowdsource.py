@@ -648,7 +648,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         psfs = build_psf_list(xa, ya, psf, sz, psfderiv=tpsfderiv)
         flux, model, msky = fit_once(im-sky, xa, ya, psfs, psfderiv=tpsfderiv,
                                      weight=weight, guess=guess,
-                                     nskyx=1, nskyy=1)
+                                     nskyx=nskyx, nskyy=nskyy)
 
         model += fixedmodel
         centroids = compute_centroids(xa, ya, psfs, flux[0], im-(sky+msky),

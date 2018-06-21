@@ -12,8 +12,10 @@ def process(imfn, ivarfn, flagfn, psf, nx=1, ny=1, satlimit=numpy.inf, **kw):
     sqivar = numpy.sqrt(fits.getdata(ivarfn))
     flag = fits.getdata(flagfn)
     if numpy.isfinite(satlimit):
-        m = imfn > satlimit
-        sqivar[satlimit] = 0  # should also change the DQ image?
+        from scipy.ndimage import morphology
+        m = im > satlimit
+        m = morphology.binary_dilation(m, numpy.ones((5, 5)))
+        sqivar[m] = 0  # should also change the DQ image?
     if nx != 1 or ny != 1:
         res = mosaic.fit_sections(im, psf, nx, ny, weight=sqivar, dq=flag, **kw)
     else:
@@ -40,14 +42,16 @@ if __name__ == "__main__":
     if getattr(args, 'psffn', None):
         # stamp = numpy.clip(fits.getdata(args.psffn), 1e-10, numpy.inf)
         stamp = fits.getdata(args.psffn)
+        stamp[stamp < 0] = 0.
         stamp = stamp / numpy.sum(stamp)
         psf = psfmod.SimplePSF(stamp)
-        psf.fitfun = psfmod.wise_psf_fit  # should generalize this somehow?
+        from functools import partial
+        psf.fitfun = partial(psfmod.wise_psf_fit, fname=args.psffn)
     else:
         print('using moffat')
         psf = psfmod.SimplePSF(psfmod.moffat_psf(2.5, beta=2.5)[0])
     res = process(imagefn, ivarfn, flagfn, psf, refit_psf=args.refit_psf, 
-                  verbose=args.verbose, nx=2, ny=2, satlimit=args.satlimit)
+                  verbose=args.verbose, nx=4, ny=4, satlimit=args.satlimit)
     outfn = args.outfn[0]
     fits.writeto(outfn, res[0])
     fits.append(outfn, res[1])
