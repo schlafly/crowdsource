@@ -64,9 +64,9 @@ def significance_image(im, model, isig, psf, sz=19):
     def convolve(im, kernel):
         from scipy.signal import fftconvolve
         return fftconvolve(im, kernel[::-1, ::-1], mode='same')
-        #identical to 1e-8 or so
-        #from scipy.ndimage.filters import convolve
-        #return convolve(im, kernel[::-1, ::-1], mode='nearest')
+        # identical to 1e-8 or so
+        # from scipy.ndimage.filters import convolve
+        # return convolve(im, kernel[::-1, ::-1], mode='nearest')
     psfstamp = psfmod.central_stamp(psf, sz).copy()
     sigim = convolve(im*isig**2., psfstamp)
     varim = convolve(isig**2., psfstamp**2.)
@@ -142,6 +142,7 @@ def peakfind(im, model, isig, dq, psf, keepsat=False, threshhold=5,
     m = m & ((sigratio2 > blendthreshhold*2) |
              ((fluxratio > blendthreshhold) & (sigratio > blendthreshhold/4.) &
               (sigratio2 > blendthreshhold)))
+    
     return x[m], y[m]
 
 
@@ -624,11 +625,10 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
                 xnb, ynb = add_bright_stars(xn, yn, blist, im)
                 xn = numpy.concatenate([xn, xnb]).astype('f4')
                 yn = numpy.concatenate([yn, ynb]).astype('f4')
+
             xa, ya = (numpy.concatenate([xa, xn]).astype('f4'),
                       numpy.concatenate([ya, yn]).astype('f4'))
             passno = numpy.concatenate([passno, numpy.zeros(len(xn))+titer])
-            if verbose:
-                print('Iteration %d, found %d sources.' % (titer+1, len(xn)))
         else:
             xn, yn = numpy.zeros(0, dtype='f4'), numpy.zeros(0, dtype='f4')
         if titer != lastiter:
@@ -705,13 +705,18 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         # i.e., 50k saturates, so we can cut there.
         brightenough = (guessflux/fluxunc > 3) | (guessflux > 1e5)
         isolatedenough = cull_near(xa, ya, guessflux)
+
         keep = brightenough & isolatedenough
         xa, ya = (c[keep] for c in (xa, ya))
         passno = passno[keep]
         guessflux = guessflux[keep]
-        if verbose and numpy.sum(~keep) > 0:
-            print('Nearby removed: %d.  Faint removed: %d' % 
-                  (numpy.sum(~isolatedenough), numpy.sum(~brightenough)))
+        if verbose:
+            print('Iteration %2d, found %6d sources; %4d close and '
+                  '%4d faint sources removed.' %
+                  (titer+1, len(xn),
+                   numpy.sum(~isolatedenough),
+                   numpy.sum(~brightenough & isolatedenough)))
+
         # should probably also subtract these stars from the model image
         # which is used for peak finding.  But the faint stars should
         # make little difference?
@@ -851,7 +856,6 @@ def cull_near(x, y, flux):
     m = (dist < 1) & (flux[m1] < flux[m2]) & (m1 != m2)
     keep = numpy.ones(len(x), dtype='bool')
     keep[m1[m]] = 0
-    keep[flux < 0] = 0
     return keep
 
 

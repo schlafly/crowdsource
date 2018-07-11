@@ -185,8 +185,8 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
                                             brightstars['dec'][m], 0)
                 vmag = brightstars['vtmag'][m]
                 # WCS module and I order x and y differently...
-                m = ((xb > 0) & (xb < im.shape[0] + 1) &
-                     (yb > 0) & (yb < im.shape[1] + 1))
+                m = ((xb > 0) & (xb < im.shape[0]) &
+                     (yb > 0) & (yb < im.shape[1]))
                 if numpy.any(m):
                     xb, yb = xb[m], yb[m]
                     vmag = vmag[m]
@@ -199,9 +199,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
             blist = None
 
         if blist is not None:
-            # we did not enable this for first DECaPS v1
-            # dq = mask_very_bright_stars(dq, blist)
-            pass
+            dq = mask_very_bright_stars(dq, blist)
 
         # the actual fit
         res = mosaic.fit_sections(im, psf, 4, 2, weight=wt, dq=dq,
