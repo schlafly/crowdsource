@@ -7,10 +7,7 @@ import crowdsource
 import mosaic
 
 
-def process(imfn, ivarfn, flagfn, psf, nx=1, ny=1, satlimit=numpy.inf, **kw):
-    im = fits.getdata(imfn)
-    sqivar = numpy.sqrt(fits.getdata(ivarfn))
-    flag = fits.getdata(flagfn)
+def process(im, sqivar, flag, psf, nx=1, ny=1, satlimit=numpy.inf, **kw):
     if numpy.isfinite(satlimit):
         from scipy.ndimage import morphology
         m = im > satlimit
@@ -48,7 +45,10 @@ if __name__ == "__main__":
     else:
         print('using moffat')
         psf = psfmod.SimplePSF(psfmod.moffat_psf(2.5, beta=2.5)[0])
-    res = process(imagefn, ivarfn, flagfn, psf, refit_psf=args.refit_psf, 
+    im = fits.getdata(imagefn)
+    sqivar = numpy.sqrt(fits.getdata(ivarfn))
+    flag = fits.getdata(flagfn)
+    res = process(im, sqivar, flag, psf, refit_psf=args.refit_psf, 
                   verbose=args.verbose, nx=4, ny=4, satlimit=args.satlimit)
     outfn = args.outfn[0]
     fits.writeto(outfn, res[0])

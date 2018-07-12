@@ -643,6 +643,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         else:
             guess = None
         sky = hsky if titer >= 2 else lsky
+
         # in final iteration, no longer allow shifting locations; just fit
         # centroids.
         tpsfderiv = psfderiv if lastiter != titer else False

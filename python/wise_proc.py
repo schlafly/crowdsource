@@ -12,7 +12,8 @@ import unwise_psf
 extrabits = {'crowdsat': 2**24}
 
 
-def wise_filename(basedir, coadd_id, band, _type, uncompressed=False):
+def wise_filename(basedir, coadd_id, band, _type, uncompressed=False,
+                  drop_first_dir=False):
     # type should be one of:
     # 'img-u', 'img-m', 'invvar-u', 'invvar-m', 'std-u', 'std-m'
     # 'n-u', 'n-m', 'frames', 'msk'
@@ -25,7 +26,10 @@ def wise_filename(basedir, coadd_id, band, _type, uncompressed=False):
 
     fname += ('-' + _type + '.fits')
 
-    fname = basedir + '/' + coadd_id[0:3] + '/' + coadd_id + '/' + fname
+    path = [basedir, coadd_id[0:3], coadd_id, fname]
+    if drop_first_dir:
+        del path[1]
+    fname = os.path.join(*path)
 
     if not uncompressed:
         if (_type != 'img-u') and (_type != 'img-m') and (_type != 'frames'):
@@ -34,7 +38,7 @@ def wise_filename(basedir, coadd_id, band, _type, uncompressed=False):
     return fname
 
 
-def get_blist(brightstars, raim, decim, hdr, maxsep):
+def read_blist(brightstars, raim, decim, hdr, maxsep):
     from astropy.coordinates.angle_utilities import angular_separation
     sep = angular_separation(numpy.radians(brightstars['ra']),
                              numpy.radians(brightstars['dec']),
@@ -55,8 +59,8 @@ def get_blist(brightstars, raim, decim, hdr, maxsep):
         return [xx, yy, mag]
 
 
-def goofy_isig_image(isig, im, fac=0.15):
-    """Construct an inverse sigma image for WISE.
+def massage_isig_and_dim(isig, im, flag, band, fac=None):
+    """Construct a WISE inverse sigma image and add saturation to flag.
 
     unWISE provides nice inverse variance maps.  These however have no 
     contribution from Poisson noise from sources, and so underestimate
@@ -74,11 +78,92 @@ def goofy_isig_image(isig, im, fac=0.15):
     or zero point...
     """
 
-    m = isig == 0
+    if fac is None:
+        bandfacs = {1: 0.15, 2: 0.3}
+        fac = bandfacs[band]
+
+    satbit = 16 if band == 1 else 32
+    msat = (flag & satbit) != 0
+    from scipy.ndimage import morphology
+    # dilate = morphology.iterate_structure(
+    #     morphology.generate_binary_structure(2, 1), 3)
+    xx, yy = numpy.mgrid[-3:3+1, -3:3+1]
+    dilate = xx**2+yy**2 <= 3**2
+    msat = morphology.binary_dilation(msat, dilate)
+    isig[msat] = 0
+    flag[msat] |= extrabits['crowdsat']
     sigma = numpy.sqrt(1./(isig + (isig == 0))**2 +
                        fac**2*numpy.clip(im, 0, numpy.inf))
-    sigma[m] = numpy.inf
-    return (1./sigma).astype('f4')
+    sigma[msat] = numpy.inf
+    return (1./sigma).astype('f4'), flag
+
+
+def wise_psf(band, coadd_id):
+    # psf noise: ~roughly 0.1 count in outskirts of W1 and W2
+    if band >= 3:
+        raise ValueError('Need to stare at W3+ PSF more!')
+    psfnoise = 0.1
+    stamp = unwise_psf.get_unwise_psf(band, coadd_id)
+    edges = numpy.concatenate([stamp[0, 1:-1], stamp[-1, 1:-1],
+                               stamp[1:-1, 0], stamp[1:-1, -1]])
+    if band == 1:
+        medval = numpy.median(edges[edges != 0]) / 2
+    elif band == 2:
+        medval = numpy.median(edges[edges != 0]) / 4
+    else:
+        medval = 0.
+    stamp[stamp == 0] = medval
+    stamp -= medval
+    # stamp = numpy.clip(stamp, -numpy.median(edges[edges != 0]), numpy.inf)
+    # print(numpy.median(edges[edges != 0]))
+    # print(numpy.min(stamp))
+    from scipy import signal
+    stamp[stamp < 0] = 0.
+    stamp = signal.wiener(stamp,  11, psfnoise)
+    # taper linearly over outer 60 pixels?
+    stampszo2 = stamp.shape[0] // 2
+    xx, yy = numpy.mgrid[-stampszo2:stampszo2+1, -stampszo2:stampszo2+1]
+    edgedist = numpy.clip(stampszo2-numpy.abs(xx), 0,
+                          stampszo2-numpy.abs(yy))
+    stamp = stamp * numpy.clip(edgedist / 60., stamp < 10, 1)
+    stamp = stamp / numpy.sum(stamp)
+    psf = psfmod.SimplePSF(stamp)
+    from functools import partial
+    psf.fitfun = partial(psfmod.wise_psf_fit, psfstamp=stamp)
+    return psf
+
+
+def read_wise(coadd_id, band, basedir, uncompressed=False,
+              drop_first_dir=False):
+    assert((band == 1) or (band == 2))
+    assert(len(coadd_id) == 8)
+
+    imagefn = wise_filename(basedir, coadd_id, band, 'img-m',
+                            uncompressed=uncompressed,
+                            drop_first_dir=drop_first_dir)
+    ivarfn = wise_filename(basedir, coadd_id, band, 'invvar-m',
+                           uncompressed=uncompressed,
+                           drop_first_dir=drop_first_dir)
+    # band isn't actually used, passing it in anyway...
+    flagfn = wise_filename(basedir, coadd_id, band, 'msk',
+                           uncompressed=uncompressed,
+                           drop_first_dir=drop_first_dir)
+
+    im = fits.getdata(imagefn)
+    sqivar = numpy.sqrt(fits.getdata(ivarfn))
+    flag = fits.getdata(flagfn)
+    sqivar, flag = massage_isig_and_dim(sqivar, im, flag, band)
+    return im, sqivar, flag
+
+
+def brightlist(brightstars, coadd_id, band, basedir, uncompressed=False,
+               drop_first_dir=False):
+    imagefn = wise_filename(basedir, coadd_id, band, 'img-m',
+                            uncompressed=uncompressed,
+                            drop_first_dir=drop_first_dir)
+    hdr = fits.getheader(imagefn)
+    blist = read_blist(brightstars, hdr['CRVAL1'], hdr['CRVAL2'], hdr, 3)
+    return blist
 
 
 if __name__ == "__main__":
@@ -102,41 +187,15 @@ if __name__ == "__main__":
     band = args.band[0]
     basedir = args.basedir
 
-    assert((band == 1) or (band == 2))
-    assert(len(coadd_id) == 8)
+    im, sqivar, flag = read_wise(coadd_id, band, basedir,
+                                 uncompressed=args.uncompressed)
 
-    imagefn = wise_filename(basedir, coadd_id, band, 'img-m',
-                            uncompressed=args.uncompressed)
-    ivarfn = wise_filename(basedir, coadd_id, band, 'invvar-m',
-                           uncompressed=args.uncompressed)
-    # band isn't actually used, passing it in anyway...
-    flagfn = wise_filename(basedir, coadd_id, band, 'msk',
-                           uncompressed=args.uncompressed)
+    psf = wise_psf(band, coadd_id)
 
-    stamp = unwise_psf.get_unwise_psf(band, coadd_id)
-    stamp[stamp < 0] = 0.
-    stamp = stamp / numpy.sum(stamp)
-    psf = psfmod.SimplePSF(stamp)
-    from functools import partial
-    psf.fitfun = partial(psfmod.wise_psf_fit,
-                         psfstamp=unwise_psf.get_unwise_psf(band, coadd_id))
-
-    im = fits.getdata(imagefn)
-    sqivar = numpy.sqrt(fits.getdata(ivarfn))
-    flag = fits.getdata(flagfn)
-    satbit = 16 if band == 1 else 32
-    msat = (flag & satbit) != 0
-    from scipy.ndimage import morphology
-    dilate = morphology.iterate_structure(
-        morphology.generate_binary_structure(2, 1), 3)
-    msat = morphology.binary_dilation(msat, dilate)
-    sqivar[msat] = 0
-    sqivar = goofy_isig_image(sqivar, im)
-    flag[msat] |= extrabits['crowdsat']
     if len(args.brightcat) > 0:
         brightstars = fits.getdata(args.brightcat)
-        hdr = fits.getheader(imagefn)
-        blist = get_blist(brightstars, hdr['CRVAL1'], hdr['CRVAL2'], 3)
+        blist = brightlist(brightstars, coadd_id, band, basedir,
+                           uncompressed=args.uncompressed)
     else:
         print('No bright star catalog, not marking bright stars.')
 
