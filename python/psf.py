@@ -470,9 +470,12 @@ def select_stamps(psfstack, imstack, weightstack, shiftx, shifty):
     tflux = numpy.sum(psfstack, axis=(1, 2))
     timflux = numpy.sum(imstack, axis=(1, 2))
     tmedflux = numpy.median(psfstack, axis=(1, 2))
+    npix = psfstack.shape[1]*psfstack.shape[2]
     tfracflux = tflux / numpy.clip(timflux, 100, numpy.inf)
-    tfracflux2 = ((tflux-tmedflux*psfstack.shape[1]*psfstack.shape[2]) /
+    tfracflux2 = ((tflux-tmedflux*npix) /
                   numpy.clip(timflux, 100, numpy.inf))
+    # tfracflux3 = ((tflux - tmedflux*npix)/
+    #               numpy.clip(timflux-tmedflux*npix, 100, numpy.inf))
     cx, cy = (imstack.shape[-2] // 2, imstack.shape[-1] // 2)
     cenflux = imstack[:, cx, cy]
     psfqf = (numpy.sum(psfstack*(weightstack > 0), axis=(1, 2)) /
@@ -579,6 +582,8 @@ def plot_psf_fits_brightness(stamp, x, y, model, isig):
     sz = stamp.shape[-1]
     for i in range(10):
         for j in range(10):
+            if i*10+j >= len(s):
+                continue
             ind = s[i*10+j]
             datim0 = stamp[ind, :, :]
             modim0 = model[ind, :, :]
@@ -992,6 +997,7 @@ def linear_static_wing_from_record(record, filter='g'):
     modtotal.offset = record['offset']
     return modtotal
 
+
 def wise_psf_fit(x, y, xcen, ycen, stamp, imstamp, modstamp,
                  isig, pixsz=9, nkeep=200, plot=False,
                  psfstamp=None):
@@ -1000,12 +1006,19 @@ def wise_psf_fit(x, y, xcen, ycen, stamp, imstamp, modstamp,
     # clean and shift the PSFs first.
     shiftx = xcen + x - numpy.round(x)
     shifty = ycen + y - numpy.round(y)
+
     okpsf = select_stamps(stamp, imstamp, isig, shiftx, shifty)
     if numpy.sum(okpsf) == 0:
+        print('Giving up PSF fit...')
         return None
     x, y, xcen, ycen = (q[okpsf] for q in (x, y, xcen, ycen))
     stamp, modstamp, isig, imstamp, shiftx, shifty = (
         q[okpsf] for q in (stamp, modstamp, isig, imstamp, shiftx, shifty))
+    if len(x) < 200:
+        # really should never happen for WISE images, unless we're, say,
+        # right in the Galactic center and things are horrible.
+        print('Giving up PSF fit...')
+        return SimplePSF(psfstamp)
     if len(x) > nkeep:
         fluxes = numpy.sum(stamp, axis=(1, 2))
         s = numpy.argsort(-fluxes)
@@ -1019,15 +1032,12 @@ def wise_psf_fit(x, y, xcen, ycen, stamp, imstamp, modstamp,
     isig0 = isig.copy()
     isig = numpy.clip(isig, 0., maxisig)
 
-    from astropy.io import fits
     psfstamp = numpy.clip(psfstamp, 1e-9, numpy.inf)
     stampsz = isig.shape[-1]
-    stampszo2 = stampsz // 2
     psfstamp /= numpy.sum(central_stamp(psfstamp, censize=stampsz))
 
     resid = (stamp - central_stamp(psfstamp, censize=stampsz)).astype('f4')
     resid_cen = central_stamp(resid, censize=pixsz)
-    isig_cen = central_stamp(isig, censize=pixsz)
     residmed = numpy.median(resid_cen, axis=0)
     newstamp = psfstamp.copy()
     central_stamp(newstamp, censize=pixsz)[:, :] += residmed

@@ -562,11 +562,18 @@ def get_sizes(x, y, imbs, weight=None, blist=None):
     cutoff = 1000
     sz[peakbright > cutoff] = 59
     sz[peakbright <= cutoff] = 19  # for the moment...
+    # for very bright things, use a bigger PSF
+    # but if there are too many of these, don't bother.
     cutoff2 = 10000
-    sz[peakbright > cutoff2] = 149
+    if numpy.sum(peakbright > cutoff2) < numpy.sum(peakbright > cutoff)/2:
+        sz[peakbright > cutoff2] = 149
+    else:
+        print('Too many bright sources, using smaller PSF stamp size...')
+
     if weight is not None:
         sz[weight[x, y] == 0] = 149  # saturated/off edge sources get big PSF
-    # sources near 10th mag sources get very big PSF
+
+    # sources near listed sources get very big PSF
     if blist is not None and len(x) > 0:
         for xb, yb in zip(blist[0], blist[1]):
             dist2 = (x-xb)**2 + (y-yb)**2
@@ -636,6 +643,8 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
                     (titer >= miniter-1) and (len(xn) < 100)) or (
                     len(xa) > maxstars):
                 lastiter = titer + 1
+        # we probably don't want the sizes to change very much.  hsky certainly
+        # will change a bit from iteration to iteration, though.
         sz = get_sizes(xa, ya, im-hsky, weight=weight, blist=blist)
         if guessflux is not None:
             guess = numpy.concatenate([guessflux, numpy.zeros_like(xn),
@@ -691,9 +700,10 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
                                 stamps[0], stamps[3], stamps[1])
             # we removed the centroid offset of the model PSFs;
             # we need to correct the positions to compensate
-            xa += xe
-            ya += ye
-            psf = npsf
+            if npsf is not None:
+                xa += xe
+                ya += ye
+                psf = npsf
         xcen, ycen = (numpy.clip(c, -3, 3) for c in (xcen, ycen))
         xa, ya = (numpy.clip(c, -0.499, s-0.501)
                   for c, s in zip((xa+xcen, ya+ycen), im.shape))

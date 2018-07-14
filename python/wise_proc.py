@@ -59,10 +59,10 @@ def read_blist(brightstars, raim, decim, hdr, maxsep):
         return [xx, yy, mag]
 
 
-def massage_isig_and_dim(isig, im, flag, band, fac=None):
+def massage_isig_and_dim(isig, im, flag, band, nm, fac=None):
     """Construct a WISE inverse sigma image and add saturation to flag.
 
-    unWISE provides nice inverse variance maps.  These however have no 
+    unWISE provides nice inverse variance maps.  These however have no
     contribution from Poisson noise from sources, and so underestimate
     the uncertainties dramatically in bright regions.  This can pull the
     whole fit awry in bright areas, since the sky model means that every
@@ -83,7 +83,8 @@ def massage_isig_and_dim(isig, im, flag, band, fac=None):
         fac = bandfacs[band]
 
     satbit = 16 if band == 1 else 32
-    msat = (flag & satbit) != 0
+    satlimit = 85000 if band == 1 else 130000
+    msat = ((flag & satbit) != 0) | (im > satlimit) | (nm == 0)
     from scipy.ndimage import morphology
     # dilate = morphology.iterate_structure(
     #     morphology.generate_binary_structure(2, 1), 3)
@@ -91,6 +92,7 @@ def massage_isig_and_dim(isig, im, flag, band, fac=None):
     dilate = xx**2+yy**2 <= 3**2
     msat = morphology.binary_dilation(msat, dilate)
     isig[msat] = 0
+    flag = flag.astype('i8')
     flag[msat] |= extrabits['crowdsat']
     sigma = numpy.sqrt(1./(isig + (isig == 0))**2 +
                        fac**2*numpy.clip(im, 0, numpy.inf))
@@ -148,11 +150,15 @@ def read_wise(coadd_id, band, basedir, uncompressed=False,
     flagfn = wise_filename(basedir, coadd_id, band, 'msk',
                            uncompressed=uncompressed,
                            drop_first_dir=drop_first_dir)
+    nmfn = wise_filename(basedir, coadd_id, band, 'n-m',
+                         uncompressed=uncompressed,
+                         drop_first_dir=drop_first_dir)
 
     im = fits.getdata(imagefn)
     sqivar = numpy.sqrt(fits.getdata(ivarfn))
     flag = fits.getdata(flagfn)
-    sqivar, flag = massage_isig_and_dim(sqivar, im, flag, band)
+    nm = fits.getdata(nmfn)
+    sqivar, flag = massage_isig_and_dim(sqivar, im, flag, band, nm)
     return im, sqivar, flag
 
 
