@@ -214,7 +214,7 @@ if __name__ == "__main__":
         print('No bright star catalog, not marking bright stars.')
 
     res = process(im, sqivar, flag, psf, refit_psf=args.refit_psf,
-                  verbose=args.verbose, nx=4, ny=4)
+                  verbose=args.verbose, nx=4, ny=4, derivcentroids=True)
     outfn = args.outfn[0]
     fits.writeto(outfn, res[0])
     fits.append(outfn, res[1])

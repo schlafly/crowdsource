@@ -132,18 +132,20 @@ def peakfind(im, model, isig, dq, psf, keepsat=False, threshhold=5,
     keepsatcensrc = keepsat & (isig[x, y] == 0)
     m = ((isig[x, y] > 0) | keepsatcensrc)  # ~saturated, or saturated & keep
     nodeblendbits = nebulosity_maskbit | brightstar_maskbit | nodeblend_maskbit
+    sharpbits = nebulosity_maskbit
     if dq is not None and numpy.any(dq[x, y] & nodeblendbits):
-        nebulosity = (dq[x, y] & nodeblendbits) != 0
+        nodeblend = (dq[x, y] & nodeblendbits) != 0
         blendthreshhold = numpy.ones_like(x)*blendthreshhold
-        blendthreshhold[nebulosity] = 100
-        msharp = ~nebulosity | psfvalsharpcut(x, y, sigim, isig, psfstamp)
+        blendthreshhold[nodeblend] = 100
+        sharp = (dq[x, y] & sharpbits) != 0
+        msharp = ~sharp | psfvalsharpcut(x, y, sigim, isig, psfstamp)
         # keep if not nebulous region or sharp peak.
         m = m & msharp
 
     m = m & ((sigratio2 > blendthreshhold*2) |
              ((fluxratio > blendthreshhold) & (sigratio > blendthreshhold/4.) &
               (sigratio2 > blendthreshhold)))
-    
+
     return x[m], y[m]
 
 
@@ -413,7 +415,8 @@ def lsqr_cp(aa, bb, guess=None, **kw):
     return par
 
 
-def compute_centroids(x, y, psflist, flux, im, resid, weight):
+def compute_centroids(x, y, psflist, flux, im, resid, weight,
+                      derivcentroids=False):
     # define c = integral(x * I * P * W) / integral(I * P * W)
     # x = x/y coordinate, I = isolated stamp, P = PSF model, W = weight
     # Assuming I ~ P(x-y) for some small offset y and expanding,
@@ -477,7 +480,10 @@ def compute_centroids(x, y, psflist, flux, im, resid, weight):
     norm = numpy.sum(modelst, axis=(1, 2))
     norm = norm + (norm == 0)
     psfqf = numpy.sum(modelst*(weightst > 0), axis=(1, 2)) / norm
-    m = psfqf < 0.5
+    if not derivcentroids:
+        m = psfqf < 0.5
+    else:
+        m = numpy.ones(len(xcen), dtype='bool')
     xcen[m] = 0.
     ycen[m] = 0.
     if (len(psflist) > 1) and numpy.sum(m) > 0:
@@ -587,7 +593,7 @@ def get_sizes(x, y, imbs, weight=None, blist=None):
 def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
            nskyx=0, nskyy=0, refit_psf=False, fixedstars=None,
            verbose=False, miniter=4, maxiter=10, blist=None,
-           maxstars=40000):
+           maxstars=40000, derivcentroids=False):
     if fixedstars is not None and len(fixedstars['x']) > 0:
         fixedpsflist = {'psfob': fixedstars['psfob'], 'ind': fixedstars['psf']}
         fixedmodel = build_model(fixedstars['x'], fixedstars['y'],
@@ -665,7 +671,8 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         model += fixedmodel
         centroids = compute_centroids(xa, ya, psfs, flux[0], im-(sky+msky),
                                       im-model-sky,
-                                      weight)
+                                      weight, derivcentroids=derivcentroids)
+
         xcen, ycen, stamps = centroids
         if titer == lastiter:
             tflux, tskypar = unpack_fitpar(flux[0], len(xa), False)
