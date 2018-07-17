@@ -7,9 +7,16 @@ import numpy
 import psf as psfmod
 from astropy.io import fits
 from simple_proc import process
+import crowdsource
 import unwise_psf
 
-extrabits = {'crowdsat': 2**24}
+extrabits = {'crowdsat': 2**25,
+             'w1brightoffedge': 2**7,
+             'w2brightoffedge': 2**8,
+             'hyperleda': 2**9}
+
+nodeblend_bits = (extrabits['w1brightoffedge'] | extrabits['w2brightoffedge'] |
+                  extrabits['hyperleda'])
 
 
 def wise_filename(basedir, coadd_id, band, _type, uncompressed=False,
@@ -94,6 +101,7 @@ def massage_isig_and_dim(isig, im, flag, band, nm, fac=None):
     isig[msat] = 0
     flag = flag.astype('i8')
     flag[msat] |= extrabits['crowdsat']
+    flag[(flag & nodeblend_bits) != 0] |= crowdsource.nodeblend_maskbit
     sigma = numpy.sqrt(1./(isig + (isig == 0))**2 +
                        fac**2*numpy.clip(im, 0, numpy.inf))
     sigma[msat] = numpy.inf

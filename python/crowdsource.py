@@ -22,6 +22,7 @@ from collections import OrderedDict
 
 nebulosity_maskbit = 2**21
 brightstar_maskbit = 2**23
+nodeblend_maskbit = 2**24
 
 
 def shift(im, offset, **kw):
@@ -130,7 +131,7 @@ def peakfind(im, model, isig, dq, psf, keepsat=False, threshhold=5,
     sigratio2 = sigim[x, y]/numpy.clip(modelsigim[x, y], 0.01, numpy.inf)
     keepsatcensrc = keepsat & (isig[x, y] == 0)
     m = ((isig[x, y] > 0) | keepsatcensrc)  # ~saturated, or saturated & keep
-    nodeblendbits = nebulosity_maskbit | brightstar_maskbit
+    nodeblendbits = nebulosity_maskbit | brightstar_maskbit | nodeblend_maskbit
     if dq is not None and numpy.any(dq[x, y] & nodeblendbits):
         nebulosity = (dq[x, y] & nodeblendbits) != 0
         blendthreshhold = numpy.ones_like(x)*blendthreshhold
