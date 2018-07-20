@@ -778,11 +778,38 @@ def compute_stats(xs, ys, impsfstack, psfstack, weightstack, imstack, flux):
     fluxlbs = fluxlbs.astype('f4')
     dfluxlbs = dfluxlbs.astype('f4')
     fwhm = psfmod.neff_fwhm(psfstack).astype('f4')
+    spread, dspread = spread_model(impsfstack, psfstack, weightstack)
     return OrderedDict([('dx', posunc[0]), ('dy', posunc[1]),
                         ('dflux', fluxunc),
                         ('qf', qf), ('rchi2', rchi2), ('fracflux', fracflux),
                         ('fluxlbs', fluxlbs), ('dfluxlbs', dfluxlbs),
-                        ('fwhm', fwhm)])
+                        ('fwhm', fwhm), ('spread_model', spread),
+                        ('dspread_model', dspread)])
+
+
+def spread_model(impsfstack, psfstack, weightstack):
+    # need to convolve psfs with 1/16 FWHM exponential
+    # can get FWHM from n_eff
+    # better way?  n_eff can be a bit annoying; not necessarily what one
+    # expects if there's a sharp peak on a broad background.
+    # spread_model is on the whole a bit goofy: one sixteenth of a FWHM is very
+    # little.  So this is really more like the significance of the derivative
+    # of the PSF with radius, which I would compute a bit differently.
+    # still, other people compute spread_model, and it's well defined, so...
+    import galconv
+    fwhm = psfmod.neff_fwhm(psfstack)
+    sigma = fwhm/16.
+    re = sigma * 1.67834699
+    expgalstack = galconv.gal_psfstack_conv(re, 0, 0, galconv.ExpGalaxy,
+                                            numpy.eye(2), 0, 0, psfstack)
+    GWp = numpy.sum(expgalstack*weightstack**2*impsfstack, axis=(1, 2))
+    PWp = numpy.sum(psfstack*weightstack**2*impsfstack, axis=(1, 2))
+    GWP = numpy.sum(expgalstack*weightstack**2*psfstack, axis=(1, 2))
+    PWP = numpy.sum(psfstack**2*weightstack**2, axis=(1, 2))
+    GWG = numpy.sum(expgalstack**2*weightstack**2, axis=(1, 2))
+    spread = (GWp/(PWp+(PWp == 0)) - GWP/(PWP+(PWP == 0)))
+    dspread = (PWp**2*GWG + GWp**2*PWP - 2*GWp*PWp*GWP)/(PWp + (PWp == 0))**4
+    return spread, dspread
 
 
 def extract_im(xa, ya, im, sentinel=999):

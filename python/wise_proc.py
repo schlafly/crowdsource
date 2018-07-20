@@ -38,7 +38,7 @@ def wise_filename(basedir, coadd_id, band, _type, uncompressed=False,
         del path[1]
     fname = os.path.join(*path)
 
-    if not uncompressed:
+    if not uncompressed or _type == 'msk':
         if (_type != 'img-u') and (_type != 'img-m') and (_type != 'frames'):
             fname += '.gz'
 
@@ -129,7 +129,10 @@ def wise_psf(band, coadd_id):
     # print(numpy.min(stamp))
     from scipy import signal
     stamp[stamp < 0] = 0.
+    # suppress spurious warnings in signal.wiener
+    olderr = numpy.seterr(invalid='ignore', divide='ignore')
     stamp = signal.wiener(stamp,  11, psfnoise)
+    numpy.seterr(**olderr)
     # taper linearly over outer 60 pixels?
     stampszo2 = stamp.shape[0] // 2
     xx, yy = numpy.mgrid[-stampszo2:stampszo2+1, -stampszo2:stampszo2+1]
@@ -219,3 +222,5 @@ if __name__ == "__main__":
     fits.writeto(outfn, res[0])
     fits.append(outfn, res[1])
     fits.append(outfn, res[2])
+    psfext = numpy.array([tpsf(0, 0, stampsz=19) for tpsf in res[3]])
+    fits.append(outfn, psfext)
