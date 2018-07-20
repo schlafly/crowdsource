@@ -9,6 +9,7 @@ from astropy.io import fits
 from simple_proc import process
 import crowdsource
 import unwise_psf
+from astropy import wcs
 
 extrabits = {'crowdsat': 2**25,
              'w1brightoffedge': 2**7,
@@ -54,7 +55,6 @@ def read_blist(brightstars, raim, decim, hdr, maxsep):
     sep = numpy.degrees(sep)
     m = (sep < 3) & (brightstars['k_m'] < 5)
     brightstars = brightstars[m]
-    from astropy import wcs
     wcs0 = wcs.WCS(hdr)
     yy, xx = wcs0.all_world2pix(brightstars['ra'], brightstars['dec'], 0)
     m = (xx > 0) & (xx < hdr['NAXIS1']) & (yy > 0) & (yy < hdr['NAXIS2'])
@@ -165,12 +165,12 @@ def read_wise(coadd_id, band, basedir, uncompressed=False,
                          uncompressed=uncompressed,
                          drop_first_dir=drop_first_dir)
 
-    im = fits.getdata(imagefn)
+    im, hdr = fits.getdata(imagefn, header=True)
     sqivar = numpy.sqrt(fits.getdata(ivarfn))
     flag = fits.getdata(flagfn)
     nm = fits.getdata(nmfn)
     sqivar, flag = massage_isig_and_dim(sqivar, im, flag, band, nm)
-    return im, sqivar, flag
+    return im, sqivar, flag, hdr
 
 
 def brightlist(brightstars, coadd_id, band, basedir, uncompressed=False,
@@ -204,7 +204,7 @@ if __name__ == "__main__":
     band = args.band[0]
     basedir = args.basedir
 
-    im, sqivar, flag = read_wise(coadd_id, band, basedir,
+    im, sqivar, flag, hdr = read_wise(coadd_id, band, basedir,
                                  uncompressed=args.uncompressed)
 
     psf = wise_psf(band, coadd_id)
@@ -219,7 +219,17 @@ if __name__ == "__main__":
     res = process(im, sqivar, flag, psf, refit_psf=args.refit_psf,
                   verbose=args.verbose, nx=4, ny=4, derivcentroids=True)
     outfn = args.outfn[0]
-    fits.writeto(outfn, res[0])
+
+    x = (res[0])['x']
+    y = (res[0])['y']
+
+    wcs = wcs.WCS(hdr)
+    ra, dec = wcs.all_pix2world(y, x, 0)
+
+    import numpy.lib.recfunctions as rfn
+    cat = rfn.append_fields(res[0], ['ra', 'dec'], [ra, dec])
+
+    fits.writeto(outfn, cat)
     fits.append(outfn, res[1])
     fits.append(outfn, res[2])
     psfext = numpy.array([tpsf(0, 0, stampsz=19) for tpsf in res[3]])
