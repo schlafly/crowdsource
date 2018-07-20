@@ -808,7 +808,8 @@ def spread_model(impsfstack, psfstack, weightstack):
     PWP = numpy.sum(psfstack**2*weightstack**2, axis=(1, 2))
     GWG = numpy.sum(expgalstack**2*weightstack**2, axis=(1, 2))
     spread = (GWp/(PWp+(PWp == 0)) - GWP/(PWP+(PWP == 0)))
-    dspread = (PWp**2*GWG + GWp**2*PWP - 2*GWp*PWp*GWP)/(PWp + (PWp == 0))**4
+    dspread = numpy.sqrt(
+        (PWp**2*GWG + GWp**2*PWP - 2*GWp*PWp*GWP)/(PWp + (PWp == 0))**4)
     return spread, dspread
 
 
