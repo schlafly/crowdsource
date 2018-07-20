@@ -480,6 +480,16 @@ def compute_centroids(x, y, psflist, flux, im, resid, weight,
     norm = numpy.sum(modelst, axis=(1, 2))
     norm = norm + (norm == 0)
     psfqf = numpy.sum(modelst*(weightst > 0), axis=(1, 2)) / norm
+    # how should we really be doing this?  derivcentroids is the first order
+    # approximation to the right thing.  the centroid computation that I do
+    # otherwise should be unbiased but noisier than optimal for significantly
+    # offset peaks.  Vakili, Hogg (2016) say that I should convolve with the
+    # PSF and interpolate to the brightest point with some polynomial.  I
+    # expected this to be slow (convolving thousands of stamps individually
+    # with the PSF each iteration), but the spread_model code worked pretty
+    # well, so this is probably a worthwhile thing to try.  if it worked, it
+    # would obviate some of the code mess above, and be optimal, so that
+    # sounds worthwhile.
     if not derivcentroids:
         m = psfqf < 0.5
     else:
