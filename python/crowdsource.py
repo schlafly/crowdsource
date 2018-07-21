@@ -416,7 +416,7 @@ def lsqr_cp(aa, bb, guess=None, **kw):
 
 
 def compute_centroids(x, y, psflist, flux, im, resid, weight,
-                      derivcentroids=False):
+                      derivcentroids=False, centroidsize=19):
     # define c = integral(x * I * P * W) / integral(I * P * W)
     # x = x/y coordinate, I = isolated stamp, P = PSF model, W = weight
     # Assuming I ~ P(x-y) for some small offset y and expanding,
@@ -428,7 +428,6 @@ def compute_centroids(x, y, psflist, flux, im, resid, weight,
     # have been subtracted off.
     # we construct this image by taking the residual image, and then
     # star-by-star adding the model back.
-    centroidsize = 19
     psfs = [numpy.zeros((len(x), centroidsize, centroidsize), dtype='f4')
             for i in range(len(psflist))]
     for j in range(len(psflist)):
@@ -603,7 +602,8 @@ def get_sizes(x, y, imbs, weight=None, blist=None):
 def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
            nskyx=0, nskyy=0, refit_psf=False, fixedstars=None,
            verbose=False, miniter=4, maxiter=10, blist=None,
-           maxstars=40000, derivcentroids=False):
+           maxstars=40000, derivcentroids=False,
+           ntilex=1, ntiley=1, fewstars=100):
     if fixedstars is not None and len(fixedstars['x']) > 0:
         fixedpsflist = {'psfob': fixedstars['psfob'], 'ind': fixedstars['psf']}
         fixedmodel = build_model(fixedstars['x'], fixedstars['y'],
@@ -622,11 +622,12 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
     ya = xa.copy()
     lsky = numpy.median(im[weight > 0])
     hsky = numpy.median(im[weight > 0])
-    msky = 0
+    msky = numpy.zeros_like(im)
     passno = numpy.zeros(0, dtype='i4')
     guessflux, guesssky = None, None
     titer = -1
     lastiter = -1
+    skypar = {}  # best sky parameters so far.
 
     roughfwhm = psfmod.neff_fwhm(psf(im.shape[0]//2, im.shape[1]//2))
     roughfwhm = numpy.max([roughfwhm, 3.])
@@ -657,15 +658,14 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
             xn, yn = numpy.zeros(0, dtype='f4'), numpy.zeros(0, dtype='f4')
         if titer != lastiter:
             if (titer == maxiter-1) or (
-                    (titer >= miniter-1) and (len(xn) < 100)) or (
+                    (titer >= miniter-1) and (len(xn) < fewstars)) or (
                     len(xa) > maxstars):
                 lastiter = titer + 1
         # we probably don't want the sizes to change very much.  hsky certainly
         # will change a bit from iteration to iteration, though.
         sz = get_sizes(xa, ya, im-hsky, weight=weight, blist=blist)
         if guessflux is not None:
-            guess = numpy.concatenate([guessflux, numpy.zeros_like(xn),
-                                       guesssky])
+            guess = numpy.concatenate([guessflux, numpy.zeros_like(xn)])
         else:
             guess = None
         sky = hsky if titer >= 2 else lsky
@@ -673,28 +673,59 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         # in final iteration, no longer allow shifting locations; just fit
         # centroids.
         tpsfderiv = psfderiv if lastiter != titer else False
-        psfs = build_psf_list(xa, ya, psf, sz, psfderiv=tpsfderiv)
-        flux, model, msky = fit_once(im-sky, xa, ya, psfs, psfderiv=tpsfderiv,
-                                     weight=weight, guess=guess,
-                                     nskyx=nskyx, nskyy=nskyy)
+        repeat = 1+tpsfderiv*2
+        minsz = numpy.min(sz)
+        psfs = [numpy.zeros((len(xa), minsz, minsz), dtype='f4')
+                for i in range(repeat)]
+        flux = numpy.zeros(len(xa)*repeat, dtype='f4')
+        for (bdxf, bdxl, bdxaf, bdxal, bdyf, bdyl, bdyaf, bdyal) in (
+                subregions(im.shape, ntilex, ntiley)):
+            mbda = in_bounds(xa, ya, [bdxaf-0.5, bdxal-0.5],
+                             [bdyaf-0.5, bdyal-0.5])
+            mbd = in_bounds(xa, ya, [bdxf-0.5, bdxl-0.5],
+                            [bdyf-0.5, bdyl-0.5])
+            psfsbda = build_psf_list(xa[mbda], ya[mbda], psf, sz[mbda],
+                                     psfderiv=tpsfderiv)
+            sall = numpy.s_[bdxaf:bdxal, bdyaf:bdyal]
+            spri = numpy.s_[bdxf:bdxl, bdyf:bdyl]
+            dx, dy = bdxal-bdxaf, bdyal-bdyaf
+            sfit = numpy.s_[bdxf-bdxaf:dx+bdxl-bdxal,
+                            bdyf-bdyaf:dy+bdyl-bdyal]
+            weightbda = weight[sall] if weight is not None else None
+            guessmbda = guess[mbda] if guess is not None else None
+            guesssky = skypar.get((bdxf, bdyf))
+            guessmbda = (numpy.concatenate([guessmbda, guesssky])
+                         if guessmbda is not None else None)
+            tflux, tmodel, tmsky = fit_once(
+                im[sall]-sky[sall], xa[mbda]-bdxaf, ya[mbda]-bdyaf, psfsbda,
+                psfderiv=tpsfderiv, weight=weightbda, guess=guessmbda,
+                nskyx=nskyx, nskyy=nskyy)
+            model[spri] = tmodel[sfit]
+            msky[spri] = tmsky[sfit]
+            ind = numpy.flatnonzero(mbd)
+            ind2 = numpy.flatnonzero(mbd[mbda])
+            for i in range(repeat):
+                flux[ind*repeat+i] = tflux[0][ind2*repeat+i]
+            skypar[(bdxf, bdyf)] = flux[numpy.sum(mbda)*repeat:]
+            for i in range(repeat):
+                psfs[i][mbd] = [psfmod.central_stamp(psfsbda[i][tind], minsz)
+                                for tind in numpy.flatnonzero(mbd[mbda])]
 
         model += fixedmodel
-        centroids = compute_centroids(xa, ya, psfs, flux[0], im-(sky+msky),
+        centroids = compute_centroids(xa, ya, psfs, flux, im-(sky+msky),
                                       im-model-sky,
                                       weight, derivcentroids=derivcentroids)
 
         xcen, ycen, stamps = centroids
         if titer == lastiter:
-            tflux, tskypar = unpack_fitpar(flux[0], len(xa), False)
             stats = compute_stats(xa-numpy.round(xa), ya-numpy.round(ya),
                                   stamps[0], stamps[2],
                                   stamps[3], stamps[1],
-                                  tflux)
+                                  flux)
             stats['flags'] = extract_im(xa, ya, dq).astype('i4')
             stats['sky'] = extract_im(xa, ya, sky+msky).astype('f4')
             break
-        guessflux, guesssky = unpack_fitpar(flux[0], len(xa),
-                                            psfderiv)
+        guessflux = flux[:len(xa)*repeat:repeat]
         if refit_psf and len(xa) > 0:
             # how far the centroids of the model PSFs would
             # be from (0, 0) if instantiated there
@@ -752,10 +783,14 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
 
     if fixedmodel is not None:
         model += fixedmodel
-    flux, skypar = unpack_fitpar(flux[0], len(xa), False)
     stars = OrderedDict([('x', xa), ('y', ya), ('flux', flux)] +
                         [(f, stats[f]) for f in stats])
-    res = (stars, skypar, model+sky, sky+msky, psf)
+    dtypenames = stars.keys()
+    dtypeformats = [stars[n].dtype for n in dtypenames]
+    dtype = dict(names=dtypenames, formats=dtypeformats)
+    stars = numpy.fromiter(zip(*stars.itervalues()),
+                           dtype=dtype, count=len(stars['x']))
+    res = (stars, model+sky, sky+msky, psf)
     return res
 
 
@@ -1030,3 +1065,34 @@ def find_psf(xcen, shiftx, ycen, shifty, psfstack, weightstack,
     npsf /= numpy.sum(npsf)
     return psfmod.SimplePSF(npsf, normalize=-1)
 
+
+def subregions(shape, nx, ny, overlap=50):
+    # ugh.  I guess we want:
+    # starts and ends of each _primary_ fit region
+    # starts and ends of each _entire_ fit region
+    # should be nothing else?
+    # need this for both x and y: 8 things to return.
+    nx = nx if nx > 0 else 1
+    ny = ny if ny > 0 else 1
+    bdx = numpy.round(numpy.linspace(0, shape[0], nx+1)).astype('i4')
+    bdlx = numpy.clip(bdx - overlap, 0, shape[0])
+    bdrx = numpy.clip(bdx + overlap, 0, shape[0])
+    bdy = numpy.round(numpy.linspace(0, shape[1], ny+1)).astype('i4')
+    bdly = numpy.clip(bdy - overlap, 0, shape[1])
+    bdry = numpy.clip(bdy + overlap, 0, shape[1])
+    xf = bdx[:nx]
+    xl = bdx[1:]
+    xaf = bdlx[:nx]
+    xal = bdrx[1:]
+    yf = bdy[:nx]
+    yl = bdy[1:]
+    yaf = bdly[:nx]
+    yal = bdry[1:]
+    for i in range(nx):
+        for j in range(ny):
+            yield (xf[i], xl[i], xaf[i], xal[i], yf[j], yl[j], yaf[j], yal[j])
+
+
+def in_bounds(x, y, xbound, ybound):
+    return ((x > xbound[0]) & (x <= xbound[1]) &
+            (y > ybound[0]) & (y <= ybound[1]))

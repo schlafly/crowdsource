@@ -5,11 +5,11 @@ import sys
 import pdb
 import argparse
 import numpy
-import mosaic
 import psf as psfmod
 from astropy.io import fits
 from astropy import wcs
 from functools import partial
+import crowdsource
 
 
 badpixmaskfn = '/n/fink2/www/eschlafly/decam/badpixmasksefs_comp.fits'
@@ -202,10 +202,10 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
             dq = mask_very_bright_stars(dq, blist)
 
         # the actual fit
-        res = mosaic.fit_sections(im, psf, 4, 2, weight=wt, dq=dq,
-                                  psfderiv=True,
-                                  refit_psf=True, verbose=verbose,
-                                  blist=blist)
+        res = crowdsource.fit_sections(im, psf, ntilex=4, ntiley=2,
+                                       weight=wt, dq=dq,
+                                       psfderiv=True, refit_psf=True,
+                                       verbose=verbose, blist=blist)
 
         cat, modelim, skyim, psfs = res
         if len(cat) > 0:

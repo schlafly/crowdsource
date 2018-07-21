@@ -1014,10 +1014,11 @@ def wise_psf_fit(x, y, xcen, ycen, stamp, imstamp, modstamp,
     x, y, xcen, ycen = (q[okpsf] for q in (x, y, xcen, ycen))
     stamp, modstamp, isig, imstamp, shiftx, shifty = (
         q[okpsf] for q in (stamp, modstamp, isig, imstamp, shiftx, shifty))
-    if len(x) < 100:
+    if len(x) < 200:
         # really should never happen for WISE images, unless we're, say,
         # right in the Galactic center and things are horrible.
-        print('Only %d PSF stars, giving up PSF fit...' % len(x))
+        print('Only %d PSF stars (of %d total), giving up PSF fit...' %
+              (len(x), len(okpsf)))
         return SimplePSF(psfstamp)
     if len(x) > nkeep:
         fluxes = numpy.sum(stamp, axis=(1, 2))
