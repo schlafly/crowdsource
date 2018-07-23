@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import os
+import sys
+import time
 import pdb
 import argparse
 import numpy
@@ -205,7 +207,7 @@ if __name__ == "__main__":
     basedir = args.basedir
 
     im, sqivar, flag, hdr = read_wise(coadd_id, band, basedir,
-                                 uncompressed=args.uncompressed)
+                                      uncompressed=args.uncompressed)
 
     psf = wise_psf(band, coadd_id)
 
@@ -216,8 +218,17 @@ if __name__ == "__main__":
     else:
         print('No bright star catalog, not marking bright stars.')
 
+    if args.verbose:
+        t0 = time.time()
+        print('Starting %s, band %d, at %s' % (coadd_id, band, time.ctime()))
+        sys.stdout.flush()
+
     res = process(im, sqivar, flag, psf, refit_psf=args.refit_psf,
-                  verbose=args.verbose, nx=4, ny=4, derivcentroids=True)
+                  verbose=args.verbose, nx=4, ny=4, derivcentroids=True,
+                  maxstars=40000*16, fewstars=100*16)
+    print('Finishing %s, band %d; %d sec elapsed.' %
+          (coadd_id, band, time.time()-t0))
+
     outfn = args.outfn[0]
 
     x = (res[0])['x']
@@ -232,5 +243,5 @@ if __name__ == "__main__":
     fits.writeto(outfn, cat)
     fits.append(outfn, res[1])
     fits.append(outfn, res[2])
-    psfext = numpy.array([tpsf(0, 0, stampsz=19) for tpsf in res[3]])
-    fits.append(outfn, psfext)
+    psfstamp = res[3](0, 0, stampsz=19)
+    fits.append(outfn, psfstamp)
