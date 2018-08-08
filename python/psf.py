@@ -464,6 +464,134 @@ class VariableMoffatPixelizedPSF:
         return modstamp
 
 
+class GridInterpPSF:
+    def __init__(self, stamp, x, y, normalize=19):
+        stampsz = stamp.shape[-1]
+        if (stampsz % 2) == 0:
+            raise ValueError('problematic shape')
+        if (stamp.shape[0] != len(x)) or (stamp.shape[1] != len(y)):
+            raise ValueError('mismatch between grid coordinates and stamp.')
+
+        self.stamp = stamp
+        self.normalize = normalize
+        self.x = x
+        self.y = y
+        self.deriv = numpy.gradient(-self.stamp, axis=(2, 3))
+        if normalize > 0:
+            cstamp = central_stamp(stamp, normalize)
+        else:
+            cstamp = stamp
+        self.normstamp = numpy.sum(cstamp, axis=(2, 3))
+        stampsz = cstamp.shape[-1]
+        stampszo2 = stampsz // 2
+        xc = numpy.arange(stampsz, dtype='f4')-stampszo2
+        xc = xc.reshape(1, 1, -1, 1)
+        yc = xc.copy().reshape(1, 1, 1, -1)
+        self.xstamp = numpy.sum(xc*cstamp, axis=(2, 3))
+        self.ystamp = numpy.sum(yc*cstamp, axis=(2, 3))
+
+    def interpolator(self, stamp, x, y):
+        x0 = numpy.atleast_1d(x)
+        y0 = numpy.atleast_1d(y)
+        ind = [numpy.interp(z, zgrid, numpy.arange(len(zgrid), dtype='f4'),
+                            left=0, right=len(zgrid)-1)
+               for (z, zgrid) in ((x0, self.x), (y0, self.y))]
+        w1 = [numpy.ceil(z) - z for z in ind]
+        w2 = [1 - z for z in w1]
+        left = [numpy.floor(z).astype('i4') for z in ind]
+        right = [numpy.ceil(z).astype('i4') for z in ind]
+        ret = numpy.zeros((len(x0),)+stamp.shape[2:], dtype=stamp.dtype)
+        for i in range(len(x0)):
+            ret[i, ...] = (
+                w1[0][i]*w1[1][i]*stamp[left[0][i], left[1][i], ...] +
+                w1[0][i]*w2[1][i]*stamp[left[0][i], right[1][i], ...] +
+                w2[0][i]*w1[1][i]*stamp[right[0][i], left[1][i], ...] +
+                w2[0][i]*w2[1][i]*stamp[right[0][i], right[1][i], ...])
+        if x0 is not x:
+            ret = ret[0]
+        return ret
+
+    def norm(self, x, y):
+        return self.interpolator(self.normstamp, x, y)
+
+    def centroid(self, x, y):
+        if self.normalize < 0:
+            norm = 1
+        else:
+            norm = self.norm(x, y)
+        xc = self.interpolator(self.xstamp, x, y)
+        yc = self.interpolator(self.ystamp, x, y)
+        return xc/norm, yc/norm
+
+    def render_model(self, x, y, stampsz=59, deriv=False):
+        tstamps = self.interpolator(central_stamp(self.stamp, stampsz), x, y)
+        if deriv:
+            dpsfdx = self.interpolator(central_stamp(self.deriv[0], stampsz),
+                                       x, y)
+            dpsfdy = self.interpolator(central_stamp(self.deriv[1], stampsz),
+                                       x, y)
+            tstamps = (tstamps, dpsfdx, dpsfdy)
+        return tstamps
+
+    def serialize(self, stampsz=None):
+        stamp = self.stamp
+        if stampsz is not None:
+            stamp = central_stamp(self.stamp, stampsz)
+        dtype = [('stamp', stamp.dtype, stamp.shape),
+                 ('x', len(self.x), 'f4'), ('y', len(self.y), 'f4')]
+        extrapar = getattr(self, 'extraparam', None)
+        if extrapar is not None:
+            dtype += extrapar.dtype.descr
+        res = numpy.zeros(1, dtype=dtype)
+        res['stamp'][0, ...] = stamp
+        res['x'][0, ...] = self.x
+        res['y'][0, ...] = self.y
+        if getattr(self, 'extraparam', None) is not None:
+            for name in extrapar.dtype.names:
+                res[name][0, ...] = extrapar[name]
+        return res
+
+    def __call__(self, x, y, stampsz=None, deriv=False):
+        if stampsz is None:
+            stampsz = self.stamp.shape[-1]
+        parshape = numpy.broadcast(x, y).shape
+        tparshape = parshape if len(parshape) > 0 else (1,)
+        x = numpy.atleast_1d(x)
+        y = numpy.atleast_1d(y)
+
+        shiftx, shifty = (q - numpy.round(q) for q in (x, y))
+        stamps = self.render_model(x, y, stampsz=stampsz, deriv=deriv)
+        if deriv:
+            stamps, dpsfdx, dpsfdy = stamps
+            dpsfdx = dpsfdx.reshape(tparshape+(stampsz, stampsz))
+            dpsfdy = dpsfdy.reshape(tparshape+(stampsz, stampsz))
+
+        stamps = stamps.reshape(tparshape+(stampsz, stampsz))
+        norm = numpy.atleast_1d(self.norm(x, y))
+        shiftx = numpy.atleast_1d(shiftx)
+        shifty = numpy.atleast_1d(shifty)
+
+        for i in range(stamps.shape[0]):
+            stamps[i, :, :] = shift(stamps[i, :, :], (shiftx[i], shifty[i]))
+        stamps /= norm.reshape(-1, 1, 1)
+        if tparshape != parshape:
+            stamps = stamps.reshape(stamps.shape[1:])
+
+        if deriv:
+            for i in range(stamps.shape[0]):
+                dpsfdx[i, :, :] = shift(dpsfdx[i, :, :],
+                                        (shiftx[i], shifty[i]))
+                dpsfdy[i, :, :] = shift(dpsfdy[i, :, :],
+                                        (shiftx[i], shifty[i]))
+            dpsfdx /= norm.reshape(-1, 1, 1)
+            dpsfdy /= norm.reshape(-1, 1, 1)
+            if tparshape != parshape:
+                dpsfdx = dpsfdx.reshape(stamps.shape[1:])
+                dpsfdy = dpsfdy.reshape(stamps.shape[1:])
+            stamps = (stamps, dpsfdx, dpsfdy)
+        return stamps
+
+
 def select_stamps(psfstack, imstack, weightstack, shiftx, shifty):
     if psfstack.shape[0] == 0:
         return numpy.ones(0, dtype='bool')
@@ -1000,7 +1128,7 @@ def linear_static_wing_from_record(record, filter='g'):
 
 def wise_psf_fit(x, y, xcen, ycen, stamp, imstamp, modstamp,
                  isig, pixsz=9, nkeep=200, plot=False,
-                 psfstamp=None):
+                 psfstamp=None, grid=False):
     if psfstamp is None:
         raise ValueError('psfstamp must be set')
     # clean and shift the PSFs first.
@@ -1019,7 +1147,10 @@ def wise_psf_fit(x, y, xcen, ycen, stamp, imstamp, modstamp,
         # right in the Galactic center and things are horrible.
         print('Only %d PSF stars (of %d total), giving up PSF fit...' %
               (len(x), len(okpsf)))
-        return SimplePSF(psfstamp)
+        if not grid:
+            return SimplePSF(psfstamp)
+        else:
+            return GridInterpPSF(*psfstamp)
     if len(x) > nkeep:
         fluxes = numpy.sum(stamp, axis=(1, 2))
         s = numpy.argsort(-fluxes)
@@ -1033,17 +1164,42 @@ def wise_psf_fit(x, y, xcen, ycen, stamp, imstamp, modstamp,
     isig0 = isig.copy()
     isig = numpy.clip(isig, 0., maxisig)
 
-    psfstamp = numpy.clip(psfstamp, 1e-9, numpy.inf)
     stampsz = isig.shape[-1]
-    psfstamp /= numpy.sum(central_stamp(psfstamp, censize=stampsz))
+    if not grid:
+        normstamp = numpy.sum(central_stamp(psfstamp, censize=stampsz))
+        psfstamp /= normstamp
+        npsfstamp = psfstamp
+    else:
+        normstamp = numpy.sum(central_stamp(psfstamp[0], censize=stampsz),
+                              axis=(2, 3))[:, :, None, None]
+        psfstamp[0][...] = psfstamp[0] / normstamp
+        npsfstamp = psfstamp[0]
+        npsfstamp = numpy.mean(npsfstamp, axis=(0, 1))
+        npsfstamp /= numpy.sum(npsfstamp)
 
-    resid = (stamp - central_stamp(psfstamp, censize=stampsz)).astype('f4')
+    resid = (stamp - central_stamp(npsfstamp, censize=stampsz))
+    resid = resid.astype('f4')
     resid_cen = central_stamp(resid, censize=pixsz)
     residmed = numpy.median(resid_cen, axis=0)
-    newstamp = psfstamp.copy()
-    central_stamp(newstamp, censize=pixsz)[:, :] += residmed
+    if not grid:
+        newstamp = psfstamp.copy()
+        central_stamp(newstamp, censize=pixsz)[:, :] += residmed
+    else:
+        newstamp = psfstamp[0].copy()
+        central_stamp(newstamp, censize=pixsz)[:, :, :, :] += (
+            residmed[None, None, :, :])
+
     if plot:
-        modstamp = central_stamp(newstamp, censize=stampsz)
+        if not grid:
+            modstamp = central_stamp(newstamp, censize=stampsz)
+        else:
+            # HACK; not clear which model to use... should use the right
+            # one for each, but I don't really want to go there...
+            modstamp = central_stamp(newstamp[0, 0, :, :], censize=stampsz)
         modstamp = modstamp[None, ...]*numpy.ones((stamp.shape[0], 1, 1))
         plot_psf_fits_brightness(stamp, x, y, modstamp, isig0)
-    return SimplePSF(newstamp)
+
+    if not grid:
+        return SimplePSF(newstamp)
+    else:
+        return GridInterpPSF(newstamp, psfstamp[1], psfstamp[2])

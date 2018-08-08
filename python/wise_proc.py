@@ -89,7 +89,9 @@ def massage_isig_and_dim(isig, im, flag, band, nm, fac=None):
 
     if fac is None:
         bandfacs = {1: 0.15, 2: 0.3}
+        bandfloors = {1: 0.5, 2: 2}
         fac = bandfacs[band]
+        floor = bandfloors[band]
 
     satbit = 16 if band == 1 else 32
     satlimit = 85000 if band == 1 else 130000
@@ -104,18 +106,21 @@ def massage_isig_and_dim(isig, im, flag, band, nm, fac=None):
     flag = flag.astype('i8')
     flag[msat] |= extrabits['crowdsat']
     flag[(flag & nodeblend_bits) != 0] |= crowdsource.nodeblend_maskbit
-    sigma = numpy.sqrt(1./(isig + (isig == 0))**2 +
+    sigma = numpy.sqrt(1./(isig + (isig == 0))**2 + floor**2 +
                        fac**2*numpy.clip(im, 0, numpy.inf))
     sigma[msat] = numpy.inf
     return (1./sigma).astype('f4'), flag
 
 
-def wise_psf(band, coadd_id):
+def wise_psf_stamp(band):
     # psf noise: ~roughly 0.1 count in outskirts of W1 and W2
     if band >= 3:
         raise ValueError('Need to stare at W3+ PSF more!')
+    if os.getenv('WISE_PSF_DIR', None) is None:
+        raise ValueError('WISE_PSF_DIR must be set.')
     psfnoise = 0.1
-    stamp = unwise_psf.get_unwise_psf(band, coadd_id)
+    stamp = fits.getdata(os.path.join(os.getenv('WISE_PSF_DIR'),
+                                      'psf_model_w'+str(band)+'.fits'))
     edges = numpy.concatenate([stamp[0, 1:-1], stamp[-1, 1:-1],
                                stamp[1:-1, 0], stamp[1:-1, -1]])
     if band == 1:
@@ -126,9 +131,6 @@ def wise_psf(band, coadd_id):
         medval = 0.
     stamp[stamp == 0] = medval
     stamp -= medval
-    # stamp = numpy.clip(stamp, -numpy.median(edges[edges != 0]), numpy.inf)
-    # print(numpy.median(edges[edges != 0]))
-    # print(numpy.min(stamp))
     from scipy import signal
     stamp[stamp < 0] = 0.
     # suppress spurious warnings in signal.wiener
@@ -142,9 +144,38 @@ def wise_psf(band, coadd_id):
                           stampszo2-numpy.abs(yy))
     stamp = stamp * numpy.clip(edgedist / 60., stamp < 10, 1)
     stamp = stamp / numpy.sum(stamp)
+    return stamp
+
+
+def wise_psf(band, coadd_id):
+    stamp = wise_psf_stamp(band)
+    stamp = unwise_psf.rotate_using_rd(stamp, coadd_id)
     psf = psfmod.SimplePSF(stamp)
     from functools import partial
     psf.fitfun = partial(psfmod.wise_psf_fit, psfstamp=stamp)
+    return psf
+
+
+def wise_psf_grid(band, coadd_id, basedir, uncompressed=False,
+                  drop_first_dir=False):
+    x = numpy.linspace(0, 2047, 16)
+    y = numpy.linspace(0, 2047, 16)
+    imagefn = wise_filename(basedir, coadd_id, band, 'img-m',
+                            uncompressed=uncompressed,
+                            drop_first_dir=drop_first_dir)
+    hdr = fits.getheader(imagefn)
+    wcs0 = wcs.WCS(hdr)
+    stamp = wise_psf_stamp(band).astype('f4')
+    stamps = numpy.zeros((len(x), len(y))+stamp.shape, dtype=stamp.dtype)
+    for i in range(len(x)):
+        for j in range(len(y)):
+            rr, dd = wcs0.all_pix2world(y[j], x[i], 0)
+            stamps[i, j, ...] = unwise_psf.rotate_using_rd(
+                stamp, coadd_id, ra=rr, dec=dd, cache=True)
+    psf = psfmod.GridInterpPSF(stamps, x, y)
+    from functools import partial
+    psf.fitfun = partial(psfmod.wise_psf_fit, psfstamp=(stamps, x, y),
+                         grid=True)
     return psf
 
 
@@ -175,6 +206,12 @@ def read_wise(coadd_id, band, basedir, uncompressed=False,
     return im, sqivar, flag, hdr
 
 
+def ivarmap(isig, psfstamp):
+    from scipy.signal import fftconvolve
+    ivarim = fftconvolve(isig**2., psfstamp[::-1, ::-1]**2., mode='same')
+    return ivarim
+
+
 def brightlist(brightstars, coadd_id, band, basedir, uncompressed=False,
                drop_first_dir=False):
     imagefn = wise_filename(basedir, coadd_id, band, 'img-m',
@@ -199,6 +236,10 @@ if __name__ == "__main__":
     parser.add_argument('--uncompressed', '-u', default=False, action='store_true')
     parser.add_argument('--brightcat', '-b',
                         default=os.environ.get('TMASS_BRIGHT'), type=str)
+    parser.add_argument('--modelfn', '-m', default='', type=str,
+                        help='file name for model image, if desired')
+    parser.add_argument('--infoimfn', '-i', default='', type=str,
+                        help='file name for info image, if desired')
 
     args = parser.parse_args()
 
@@ -226,22 +267,28 @@ if __name__ == "__main__":
     res = process(im, sqivar, flag, psf, refit_psf=args.refit_psf,
                   verbose=args.verbose, nx=4, ny=4, derivcentroids=True,
                   maxstars=40000*16, fewstars=100*16)
+    cat, model, sky, psf = res
     print('Finishing %s, band %d; %d sec elapsed.' %
           (coadd_id, band, time.time()-t0))
 
     outfn = args.outfn[0]
 
-    x = (res[0])['x']
-    y = (res[0])['y']
+    x = cat['x']
+    y = cat['y']
 
-    wcs = wcs.WCS(hdr)
-    ra, dec = wcs.all_pix2world(y, x, 0)
+    wcs0 = wcs.WCS(hdr)
+    ra, dec = wcs0.all_pix2world(y, x, 0)
 
     import numpy.lib.recfunctions as rfn
-    cat = rfn.append_fields(res[0], ['ra', 'dec'], [ra, dec])
+    cat = rfn.append_fields(cat, ['ra', 'dec'], [ra, dec])
 
     fits.writeto(outfn, cat)
-    fits.append(outfn, res[1])
-    fits.append(outfn, res[2])
-    psfstamp = res[3](0, 0, stampsz=19)
-    fits.append(outfn, psfstamp)
+    if len(args.modelfn) > 0:
+        fits.writeto(args.modelfn, model)
+        fits.append(args.modelfn, sky)
+
+    if len(args.infoimfn) > 0:
+        psffluxivar = ivarmap(sqivar, psf(1024, 1024, stampsz=59))
+        fits.writeto(args.infoimfn, psffluxivar)
+        psfstamp = psf(1024, 1024, stampsz=325)
+        fits.append(args.infoimfn, psfstamp)
