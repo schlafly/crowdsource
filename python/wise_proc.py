@@ -157,9 +157,9 @@ def wise_psf(band, coadd_id):
 
 
 def wise_psf_grid(band, coadd_id, basedir, uncompressed=False,
-                  drop_first_dir=False):
-    x = numpy.linspace(0, 2047, 16)
-    y = numpy.linspace(0, 2047, 16)
+                  drop_first_dir=False, ngrid=4):
+    x = numpy.linspace(0, 2047, ngrid)
+    y = numpy.linspace(0, 2047, ngrid)
     imagefn = wise_filename(basedir, coadd_id, band, 'img-m',
                             uncompressed=uncompressed,
                             drop_first_dir=drop_first_dir)
@@ -250,7 +250,9 @@ if __name__ == "__main__":
     im, sqivar, flag, hdr = read_wise(coadd_id, band, basedir,
                                       uncompressed=args.uncompressed)
 
-    psf = wise_psf(band, coadd_id)
+    psf = wise_psf_grid(band, coadd_id, basedir)
+    # should add ngrid= arg, that goes to ~16 near the ecliptic pole.
+    # or let wise_psf_grid decide this based on the coadd_id
 
     if len(args.brightcat) > 0:
         brightstars = fits.getdata(args.brightcat)
