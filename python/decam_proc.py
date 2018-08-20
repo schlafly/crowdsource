@@ -26,7 +26,7 @@ def read(imfn, extname, **kw):
     return read_data(imfn, ivarfn, dqfn, extname, **kw)
 
 
-def read_data(imfn, ivarfn, dqfn, extname, badpixmask=badpixmaskfn,
+def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
               maskdiffuse=True, corrects7=True):
     import warnings
     with warnings.catch_warnings(record=True) as wlist:
@@ -58,10 +58,12 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=badpixmaskfn,
     # flag 7 does not seem to indicate problems with the pixels.
     mzerowt = (((imded & ~(2**0 | 2**7)) != 0) |
                (imdew < 0.) | ~numpy.isfinite(imdew))
-    if badpixmask is not None:
-        badmask = fits.getdata(badpixmask, extname=extname)
-        imded |= ((badmask != 0) * extrabits['badpix'])
-        mzerowt = mzerowt | (badmask != 0)
+    if badpixmask is None:
+        badpixmask = os.path.join(os.environ['DECAM_DIR'], 'data', 
+                                  'badpixmasksefs_comp.fits')
+    badmask = fits.getdata(badpixmask, extname=extname)
+    imded |= ((badmask != 0) * extrabits['badpix'])
+    mzerowt = mzerowt | (badmask != 0)
     imdew[mzerowt] = 0.
     imdew[:] = numpy.sqrt(imdew)
     if maskdiffuse:
@@ -202,12 +204,12 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
             dq = mask_very_bright_stars(dq, blist)
 
         # the actual fit
-        res = crowdsource.fit_sections(im, psf, ntilex=4, ntiley=2,
-                                       weight=wt, dq=dq,
-                                       psfderiv=True, refit_psf=True,
-                                       verbose=verbose, blist=blist)
+        res = crowdsource.fit_im(im, psf, ntilex=4, ntiley=2,
+                                 weight=wt, dq=dq,
+                                 psfderiv=True, refit_psf=True,
+                                 verbose=verbose, blist=blist)
 
-        cat, modelim, skyim, psfs = res
+        cat, modelim, skyim, psf = res
         if len(cat) > 0:
             ra, dec = wcs0.all_pix2world(cat['y'], cat['x'], 0.)
         else:
@@ -236,14 +238,12 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
         cat = rec_append_fields(cat, ['ra', 'dec', 'decapsid', 'gain'],
                                 [ra, dec, decapsid, gain])
         fits.append(outfn, numpy.zeros(0), hdr)
-        outpsfs = numpy.concatenate([tpsf.serialize(stampsz=19)
-                                     for tpsf in psfs])
-        hdupsfs = fits.BinTableHDU(outpsfs)
-        hdupsfs.name = hdr['EXTNAME'][:-4] + '_PSF'
+        hdupsf = fits.BinTableHDU(psf.serialize())
+        hdupsf.name = hdr['EXTNAME'][:-4] + '_PSF'
         hducat = fits.BinTableHDU(cat)
         hducat.name = hdr['EXTNAME'][:-4] + '_CAT'
         hdulist = fits.open(outfn, mode='append')
-        hdulist.append(hdupsfs)
+        hdulist.append(hdupsf)
         hdulist.append(hducat)
         hdulist.close(closed=True)
         if outmodelfn:
