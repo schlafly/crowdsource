@@ -207,7 +207,8 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, clobber=False,
         res = crowdsource.fit_im(im, psf, ntilex=4, ntiley=2,
                                  weight=wt, dq=dq,
                                  psfderiv=True, refit_psf=True,
-                                 verbose=verbose, blist=blist)
+                                 verbose=verbose, blist=blist,
+                                 maxstars=320000)
 
         cat, modelim, skyim, psf = res
         if len(cat) > 0:
