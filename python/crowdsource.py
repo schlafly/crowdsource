@@ -130,10 +130,11 @@ def peakfind(im, model, isig, dq, psf, keepsat=False, threshhold=5,
     sigratio2 = sigim[x, y]/numpy.clip(modelsigim[x, y], 0.01, numpy.inf)
     keepsatcensrc = keepsat & (isig[x, y] == 0)
     m = ((isig[x, y] > 0) | keepsatcensrc)  # ~saturated, or saturated & keep
-    if dq is not None and numpy.any(dq[x, y] & nodeblendbits):
-        nodeblend = (dq[x, y] & nodblend_maskbit) != 0
+    if dq is not None and numpy.any(dq[x, y] & nodeblend_maskbit):
+        nodeblend = (dq[x, y] & nodeblend_maskbit) != 0
         blendthreshhold = numpy.ones_like(x)*blendthreshhold
         blendthreshhold[nodeblend] = 100
+    if dq is not None and numpy.any(dq[x, y] & sharp_maskbit):
         sharp = (dq[x, y] & sharp_maskbit) != 0
         msharp = ~sharp | psfvalsharpcut(x, y, sigim, isig, psfstamp)
         # keep if not nebulous region or sharp peak.
