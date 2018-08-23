@@ -20,9 +20,8 @@ import psf as psfmod
 import scipy.ndimage.filters as filters
 from collections import OrderedDict
 
-nebulosity_maskbit = 2**21
-brightstar_maskbit = 2**23
-nodeblend_maskbit = 2**24
+nodeblend_maskbit = 2**30
+sharp_maskbit = 2**31
 
 
 def shift(im, offset, **kw):
@@ -131,13 +130,11 @@ def peakfind(im, model, isig, dq, psf, keepsat=False, threshhold=5,
     sigratio2 = sigim[x, y]/numpy.clip(modelsigim[x, y], 0.01, numpy.inf)
     keepsatcensrc = keepsat & (isig[x, y] == 0)
     m = ((isig[x, y] > 0) | keepsatcensrc)  # ~saturated, or saturated & keep
-    nodeblendbits = nebulosity_maskbit | brightstar_maskbit | nodeblend_maskbit
-    sharpbits = nebulosity_maskbit
     if dq is not None and numpy.any(dq[x, y] & nodeblendbits):
-        nodeblend = (dq[x, y] & nodeblendbits) != 0
+        nodeblend = (dq[x, y] & nodblend_maskbit) != 0
         blendthreshhold = numpy.ones_like(x)*blendthreshhold
         blendthreshhold[nodeblend] = 100
-        sharp = (dq[x, y] & sharpbits) != 0
+        sharp = (dq[x, y] & sharp_maskbit) != 0
         msharp = ~sharp | psfvalsharpcut(x, y, sigim, isig, psfstamp)
         # keep if not nebulous region or sharp peak.
         m = m & msharp
