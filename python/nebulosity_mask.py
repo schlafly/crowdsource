@@ -28,6 +28,28 @@ def equalize_histogram(img, n_bins=256, asinh_stretch=False):
     return img_equalized.reshape(img.shape), cdf
 
 
+def equalize_histogram_wise(img, n_bins=256, asinh_stretch=False):
+    # tweaked version for WISE
+    import numpy as np
+
+    # Stretch the image with asinh in order to get more even histogram
+    if asinh_stretch:
+        vmed = np.nanmedian(img)
+        scale = np.nanpercentile(img, 30.)-np.nanpercentile(img, 10)
+        scale = np.clip(scale, 100, np.inf)
+        img = np.arcsinh((img-vmed) / scale)
+
+    # get image histogram
+    img_histogram, bins = np.histogram(img.flatten(), n_bins, density=False)
+    cdf = img_histogram.cumsum()  # cumulative distribution function
+    cdf = 255 * cdf / cdf[-1]  # normalize
+
+    # use linear interpolation of cdf to find new pixel values
+    img_equalized = np.interp(img.flatten(), bins[:-1], cdf)
+
+    return img_equalized.reshape(img.shape), cdf
+
+
 def load_model(fname_base):
     with open(fname_base + '.json', 'r') as f:
         model_json = f.read()
@@ -64,6 +86,27 @@ def gen_mask(model, img):
     return mask[1:-1, 1:-1]
 
 
+def gen_mask_wise(model, img):
+    _, h, w, _ = model.layers[0].input_shape
+
+    mask = np.empty(img.shape, dtype='u1')
+
+    for j0, k0, subimg in subimages(img, (h, w)):
+        subimg, _ = equalize_histogram_wise(subimg.astype('f8'),
+                                            asinh_stretch=True, n_bins=3000)
+        subimg /= 255.
+        subimg.shape = (1, subimg.shape[0], subimg.shape[1], 1)
+        pred = model.predict(subimg, batch_size=1)[0]
+        # light, normal, nebulosity
+        predcondense = np.argmax(pred*[1., 1., 0.1])
+        mask[j0:j0+h, k0:k0+w] = predcondense
+        # if predcondense == 2:
+        #     print(pred)
+
+    mask[mask == 0] = 1  # nebulosity_light -> normal
+    return mask
+
+    
 def test_plots(model, imfns, extname='N26'):
     from matplotlib import pyplot as p
     from astropy.io import fits

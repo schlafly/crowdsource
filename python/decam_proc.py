@@ -77,6 +77,8 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
         nebmask = nebulosity_mask.gen_mask(nebmod, imdei) == 0
         if numpy.any(nebmask):
             imded |= (nebmask * extrabits['diffuse'])
+            imded |= (nebmask * (crowdsource.nodeblend_maskbit | 
+                                 crowdsource.sharp_maskbit))
             print('Masking nebulosity, %5.2f' % (
                 numpy.sum(nebmask)/1./numpy.sum(numpy.isfinite(nebmask))))
     if corrects7 and (extname == 'S7'):
@@ -340,6 +342,8 @@ def mask_very_bright_stars(dq, blist):
         yl, yr = numpy.clip([y-maskrad, y+maskrad], 0,
                             dq.shape[1]-1).astype('i4')
         dq[xl:xr, yl:yr] |= extrabits['brightstar']
+        dq[xl:xr, yl:yr] |= (crowdsource.nodeblend_maskbit |
+                             crowdsource.sharp_maskbit)
     return dq
 
 

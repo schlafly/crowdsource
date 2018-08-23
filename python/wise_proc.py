@@ -157,13 +157,22 @@ def wise_psf(band, coadd_id):
 
 
 def wise_psf_grid(band, coadd_id, basedir, uncompressed=False,
-                  drop_first_dir=False, ngrid=4):
-    x = numpy.linspace(0, 2047, ngrid)
-    y = numpy.linspace(0, 2047, ngrid)
+                  drop_first_dir=False, ngrid=None):
     imagefn = wise_filename(basedir, coadd_id, band, 'img-m',
                             uncompressed=uncompressed,
                             drop_first_dir=drop_first_dir)
     hdr = fits.getheader(imagefn)
+    if ngrid is None:
+        rr, dd = hdr['CRVAL1'], hdr['CRVAL2']
+        from astropy.coordinates import SkyCoord
+        from astropy import units as u
+        coord = SkyCoord(ra=rr*u.deg, dec=dd*u.deg, frame='icrs')
+        coord = coord.geocentrictrueecliptic
+        lam, bet = coord.lon.deg, coord.lat.deg
+        dlam = 1.4/(numpy.abs(numpy.cos(numpy.radians(bet)))+1e-6)
+        ngrid = numpy.floor(numpy.clip(dlam / 1, 4, 16)).astype('i4')
+    x = numpy.linspace(0, 2047, ngrid)
+    y = numpy.linspace(0, 2047, ngrid)
     wcs0 = wcs.WCS(hdr)
     stamp = wise_psf_stamp(band).astype('f4')
     stamps = numpy.zeros((len(x), len(y))+stamp.shape, dtype=stamp.dtype)
@@ -240,6 +249,7 @@ if __name__ == "__main__":
                         help='file name for model image, if desired')
     parser.add_argument('--infoimfn', '-i', default='', type=str,
                         help='file name for info image, if desired')
+    parser.add_argument('--masknebulosity', '-n', action='store_true')
 
     args = parser.parse_args()
 
@@ -250,9 +260,19 @@ if __name__ == "__main__":
     im, sqivar, flag, hdr = read_wise(coadd_id, band, basedir,
                                       uncompressed=args.uncompressed)
 
+    if args.masknebulosity:
+        import nebulosity_mask
+        nebfn = os.path.join(os.environ['WISE_DIR'], 'dat', 'nebnet',
+                             'weights6', '6th_try')
+        nebmod = nebulosity_mask.load_model(nebfn)
+        nebmask = nebulosity_mask.gen_mask_wise(nebmod, im) == 0
+        if numpy.any(nebmask):
+            flag |= (nebmask * (crowdsource.nodeblend_maskbit | 
+                                crowdsource.sharp_maskbit))
+            print('Masking nebulosity, %5.2f' % (
+                numpy.sum(nebmask)/1./numpy.sum(numpy.isfinite(nebmask))))
+
     psf = wise_psf_grid(band, coadd_id, basedir)
-    # should add ngrid= arg, that goes to ~16 near the ecliptic pole.
-    # or let wise_psf_grid decide this based on the coadd_id
 
     if len(args.brightcat) > 0:
         brightstars = fits.getdata(args.brightcat)
@@ -280,9 +300,16 @@ if __name__ == "__main__":
 
     wcs0 = wcs.WCS(hdr)
     ra, dec = wcs0.all_pix2world(y, x, 0)
+    coadd_ids = numpy.zeros(len(ra), dtype='a8')
+    bands = numpy.zeros(len(ra), dtype='i4')
+    objids = numpy.zeros(len(ra), dtype='a16')
+    coadd_ids[:] = coadd_id
+    bands[:] = band
+    objids = ['%so%07d' % (coadd_id, num) for num in range(len(ra))]
 
     import numpy.lib.recfunctions as rfn
-    cat = rfn.append_fields(cat, ['ra', 'dec'], [ra, dec])
+    cat = rfn.append_fields(cat, ['ra', 'dec', 'coadd_id', 'band', 'objid'], 
+                            [ra, dec, coadd_ids, bands, objids])
 
     fits.writeto(outfn, cat)
     if len(args.modelfn) > 0:
