@@ -288,7 +288,7 @@ if __name__ == "__main__":
 
     res = process(im, sqivar, flag, psf, refit_psf=args.refit_psf,
                   verbose=args.verbose, nx=4, ny=4, derivcentroids=True,
-                  maxstars=40000*16, fewstars=100*16)
+                  maxstars=40000*16, fewstars=100*16, blist=blist)
     cat, model, sky, psf = res
     print('Finishing %s, band %d; %d sec elapsed.' %
           (coadd_id, band, time.time()-t0))
@@ -306,6 +306,9 @@ if __name__ == "__main__":
     coadd_ids[:] = coadd_id
     bands[:] = band
     objids = ['%so%07d' % (coadd_id, num) for num in range(len(ra))]
+
+    # would also like to read in n_m file and query out the number
+    # of images at the positions of each of the sources.
 
     import numpy.lib.recfunctions as rfn
     cat = rfn.append_fields(cat, ['ra', 'dec', 'coadd_id', 'band', 'objid'], 
