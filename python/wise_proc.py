@@ -94,7 +94,7 @@ def massage_isig_and_dim(isig, im, flag, band, nm, fac=None):
         floor = bandfloors[band]
 
     satbit = 16 if band == 1 else 32
-    satlimit = 85000 if band == 1 else 130000
+    satlimit = 85000 # if band == 1 else 130000
     msat = ((flag & satbit) != 0) | (im > satlimit) | (nm == 0)
     from scipy.ndimage import morphology
     # dilate = morphology.iterate_structure(
@@ -123,12 +123,7 @@ def wise_psf_stamp(band):
                                       'psf_model_w'+str(band)+'.fits'))
     edges = numpy.concatenate([stamp[0, 1:-1], stamp[-1, 1:-1],
                                stamp[1:-1, 0], stamp[1:-1, -1]])
-    if band == 1:
-        medval = numpy.median(edges[edges != 0]) / 2
-    elif band == 2:
-        medval = numpy.median(edges[edges != 0]) / 4
-    else:
-        medval = 0.
+    medval = numpy.median(edges[edges != 0]) / 2
     stamp[stamp == 0] = medval
     stamp -= medval
     from scipy import signal
@@ -176,6 +171,7 @@ def wise_psf_grid(band, coadd_id, basedir, uncompressed=False,
     wcs0 = wcs.WCS(hdr)
     stamp = wise_psf_stamp(band).astype('f4')
     stamps = numpy.zeros((len(x), len(y))+stamp.shape, dtype=stamp.dtype)
+    unwise_psf.rotate_using_convolution.cache = None  # clear cache
     for i in range(len(x)):
         for j in range(len(y)):
             rr, dd = wcs0.all_pix2world(y[j], x[i], 0)
@@ -288,7 +284,7 @@ if __name__ == "__main__":
 
     res = process(im, sqivar, flag, psf, refit_psf=args.refit_psf,
                   verbose=args.verbose, nx=4, ny=4, derivcentroids=True,
-                  maxstars=40000*16, fewstars=100*16, blist=blist)
+                  maxstars=30000*16, fewstars=50*16, blist=blist)
     cat, model, sky, psf = res
     print('Finishing %s, band %d; %d sec elapsed.' %
           (coadd_id, band, time.time()-t0))
@@ -307,20 +303,37 @@ if __name__ == "__main__":
     bands[:] = band
     objids = ['%so%07d' % (coadd_id, num) for num in range(len(ra))]
 
-    # would also like to read in n_m file and query out the number
-    # of images at the positions of each of the sources.
+    nmfn = wise_filename(basedir, coadd_id, band, 'n-m',
+                         uncompressed=args.uncompressed)
+    nmim = fits.getdata(nmfn)
+    nms = crowdsource.extract_im(cat['x'], cat['y'], nmim)
 
     import numpy.lib.recfunctions as rfn
-    cat = rfn.append_fields(cat, ['ra', 'dec', 'coadd_id', 'band', 'objid'], 
-                            [ra, dec, coadd_ids, bands, objids])
+    cat = rfn.append_fields(
+        cat, ['ra', 'dec', 'coadd_id', 'band', 'objid', 'nm'], 
+        [ra, dec, coadd_ids, bands, objids, nms])
 
     fits.writeto(outfn, cat)
     if len(args.modelfn) > 0:
-        fits.writeto(args.modelfn, model)
-        fits.append(args.modelfn, sky)
+        hdulist = fits.open(args.modelfn, mode='append')
+        compkw = {'compression_type': 'GZIP_1',
+                  'quantize_method': 2, 'quantize_level': -0.5,
+                  'tile_size': model.shape}
+        hdr['EXTNAME'] = 'model'
+        hdulist.append(fits.CompImageHDU(model, hdr, **compkw))
+        hdr['EXTNAME'] = 'sky'
+        hdulist.append(fits.CompImageHDU(sky, hdr, **compkw))
+        hdulist.close(closed=True)
 
     if len(args.infoimfn) > 0:
-        psffluxivar = ivarmap(sqivar, psf(1024, 1024, stampsz=59))
-        fits.writeto(args.infoimfn, psffluxivar)
+        psffluxivar = ivarmap(sqivar, psf(1024, 1024, stampsz=59)).astype('f4')
         psfstamp = psf(1024, 1024, stampsz=325)
-        fits.append(args.infoimfn, psfstamp)
+        hdulist = fits.open(args.infoimfn, mode='append')
+        compkw = {'compression_type': 'GZIP_1',
+                  'quantize_method': 2,
+                  'tile_size': psffluxivar.shape}
+        hdr['EXTNAME'] = 'psffluxivar'
+        hdulist.append(fits.CompImageHDU(psffluxivar, hdr, **compkw))
+        hdr['EXTNAME'] = coadd_id+'_psf'
+        hdulist.append(fits.ImageHDU(psfstamp, hdr))
+        hdulist.close(closed=True)

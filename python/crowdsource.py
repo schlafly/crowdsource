@@ -298,8 +298,9 @@ def fit_once(im, x, y, psfs, weight=None,
     npixim = im.shape[0]*im.shape[1]
     xloc = numpy.zeros(repeat*numpy.sum(sz*sz).astype('i4') +
                        nskypar*npixim, dtype='i4')
-    yloc = numpy.zeros(len(xloc), dtype='i4')
-    values = numpy.zeros(len(yloc), dtype='f4')
+    # yloc = numpy.zeros(len(xloc), dtype='i4')
+    # no longer need yloc; csc entries are built directly.
+    values = numpy.zeros(len(xloc), dtype='f4')
     colnorm = numpy.zeros(len(x)*repeat+nskypar, dtype='f4')
     first = 0
     for i in range(len(xe)):
@@ -311,7 +312,7 @@ def fit_once(im, x, y, psfs, weight=None,
                 numpy.ravel_multi_index(((xe[i]+xpix[f:l, f:l]),
                                          (ye[i]+ypix[f:l, f:l])),
                                         im.shape)).reshape(-1)
-            yloc[first:first+sz[i]**2] = i*repeat+j
+            # yloc[first:first+sz[i]**2] = i*repeat+j
             values[first:first+sz[i]**2] = (
                 (psfs[j][i][:, :]*wt).reshape(-1))
             colnorm[i*repeat+j] = numpy.sqrt(
@@ -327,7 +328,7 @@ def fit_once(im, x, y, psfs, weight=None,
         nskypix = len(sxloc[0])
         for i in range(len(sxloc)):
             xloc[first:first+nskypix] = sxloc[i]
-            yloc[first:first+nskypix] = startidx+syloc[i]
+            # yloc[first:first+nskypix] = startidx+syloc[i]
             colnorm[startidx+i] = numpy.sqrt(numpy.sum(svalues[i]**2.))
             colnorm[startidx+i] += (colnorm[startidx+i] == 0.)
             values[first:first+nskypix] = svalues[i] / colnorm[startidx+i]
@@ -578,7 +579,7 @@ def get_sizes(x, y, imbs, weight=None, blist=None):
     sz[peakbright <= cutoff] = 19  # for the moment...
     # for very bright things, use a bigger PSF
     # but if there are too many of these, don't bother.
-    cutoff2 = 10000
+    cutoff2 = 20000
     if numpy.sum(peakbright > cutoff2) < numpy.sum(peakbright > cutoff)/2:
         sz[peakbright > cutoff2] = 149
     else:
@@ -661,7 +662,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
                 lastiter = titer + 1
         # we probably don't want the sizes to change very much.  hsky certainly
         # will change a bit from iteration to iteration, though.
-        sz = get_sizes(xa, ya, im-hsky, weight=weight, blist=blist)
+        sz = get_sizes(xa, ya, im-hsky-msky, weight=weight, blist=blist)
         if guessflux is not None:
             guess = numpy.concatenate([guessflux, numpy.zeros_like(xn)])
         else:
@@ -851,8 +852,9 @@ def spread_model(impsfstack, psfstack, weightstack):
     PWP = numpy.sum(psfstack**2*weightstack**2, axis=(1, 2))
     GWG = numpy.sum(expgalstack**2*weightstack**2, axis=(1, 2))
     spread = (GWp/(PWp+(PWp == 0)) - GWP/(PWP+(PWP == 0)))
-    dspread = numpy.sqrt(
-        (PWp**2*GWG + GWp**2*PWP - 2*GWp*PWp*GWP)/(PWp + (PWp == 0))**4)
+    dspread = numpy.sqrt(numpy.clip(
+        PWp**2*GWG + GWp**2*PWP - 2*GWp*PWp*GWP, 0, numpy.inf)
+                         /(PWp + (PWp == 0))**4)
     return spread, dspread
 
 
@@ -1064,7 +1066,7 @@ def find_psf(xcen, shiftx, ycen, shifty, psfstack, weightstack,
     return psfmod.SimplePSF(npsf, normalize=-1)
 
 
-def subregions(shape, nx, ny, overlap=50):
+def subregions(shape, nx, ny, overlap=149):
     # ugh.  I guess we want:
     # starts and ends of each _primary_ fit region
     # starts and ends of each _entire_ fit region
