@@ -261,7 +261,7 @@ if __name__ == "__main__":
         nebfn = os.path.join(os.environ['WISE_DIR'], 'dat', 'nebnet',
                              'weights6', '6th_try')
         nebmod = nebulosity_mask.load_model(nebfn)
-        nebmask = nebulosity_mask.gen_mask_wise(nebmod, im) == 0
+        nebmask = nebulosity_mask.gen_mask_wise(nebmod, im) == 2
         if numpy.any(nebmask):
             flag |= (nebmask * (crowdsource.nodeblend_maskbit | 
                                 crowdsource.sharp_maskbit))
@@ -334,6 +334,6 @@ if __name__ == "__main__":
                   'tile_size': psffluxivar.shape}
         hdr['EXTNAME'] = 'psffluxivar'
         hdulist.append(fits.CompImageHDU(psffluxivar, hdr, **compkw))
-        hdr['EXTNAME'] = coadd_id+'_psf'
+        hdr['EXTNAME'] = 'psf'
         hdulist.append(fits.ImageHDU(psfstamp, hdr))
         hdulist.close(closed=True)

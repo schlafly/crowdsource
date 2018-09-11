@@ -709,6 +709,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
             for i in range(repeat):
                 psfs[i][mbd] = [psfmod.central_stamp(psfsbda[i][tind], minsz)
                                 for tind in numpy.flatnonzero(mbd[mbda])]
+            del psfsbda
 
         model += fixedmodel
         centroids = compute_centroids(xa, ya, psfs, flux, im-(sky+msky),
