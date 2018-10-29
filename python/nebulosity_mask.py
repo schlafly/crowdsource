@@ -98,7 +98,7 @@ def gen_mask_wise(model, img):
         subimg.shape = (1, subimg.shape[0], subimg.shape[1], 1)
         pred = model.predict(subimg, batch_size=1)[0]
         # light, normal, nebulosity
-        predcondense = np.argmax(pred*[1., 1., 0.1])
+        predcondense = np.argmax(pred*[1., 1., 0.5])
         mask[j0:j0+h, k0:k0+w] = predcondense
         # if predcondense == 2:
         #     print(pred)

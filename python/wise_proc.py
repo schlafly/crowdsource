@@ -11,15 +11,19 @@ from astropy.io import fits
 from simple_proc import process
 import crowdsource
 import unwise_psf
+import unwise_primary
 from astropy import wcs
+from collections import OrderedDict
+
 
 extrabits = {'crowdsat': 2**25,
+             'nebulosity': 2**26,
              'w1brightoffedge': 2**7,
              'w2brightoffedge': 2**8,
              'hyperleda': 2**9}
 
-nodeblend_bits = (extrabits['w1brightoffedge'] | extrabits['w2brightoffedge'] |
-                  extrabits['hyperleda'])
+nodeblend_bits = extrabits['hyperleda']
+sharp_bits = (extrabits['w1brightoffedge'] | extrabits['w2brightoffedge'])
 
 
 def wise_filename(basedir, coadd_id, band, _type, uncompressed=False,
@@ -104,8 +108,14 @@ def massage_isig_and_dim(isig, im, flag, band, nm, fac=None):
     msat = morphology.binary_dilation(msat, dilate)
     isig[msat] = 0
     flag = flag.astype('i8')
+    # zero out these bits; we claim them for our own purposes.
+    massagebits = (extrabits['crowdsat'] | crowdsource.nodeblend_maskbit | 
+                   crowdsource.sharp_maskbit | extrabits['nebulosity'])
+    flag &= ~massagebits  
     flag[msat] |= extrabits['crowdsat']
     flag[(flag & nodeblend_bits) != 0] |= crowdsource.nodeblend_maskbit
+    flag[(flag & sharp_bits) != 0] |= crowdsource.sharp_maskbit
+
     sigma = numpy.sqrt(1./(isig + (isig == 0))**2 + floor**2 +
                        fac**2*numpy.clip(im, 0, numpy.inf))
     sigma[msat] = numpy.inf
@@ -138,6 +148,8 @@ def wise_psf_stamp(band):
     edgedist = numpy.clip(stampszo2-numpy.abs(xx), 0,
                           stampszo2-numpy.abs(yy))
     stamp = stamp * numpy.clip(edgedist / 60., stamp < 10, 1)
+    import psf
+    stamp = psf.center_psf(stamp, censize=19)
     stamp = stamp / numpy.sum(stamp)
     return stamp
 
@@ -195,7 +207,6 @@ def read_wise(coadd_id, band, basedir, uncompressed=False,
     ivarfn = wise_filename(basedir, coadd_id, band, 'invvar-m',
                            uncompressed=uncompressed,
                            drop_first_dir=drop_first_dir)
-    # band isn't actually used, passing it in anyway...
     flagfn = wise_filename(basedir, coadd_id, band, 'msk',
                            uncompressed=uncompressed,
                            drop_first_dir=drop_first_dir)
@@ -227,6 +238,81 @@ def brightlist(brightstars, coadd_id, band, basedir, uncompressed=False,
     return blist
 
 
+def collapse_unwise_bitmask(bitmask, band):
+    # 2^0 = bright star core and wings
+    # 2^1 = PSF-based diffraction spike
+    # 2^2 = optical ghost
+    # 2^3 = first latent
+    # 2^4 = second latent
+    # 2^5 = AllWISE-like circular halo
+    # 2^6 = bright star saturation
+    # 2^7 = geometric diffraction spike
+
+    assert((band == 1) or (band == 2))
+
+    bits_w1 = OrderedDict([('core_wings', 2**0 + 2**1),
+                           ('psf_spike', 2**27),
+                           ('ghost', 2**25 + 2**26),
+                           ('first_latent', 2**13 + 2**14),
+                           ('second_latent', 2**17 + 2**18),
+                           ('circular_halo', 2**23),
+                           ('saturation', 2**4),
+                           ('geom_spike', 2**29)])
+
+    bits_w2 = OrderedDict([('core_wings', 2**2 + 2**3),
+                           ('psf_spike', 2**28),
+                           ('ghost', 2**11 + 2**12),
+                           ('first_latent', 2**15 + 2**16),
+                           ('second_latent', 2**19 + 2**20),
+                           ('circular_halo', 2**24),
+                           ('saturation', 2**5),
+                           ('geom_spike', 2**30)])
+
+    bits = (bits_w1 if (band == 1) else bits_w2)
+
+    # hack to handle both scalar and array inputs
+    result = 0*bitmask
+
+    for i, feat in enumerate(bits.keys()):
+        result += (2**i)*(numpy.bitwise_and(bitmask, bits[feat]) != 0)
+
+    # int8 would be fine here, but astropy.io.fits seems to read this
+    # as a boolean... so we waste the extra 8 bits.
+    return result.astype('i2')
+
+
+def collapse_extraflags(bitmask, band):
+    bits_w1 = OrderedDict([('bright_off_edge', 2**7),
+                           ('resolved_galaxy', 2**9),
+                           ('big_object', 2**10),
+                           ('possible_bright_star_centroid', 2**21),
+                           ('crowdsat', extrabits['crowdsat']),
+                           ('nebulosity', extrabits['nebulosity']),
+                           ('nodeblend', crowdsource.nodeblend_maskbit),
+                           ('sharp', crowdsource.sharp_maskbit)])
+
+    bits_w2 = OrderedDict([('bright_off_edge', 2**8),
+                           ('resolved_galaxy', 2**9),
+                           ('big_object', 2**10),
+                           ('possible_bright_star_centroid', 2**22),
+                           ('crowdsat', extrabits['crowdsat']),
+                           ('nebulosity', extrabits['nebulosity']),
+                           ('nodeblend', crowdsource.nodeblend_maskbit),
+                           ('sharp', crowdsource.sharp_maskbit)])
+
+    bits = (bits_w1 if (band == 1) else bits_w2)
+
+    # hack to handle both scalar and array inputs
+    result = 0*bitmask
+
+    for i, feat in enumerate(bits.keys()):
+        result += (2**i)*(numpy.bitwise_and(bitmask, bits[feat]) != 0)
+
+    # could fit in a byte, but astropy.io.fits reads these as booleans,
+    # so we waste the byte...
+    return result.astype('i2')
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run crowdsource on full-depth unWISE coadd image')
     parser.add_argument('coadd_id', type=str, nargs=1)
@@ -255,16 +341,19 @@ if __name__ == "__main__":
 
     im, sqivar, flag, hdr = read_wise(coadd_id, band, basedir,
                                       uncompressed=args.uncompressed)
+    flag_orig = fits.getdata(wise_filename(basedir, coadd_id, band, 'msk',
+                                           uncompressed=args.uncompressed))
 
+    crowdsource.psfvalsharpcut.fac = 0.5
     if args.masknebulosity:
         import nebulosity_mask
         nebfn = os.path.join(os.environ['WISE_DIR'], 'dat', 'nebnet',
-                             'weights6', '6th_try')
+                             'weights1', '1st_try')
         nebmod = nebulosity_mask.load_model(nebfn)
         nebmask = nebulosity_mask.gen_mask_wise(nebmod, im) == 2
         if numpy.any(nebmask):
-            flag |= (nebmask * (crowdsource.nodeblend_maskbit | 
-                                crowdsource.sharp_maskbit))
+            flag |= nebmask * extrabits['nebulosity']
+            flag |= nebmask * crowdsource.sharp_maskbit
             print('Masking nebulosity, %5.2f' % (
                 numpy.sum(nebmask)/1./numpy.sum(numpy.isfinite(nebmask))))
 
@@ -298,22 +387,33 @@ if __name__ == "__main__":
     ra, dec = wcs0.all_pix2world(y, x, 0)
     coadd_ids = numpy.zeros(len(ra), dtype='a8')
     bands = numpy.zeros(len(ra), dtype='i4')
-    objids = numpy.zeros(len(ra), dtype='a16')
+    ids = numpy.zeros(len(ra), dtype='a16')
     coadd_ids[:] = coadd_id
     bands[:] = band
-    objids = ['%so%07d' % (coadd_id, num) for num in range(len(ra))]
+    ids = ['%sw%1do%07d' % (coadd_id, band, num) for num in range(len(ra))]
 
     nmfn = wise_filename(basedir, coadd_id, band, 'n-m',
                          uncompressed=args.uncompressed)
     nmim = fits.getdata(nmfn)
     nms = crowdsource.extract_im(cat['x'], cat['y'], nmim)
+    flags_unwise = crowdsource.extract_im(
+        cat['x'], cat['y'], collapse_unwise_bitmask(flag_orig, band))
+    flags_infoim = collapse_extraflags(flag, band)
+    flags_info = crowdsource.extract_im(cat['x'], cat['y'], flags_infoim)
+    # cast to i2; astropy.io.fits seems to fail for bools?
+    primary = unwise_primary.is_primary(coadd_id, ra, dec).astype('i2')
 
     import numpy.lib.recfunctions as rfn
+    cat = rfn.drop_fields(cat, ['flags'])
     cat = rfn.append_fields(
-        cat, ['ra', 'dec', 'coadd_id', 'band', 'objid', 'nm'], 
-        [ra, dec, coadd_ids, bands, objids, nms])
+        cat, ['ra', 'dec', 'coadd_id', 'band', 'unwise_detid', 'nm',
+              'primary', 'flags_unwise', 'flags_info'], 
+        [ra, dec, coadd_ids, bands, ids, nms, primary, flags_unwise, 
+         flags_info])
 
-    fits.writeto(outfn, cat)
+    hdr['EXTNAME'] = 'PRIMARY'
+    fits.writeto(outfn, None, hdr)
+    fits.append(outfn, cat)
     if len(args.modelfn) > 0:
         hdulist = fits.open(args.modelfn, mode='append')
         compkw = {'compression_type': 'GZIP_1',
@@ -334,6 +434,13 @@ if __name__ == "__main__":
                   'tile_size': psffluxivar.shape}
         hdr['EXTNAME'] = 'psffluxivar'
         hdulist.append(fits.CompImageHDU(psffluxivar, hdr, **compkw))
-        hdr['EXTNAME'] = 'psf'
-        hdulist.append(fits.ImageHDU(psfstamp, hdr))
+        hdr['EXTNAME'] = 'infoflags'
+        compkw = {'compression_type': 'GZIP_1',
+                  'tile_size': flags_infoim.shape}
+        # must recast flags_infoim as a u1; unsigned isn't supported
+        # in tables, but signed int8 isn't supported in CompImageHDU.
+        # ugh.
+        hdulist.append(fits.CompImageHDU(flags_infoim.astype('u1'), 
+                                         hdr, **compkw))
+        hdulist.append(fits.ImageHDU(psfstamp, None, name='psf'))
         hdulist.close(closed=True)

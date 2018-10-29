@@ -118,7 +118,8 @@ def significance_image_lbs(im, model, isig, psf, sz=19):
 
 def peakfind(im, model, isig, dq, psf, keepsat=False, threshhold=5,
              blendthreshhold=0.3):
-    psfstamp = psf.render_model(im.shape[0]/2., im.shape[1]/2.)
+    psfstamp = psf(int(im.shape[0]/2.), int(im.shape[1]/2.), deriv=False, 
+                   stampsz=59)
     sigim, modelsigim = significance_image(im, model, isig, psfstamp,
                                            sz=59)
     sig_max = filters.maximum_filter(sigim, 3)
@@ -167,23 +168,31 @@ def psfvalsharpcut(x, y, sigim, isig, psf):
     psfval2pp = 1-(pp[half, half-1]+pp[half, half+1])/(2*ppcen)
     psfval3pp = 1-(pp[half-1, half-1]+pp[half+1, half+1])/(2*ppcen)
     psfval4pp = 1-(pp[half-1, half+1]+pp[half+1, half-1])/(2*ppcen)
-    fac = 0.7*(1-0.7*(isig[x, y] == 0))
+    fac = psfvalsharpcut.fac*(1-0.7*(isig[x, y] == 0))
     # more forgiving if center is masked.
     res = ((psfval1 > psfval1pp*fac) & (psfval2 > psfval2pp*fac) &
            (psfval3 > psfval3pp*fac) & (psfval4 > psfval4pp*fac))
     return res
+psfvalsharpcut.fac = 0.7
 
 
-def build_model(x, y, flux, nx, ny, psf=None, psflist=None, psfderiv=False,
-                offset=(0, 0)):
+def build_model(x, y, flux, nx, ny, psf=None, psflist=None, psfderiv=False):
     if psf is None and psflist is None:
         raise ValueError('One of psf and psflist must be set')
     if psf is not None and psflist is not None:
         raise ValueError('Only one of psf and psflist must be set')
-    if psf is not None:
-        psflist = {'psfob': [psf], 'ind': numpy.zeros(len(x), dtype='i4')}
-    stampsz = 59
-    stampszo2 = int(numpy.ceil(stampsz/2.)-1)
+    if psflist is None:
+        stampsz = 59
+        psflist = build_psf_list(x, y, psf, stampsz, psfderiv=psfderiv)
+        sz = numpy.ones(len(x), dtype='i4')*stampsz
+    else:
+        sz = numpy.array([tpsf[0].shape[-1] for tpsf in psflist[0]])
+        if len(sz) > 0:
+            stampsz = numpy.max(sz)
+        else:
+            stampsz = 59
+
+    stampszo2 = stampsz//2
     im = numpy.zeros((nx, ny), dtype='f4')
     im = numpy.pad(im, [stampszo2, stampszo2], constant_values=0.,
                    mode='constant')
@@ -192,27 +201,14 @@ def build_model(x, y, flux, nx, ny, psf=None, psflist=None, psfderiv=False,
     # _subtract_ stampszo2 to move from the center of the PSF to the edge
     # of the stamp.
     # _add_ it back to move from the original image to the padded image.
-    xe = xp - stampszo2 + stampszo2
-    ye = yp - stampszo2 + stampszo2
+    xe = xp - sz//2 + stampszo2
+    ye = yp - sz//2 + stampszo2
     repeat = 3 if psfderiv else 1
-    psfs = numpy.zeros((len(x), repeat, stampsz, stampsz), dtype='f4')
-    uind = numpy.unique(psflist['ind'])
-    for uind0 in uind:
-        m = numpy.flatnonzero(uind0 == psflist['ind'])
-        psfob0 = psflist['psfob'][uind0]
-        imoff = getattr(psfob0, 'offset', (0, 0))
-        off0 = [a-b for (a, b) in zip(offset, imoff)]
-        res = psfob0(x[m]+off0[0], y[m]+off0[1], stampsz=stampsz,
-                     deriv=psfderiv)
-        if not psfderiv:
-            res = [res]
-        for i in range(repeat):
-            psfs[m, i, :, :] = res[i]*flux[m*repeat+i].reshape(-1, 1, 1)
     for i in range(len(x)):
         for j in range(repeat):
-            im[xe[i]:xe[i]+stampsz, ye[i]:ye[i]+stampsz] += psfs[i, j, :, :]
+            im[xe[i]:xe[i]+sz[i], ye[i]:ye[i]+sz[i]] += (
+                psflist[j][i][:, :]*flux[i*repeat+j])
     im = im[stampszo2:-stampszo2, stampszo2:-stampszo2]
-    # ignoring varying PSF sizes!
     return im
 
 
@@ -274,11 +270,12 @@ def fit_once(im, x, y, psfs, weight=None,
     stampszo2 = stampsz // 2
     szo2 = sz // 2
     nx, ny = im.shape
-    im = numpy.pad(im, [stampszo2, stampszo2], constant_values=0.,
+    pad = stampszo2 + 1
+    im = numpy.pad(im, [pad, pad], constant_values=0.,
                    mode='constant')
     if weight is None:
         weight = numpy.ones_like(im)
-    weight = numpy.pad(weight, [stampszo2, stampszo2], constant_values=0.,
+    weight = numpy.pad(weight, [pad, pad], constant_values=0.,
                        mode='constant')
     weight[weight == 0.] = 1.e-20
     pix = numpy.arange(stampsz*stampsz, dtype='i4').reshape(stampsz, stampsz)
@@ -290,9 +287,9 @@ def fit_once(im, x, y, psfs, weight=None,
     yp = numpy.round(y).astype('i4')
     # _subtract_ stampszo2 to move from the center of the PSF to the edge
     # of the stamp.
-    # _add_ it back to move from the original image to the padded image.
-    xe = xp - stampszo2 + stampszo2
-    ye = yp - stampszo2 + stampszo2
+    # _add_ pad back to move from the original image to the padded image.
+    xe = xp - stampszo2 + pad
+    ye = yp - stampszo2 + pad
     repeat = 1 if not psfderiv else 3
     nskypar = nskyx * nskyy
     npixim = im.shape[0]*im.shape[1]
@@ -322,7 +319,7 @@ def fit_once(im, x, y, psfs, weight=None,
             first += sz[i]**2
 
     if nskypar != 0:
-        sxloc, syloc, svalues = sky_parameters(nx+stampszo2*2, ny+stampszo2*2,
+        sxloc, syloc, svalues = sky_parameters(nx+pad*2, ny+pad*2,
                                                nskyx, nskyy, weight)
         startidx = len(x)*repeat
         nskypix = len(sxloc[0])
@@ -357,13 +354,13 @@ def fit_once(im, x, y, psfs, weight=None,
                    guess=guessvec)
     model = mat.dot(flux[0]).reshape(*im.shape)
     flux[0][:] = flux[0][:] / colnorm
-    im = im[stampszo2:-stampszo2, stampszo2:-stampszo2]
-    model = model[stampszo2:-stampszo2, stampszo2:-stampszo2]
-    weight = weight[stampszo2:-stampszo2, stampszo2:-stampszo2]
+    im = im[pad:-pad, pad:-pad]
+    model = model[pad:-pad, pad:-pad]
+    weight = weight[pad:-pad, pad:-pad]
     if nskypar != 0:
         sky = sky_model(flux[0][-nskypar:].reshape(nskyx, nskyy),
-                        nx+stampszo2*2, ny+stampszo2*2)
-        sky = sky[stampszo2:-stampszo2, stampszo2:-stampszo2]
+                        nx+pad*2, ny+pad*2)
+        sky = sky[pad:-pad, pad:-pad]
     else:
         sky = model * 0
     model = model / (weight + (weight == 0))
@@ -434,7 +431,7 @@ def compute_centroids(x, y, psflist, flux, im, resid, weight,
             psfs[j][i, :, :] = psfmod.central_stamp(psflist[j][i],
                                                     censize=centroidsize)
     stampsz = psfs[0].shape[-1]
-    stampszo2 = (stampsz-1)/2
+    stampszo2 = (stampsz-1)//2
     dx = numpy.arange(stampsz, dtype='i4')-stampszo2
     dx = dx.reshape(-1, 1)
     dy = dx.copy().reshape(1, -1)
@@ -599,24 +596,16 @@ def get_sizes(x, y, imbs, weight=None, blist=None):
 
 
 def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
-           nskyx=0, nskyy=0, refit_psf=False, fixedstars=None,
+           nskyx=0, nskyy=0, refit_psf=False,
            verbose=False, miniter=4, maxiter=10, blist=None,
            maxstars=40000, derivcentroids=False,
            ntilex=1, ntiley=1, fewstars=100):
-    if fixedstars is not None and len(fixedstars['x']) > 0:
-        fixedpsflist = {'psfob': fixedstars['psfob'], 'ind': fixedstars['psf']}
-        fixedmodel = build_model(fixedstars['x'], fixedstars['y'],
-                                 fixedstars['flux'], im.shape[0], im.shape[1],
-                                 psflist=fixedpsflist,
-                                 offset=fixedstars['offset'])
-    else:
-        fixedmodel = numpy.zeros_like(im)
 
     if isinstance(weight, int):
         weight = numpy.ones_like(im)*weight
 
     im = im
-    model = numpy.zeros_like(im)+fixedmodel
+    model = numpy.zeros_like(im)
     xa = numpy.zeros(0, dtype='f4')
     ya = xa.copy()
     lsky = numpy.median(im[weight > 0])
@@ -709,9 +698,14 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
             for i in range(repeat):
                 psfs[i][mbd] = [psfmod.central_stamp(psfsbda[i][tind], minsz)
                                 for tind in numpy.flatnonzero(mbd[mbda])]
+            # try to free memory!  Not sure where the circular reference
+            # could be, but this seems to make a factor of a few difference
+            # in peak memory usage on fields with lots of stars with
+            # large models...
             del psfsbda
+            import gc
+            gc.collect()
 
-        model += fixedmodel
         centroids = compute_centroids(xa, ya, psfs, flux, im-(sky+msky),
                                       im-model-sky,
                                       weight, derivcentroids=derivcentroids)
@@ -722,7 +716,8 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
                                   stamps[0], stamps[2],
                                   stamps[3], stamps[1],
                                   flux)
-            stats['flags'] = extract_im(xa, ya, dq).astype('i4')
+            if dq is not None:
+                stats['flags'] = extract_im(xa, ya, dq).astype('i4')
             stats['sky'] = extract_im(xa, ya, sky+msky).astype('f4')
             break
         guessflux = flux[:len(xa)*repeat:repeat]
@@ -753,7 +748,15 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
                 xa += xe
                 ya += ye
                 psf = npsf
-        xcen, ycen = (numpy.clip(c, -3, 3) for c in (xcen, ycen))
+        # enforce maximum step
+        if derivcentroids:
+            maxstep = 1
+        else:
+            maxstep = 3
+        dcen = numpy.sqrt(xcen**2 + ycen**2)
+        m = dcen > maxstep
+        xcen[m] /= dcen[m]
+        ycen[m] /= dcen[m]
         xa, ya = (numpy.clip(c, -0.499, s-0.501)
                   for c, s in zip((xa+xcen, ya+ycen), im.shape))
         fluxunc = numpy.sum(stamps[2]**2.*stamps[3]**2., axis=(1, 2))
@@ -781,14 +784,12 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         # which is used for peak finding.  But the faint stars should
         # make little difference?
 
-    if fixedmodel is not None:
-        model += fixedmodel
     stars = OrderedDict([('x', xa), ('y', ya), ('flux', flux)] +
                         [(f, stats[f]) for f in stats])
-    dtypenames = stars.keys()
+    dtypenames = list(stars.keys())
     dtypeformats = [stars[n].dtype for n in dtypenames]
     dtype = dict(names=dtypenames, formats=dtypeformats)
-    stars = numpy.fromiter(zip(*stars.itervalues()),
+    stars = numpy.fromiter(zip(*stars.values()),
                            dtype=dtype, count=len(stars['x']))
     res = (stars, model+sky, sky+msky, psf)
     return res
@@ -945,7 +946,7 @@ def cull_near(x, y, flux):
     """
     if len(x) == 0:
         return numpy.ones(len(x), dtype='bool')
-    m1, m2, dist = match_xy(x, y, x, y, neighbors=4)
+    m1, m2, dist = match_xy(x, y, x, y, neighbors=6)
     m = (dist < 1) & (flux[m1] < flux[m2]) & (m1 != m2)
     keep = numpy.ones(len(x), dtype='bool')
     keep[m1[m]] = 0

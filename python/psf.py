@@ -33,7 +33,7 @@ def central_stamp(stamp, censize=19):
     if stampsz == censize:
         return stamp
     elif stampsz > censize:
-        trim = (stamp.shape[-1] - censize)/2
+        trim = (stamp.shape[-1] - censize)//2
         f = trim
         l = stampsz - trim
         return stamp[..., f:l, f:l]
@@ -703,16 +703,17 @@ def plot_psf_fits(stamp, x, y, model, isig):
 def plot_psf_fits_brightness(stamp, x, y, model, isig):
     from matplotlib import pyplot as p
     import util_efs
-    datim = numpy.zeros((stamp.shape[1]*10, stamp.shape[1]*10), dtype='f4')
-    modim = numpy.zeros((stamp.shape[1]*10, stamp.shape[1]*10), dtype='f4')
+    nx, ny = 10, 10
+    datim = numpy.zeros((stamp.shape[1]*nx, stamp.shape[1]*ny), dtype='f4')
+    modim = numpy.zeros((stamp.shape[1]*nx, stamp.shape[1]*ny), dtype='f4')
     medmodel = numpy.median(model, axis=0)
     s = numpy.argsort(-numpy.median(isig, axis=(1, 2)))
     sz = stamp.shape[-1]
-    for i in range(10):
-        for j in range(10):
-            if i*10+j >= len(s):
+    for i in range(nx):
+        for j in range(ny):
+            if i*ny+j >= len(s):
                 continue
-            ind = s[i*10+j]
+            ind = s[i*ny+j]
             datim0 = stamp[ind, :, :]
             modim0 = model[ind, :, :]
             datim[i*sz:(i+1)*sz, j*sz:(j+1)*sz] = datim0-medmodel
@@ -1175,7 +1176,7 @@ def wise_psf_fit(x, y, xcen, ycen, stamp, imstamp, modstamp,
         psfstamp[0][...] = psfstamp[0] / normstamp
         npsfstamp = psfstamp[0]
         npsfstamp = numpy.mean(npsfstamp, axis=(0, 1))
-        npsfstamp /= numpy.sum(npsfstamp)
+        npsfstamp /= numpy.sum(central_stamp(npsfstamp, censize=stampsz))
 
     resid = (stamp - central_stamp(npsfstamp, censize=stampsz))
     resid = resid.astype('f4')
