@@ -595,6 +595,132 @@ def get_sizes(x, y, imbs, weight=None, blist=None):
     return sz
 
 
+def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
+                 nskyx=0, nskyy=0, refit_psf=False,
+                 niter=4, blist=None, derivcentroids=False, refit_sky=True,
+                 startsky=numpy.nan):
+    repeat = 3 if psfderiv else 1
+    guessflux = None
+    msky = 0
+    model = 0
+
+    if derivcentroids and not psfderiv:
+        raise ValueError('derivcentroids only makes sense when psfderiv '
+                         'is true')
+
+    for c, s in zip((x, y), im.shape):
+        if numpy.any((c < -0.499) | (c > s-0.501)):
+            c[:] = numpy.clip(c, -0.499, s-0.501)
+            print('Some positions within 0.01 pix of edge of image clipped '
+                  'back to 0.01 pix inside image.')
+
+    for titer in range(niter):
+        if (refit_sky and 
+            ((titer > 0) or numpy.any(~numpy.isfinite(startsky)))):
+            sky = sky_im(im-model, weight=weight, npix=100)
+        else:
+            sky = startsky
+        sz = get_sizes(x, y, im-sky-msky, weight=weight, blist=blist)
+        minsz = numpy.min(sz)
+        psfs = [numpy.zeros((len(x), minsz, minsz), dtype='f4')
+                for i in range(repeat)]
+        if guessflux is not None:
+            guess = guessflux.copy()
+        else:
+            guess = None
+        # should really only be done once in refit_psf=False case
+        psfsfull = build_psf_list(x, y, psf, sz, psfderiv=psfderiv)
+        # need to package some "tiling" around this eventually, probably?
+        flux, model, msky = fit_once(
+                im-sky, x, y, psfsfull,
+                psfderiv=psfderiv, weight=weight, guess=guess,
+                nskyx=nskyx, nskyy=nskyy)
+        import gc
+        gc.collect()
+        flux = flux[0]
+        skypar = flux[len(x)*repeat:]
+        guessflux = flux[:len(x)*repeat:repeat]
+        for i in range(repeat):
+            psfs[i][...] = [psfmod.central_stamp(psfsfull[i][j], minsz) 
+                            for j in range(len(psfsfull[i]))]
+        centroids = compute_centroids(x, y, psfs, flux, im-(sky+msky),
+                                      im-model-sky,
+                                      weight, derivcentroids=derivcentroids)
+        xcen, ycen, stamps = centroids
+        if refit_psf:
+            psf, x, y = refit_psf_from_stamps(psf, x, y, xcen, ycen, 
+                                              stamps)
+            # we are letting the positions get updated, even when
+            # psfderiv is false, only for the mean shift that
+            # gets introduced when we recentroid all the stars.
+            # we could eliminate this by replacing the above with
+            # psf, _, _ = refit_psf_from_stamps(...)
+            # for WISE at the moment, this should _mostly_ introduce
+            # a mean shift, and potentially also a small subpixel-offset
+            # related shift.
+        if psfderiv:
+            if derivcentroids:
+                maxstep = 1
+            else:
+                maxstep = 3
+            dcen = numpy.sqrt(xcen**2 + ycen**2)
+            m = dcen > maxstep
+            xcen[m] /= dcen[m]
+            ycen[m] /= dcen[m]
+            x, y = (numpy.clip(c, -0.499, s-0.501)
+                    for c, s in zip((x+xcen, y+ycen), im.shape))
+        print('Iteration %d, median sky %6.2f' % 
+              (titer+1, numpy.median(sky+msky)))
+
+
+    stats = compute_stats(x-numpy.round(x), y-numpy.round(y),
+                          stamps[0], stamps[2], stamps[3], stamps[1], flux)
+    stats['sky'] = extract_im(x, y, sky+msky).astype('f4')
+    if dq is not None:
+        stats['flags'] = extract_im(x, y, dq).astype('i4')
+    stars = OrderedDict([('x', x), ('y', y), ('flux', flux),
+                         ('deltx', xcen), ('delty', ycen)] +
+                        [(f, stats[f]) for f in stats])
+    dtypenames = list(stars.keys())
+    dtypeformats = [stars[n].dtype for n in dtypenames]
+    dtype = dict(names=dtypenames, formats=dtypeformats)
+    stars = numpy.fromiter(zip(*stars.values()),
+                           dtype=dtype, count=len(stars['x']))
+    res = (stars, model+sky, sky+msky, psf)
+    return res
+
+
+
+def refit_psf_from_stamps(psf, x, y, xcen, ycen, stamps):
+    # how far the centroids of the model PSFs would
+    # be from (0, 0) if instantiated there
+    # this initial definition includes the known offset (since
+    # we instantiated off a pixel center), and the model offset
+    xe, ye = psfmod.simple_centroid(
+        psfmod.central_stamp(stamps[4], censize=stamps[0].shape[-1]))
+    # now we subtract the known offset
+    xe -= x-numpy.round(x)
+    ye -= y-numpy.round(y)
+    if hasattr(psf, 'fitfun'):
+        psffitfun = psf.fitfun
+        npsf = psffitfun(x, y, xcen+xe, ycen+ye, stamps[0],
+                         stamps[1], stamps[2], stamps[3], nkeep=200)
+        if npsf is not None:
+            npsf.fitfun = psffitfun
+        else:
+            shiftx = xcen + xe + x - numpy.round(x)
+            shifty = ycen + ye + y - numpy.round(y)
+            npsf = find_psf(x, shiftx, y, shifty,
+                            stamps[0], stamps[3], stamps[1])
+            # we removed the centroid offset of the model PSFs;
+            # we need to correct the positions to compensate
+        if npsf is not None:
+            xnew = x + xe
+            ynew = y + ye
+            psf = npsf
+    return psf, xnew, ynew
+
+
 def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
            nskyx=0, nskyy=0, refit_psf=False,
            verbose=False, miniter=4, maxiter=10, blist=None,
@@ -604,7 +730,6 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
     if isinstance(weight, int):
         weight = numpy.ones_like(im)*weight
 
-    im = im
     model = numpy.zeros_like(im)
     xa = numpy.zeros(0, dtype='f4')
     ya = xa.copy()
@@ -722,32 +847,8 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
             break
         guessflux = flux[:len(xa)*repeat:repeat]
         if refit_psf and len(xa) > 0:
-            # how far the centroids of the model PSFs would
-            # be from (0, 0) if instantiated there
-            # this initial definition includes the known offset (since
-            # we instantiated off a pixel center), and the model offset
-            xe, ye = psfmod.simple_centroid(
-                psfmod.central_stamp(stamps[4], censize=stamps[0].shape[-1]))
-            # now we subtract the known offset
-            xe -= xa-numpy.round(xa)
-            ye -= ya-numpy.round(ya)
-            if hasattr(psf, 'fitfun'):
-                psffitfun = psf.fitfun
-                npsf = psffitfun(xa, ya, xcen+xe, ycen+ye, stamps[0],
-                                 stamps[1], stamps[2], stamps[3], nkeep=200)
-                if npsf is not None:
-                    npsf.fitfun = psffitfun
-            else:
-                shiftx = xcen + xe + xa - numpy.round(xa)
-                shifty = ycen + ye + ya - numpy.round(ya)
-                npsf = find_psf(xa, shiftx, ya, shifty,
-                                stamps[0], stamps[3], stamps[1])
-            # we removed the centroid offset of the model PSFs;
-            # we need to correct the positions to compensate
-            if npsf is not None:
-                xa += xe
-                ya += ye
-                psf = npsf
+            psf, xa, ya = refit_psf_from_stamps(psf, xa, ya, xcen, ycen, 
+                                                stamps)
         # enforce maximum step
         if derivcentroids:
             maxstep = 1
@@ -821,6 +922,8 @@ def compute_stats(xs, ys, impsfstack, psfstack, weightstack, imstack, flux):
     fracflux = (fracfluxn / fracfluxd).astype('f4')
     fluxlbs, dfluxlbs = compute_lbs_flux(impsfstack, psfstack, weightstack,
                                          flux/norm)
+    fluxiso, xiso, yiso = compute_iso_fit(impsfstack, psfstack, weightstack,
+                                          flux/norm, psfderiv)
     fluxlbs = fluxlbs.astype('f4')
     dfluxlbs = dfluxlbs.astype('f4')
     fwhm = psfmod.neff_fwhm(psfstack).astype('f4')
@@ -830,7 +933,8 @@ def compute_stats(xs, ys, impsfstack, psfstack, weightstack, imstack, flux):
                         ('qf', qf), ('rchi2', rchi2), ('fracflux', fracflux),
                         ('fluxlbs', fluxlbs), ('dfluxlbs', dfluxlbs),
                         ('fwhm', fwhm), ('spread_model', spread),
-                        ('dspread_model', dspread)])
+                        ('dspread_model', dspread),
+                        ('fluxiso', fluxiso), ('xiso', xiso), ('yiso', yiso)])
 
 
 def spread_model(impsfstack, psfstack, weightstack):
@@ -883,6 +987,22 @@ def compute_lbs_flux(stamp, psf, isig, apcor):
     flux *= apcor
     unc *= apcor
     return flux, unc
+
+
+def compute_iso_fit(impsfstack, psfstack, weightstack, apcor, psfderiv):
+    nstar = len(impsfstack)
+    par = numpy.zeros((nstar, 3), dtype='f4')
+    for i in range(len(impsfstack)):
+        aa = numpy.array([psfstack[i]*weightstack[i], 
+                          psfderiv[0][i]*weightstack[i], 
+                          psfderiv[1][i]*weightstack[i]])
+        aa = aa.reshape(3, -1).T
+        par[i, :] = numpy.linalg.lstsq(
+            aa, (impsfstack[i]*weightstack[i]).reshape(-1))[0]
+    zeroflux = par[:, 0] == 0
+    return (par[:, 0], 
+            (1-zeroflux)*par[:, 1]/(par[:, 0]+zeroflux), 
+            (1-zeroflux)*par[:, 2]/(par[:, 0]+zeroflux))
 
 
 def sky_model_basis(i, j, nskyx, nskyy, nx, ny):

@@ -8,7 +8,6 @@ import argparse
 import numpy
 import psf as psfmod
 from astropy.io import fits
-from simple_proc import process
 import crowdsource
 import unwise_psf
 import unwise_primary
@@ -314,7 +313,7 @@ def collapse_extraflags(bitmask, band):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Run crowdsource on full-depth unWISE coadd image')
+    parser = argparse.ArgumentParser(description='Run crowdsource on unWISE coadd image')
     parser.add_argument('coadd_id', type=str, nargs=1)
     parser.add_argument('band', type=int, nargs=1)
     parser.add_argument('outfn', type=str, nargs=1)
@@ -322,8 +321,6 @@ if __name__ == "__main__":
     parser.add_argument('basedir', type=str, nargs='?', default='/global/projecta/projectdirs/cosmo/work/wise/outputs/merge/neo4/fulldepth')
     parser.add_argument('--refit-psf', '-r', default=False, action='store_true')
     parser.add_argument('--verbose', '-v', default=False, action='store_true')
-    parser.add_argument('--satlimit', '-s', type=float, default=numpy.inf,
-                        help='pixel brightness limit for saturation')
     parser.add_argument('--uncompressed', '-u', default=False, action='store_true')
     parser.add_argument('--brightcat', '-b',
                         default=os.environ.get('TMASS_BRIGHT'), type=str)
@@ -332,6 +329,10 @@ if __name__ == "__main__":
     parser.add_argument('--infoimfn', '-i', default='', type=str,
                         help='file name for info image, if desired')
     parser.add_argument('--masknebulosity', '-n', action='store_true')
+    parser.add_argument('--forcecat', type=str, default='')
+    parser.add_argument('--startsky', type=str, default='')
+    parser.add_argument('--startpsf', type=str, default='')
+    parser.add_argument('--noskyfit', default=False, action='store_true')
 
     args = parser.parse_args()
 
@@ -341,6 +342,8 @@ if __name__ == "__main__":
 
     im, sqivar, flag, hdr = read_wise(coadd_id, band, basedir,
                                       uncompressed=args.uncompressed)
+    if len(args.startsky) > 0:
+        startsky = fits.getdata(args.startsky, 'SKY')
     flag_orig = fits.getdata(wise_filename(basedir, coadd_id, band, 'msk',
                                            uncompressed=args.uncompressed))
 
@@ -358,6 +361,15 @@ if __name__ == "__main__":
                 numpy.sum(nebmask)/1./numpy.sum(numpy.isfinite(nebmask))))
 
     psf = wise_psf_grid(band, coadd_id, basedir)
+    if len(args.startpsf) > 0:
+        startpsf = fits.getdata(args.startpsf, 'PSF').astype('f4')
+        # there can be some endianness issues; astype('f4') converts to native
+        modpsf = psf(1024, 1024, stampsz=psf.stamp.shape[-1])
+        resid = startpsf-modpsf
+        # need not sum to zero.
+        newstamps = psf.stamp / psf.normstamp[:, :, None, None]
+        newstamps += resid
+        psf = psfmod.GridInterpPSF(newstamps, psf.x, psf.y)
 
     if len(args.brightcat) > 0:
         brightstars = fits.getdata(args.brightcat)
@@ -371,9 +383,18 @@ if __name__ == "__main__":
         print('Starting %s, band %d, at %s' % (coadd_id, band, time.ctime()))
         sys.stdout.flush()
 
-    res = process(im, sqivar, flag, psf, refit_psf=args.refit_psf,
-                  verbose=args.verbose, nx=4, ny=4, derivcentroids=True,
-                  maxstars=30000*16, fewstars=50*16, blist=blist)
+    if len(args.forcecat) == 0:
+        res = crowdsource.fit_im(
+            im, psf, weight=sqivar, dq=flag, refit_psf=args.refit_psf,
+            verbose=args.verbose, nx=4, ny=4, derivcentroids=True,
+            maxstars=30000*16, fewstars=50*16, blist=blist)
+    else:
+        forcecat = fits.getdata(args.forcecat, 1)
+        x, y = forcecat['x'], forcecat['y']
+        res = crowdsource.fit_im_force(
+            im, x, y, psf, weight=sqivar, dq=flag, refit_psf=args.refit_psf,
+            blist=blist, refit_sky=(not args.noskyfit),
+            startsky=startsky, psfderiv=False)
     cat, model, sky, psf = res
     print('Finishing %s, band %d; %d sec elapsed.' %
           (coadd_id, band, time.time()-t0))
