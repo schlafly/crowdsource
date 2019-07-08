@@ -370,6 +370,9 @@ if __name__ == "__main__":
         newstamps = psf.stamp / psf.normstamp[:, :, None, None]
         newstamps += resid
         psf = psfmod.GridInterpPSF(newstamps, psf.x, psf.y)
+        from functools import partial
+        psf.fitfun = partial(psfmod.wise_psf_fit, 
+                             psfstamp=(newstamps, psf.x, psf.y), grid=True)
 
     if len(args.brightcat) > 0:
         brightstars = fits.getdata(args.brightcat)
@@ -386,7 +389,7 @@ if __name__ == "__main__":
     if len(args.forcecat) == 0:
         res = crowdsource.fit_im(
             im, psf, weight=sqivar, dq=flag, refit_psf=args.refit_psf,
-            verbose=args.verbose, nx=4, ny=4, derivcentroids=True,
+            verbose=args.verbose, ntilex=4, ntiley=4, derivcentroids=True,
             maxstars=30000*16, fewstars=50*16, blist=blist)
     else:
         forcecat = fits.getdata(args.forcecat, 1)

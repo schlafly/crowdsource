@@ -718,6 +718,9 @@ def refit_psf_from_stamps(psf, x, y, xcen, ycen, stamps):
             xnew = x + xe
             ynew = y + ye
             psf = npsf
+        else:
+            xnew = x
+            ynew = y
     return psf, xnew, ynew
 
 
@@ -821,10 +824,12 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
                 flux[ind*repeat+i] = tflux[0][ind2*repeat+i]
             skypar[(bdxf, bdyf)] = flux[numpy.sum(mbda)*repeat:]
             for i in range(repeat):
+                if numpy.sum(mbda) == 0:
+                    continue
                 psfs[i][mbd] = [psfmod.central_stamp(psfsbda[i][tind], minsz)
                                 for tind in numpy.flatnonzero(mbd[mbda])]
             # try to free memory!  Not sure where the circular reference
-            # could be, but this seems to make a factor of a few difference
+            # could be, but this makes a factor of a few difference
             # in peak memory usage on fields with lots of stars with
             # large models...
             del psfsbda
