@@ -824,10 +824,10 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
                 flux[ind*repeat+i] = tflux[0][ind2*repeat+i]
             skypar[(bdxf, bdyf)] = flux[numpy.sum(mbda)*repeat:]
             for i in range(repeat):
-                if numpy.sum(mbda) == 0:
+                if len(ind2) == 0:
                     continue
                 psfs[i][mbd] = [psfmod.central_stamp(psfsbda[i][tind], minsz)
-                                for tind in numpy.flatnonzero(mbd[mbda])]
+                                for tind in ind2]
             # try to free memory!  Not sure where the circular reference
             # could be, but this makes a factor of a few difference
             # in peak memory usage on fields with lots of stars with
