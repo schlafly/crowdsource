@@ -333,6 +333,8 @@ if __name__ == "__main__":
     parser.add_argument('--startsky', type=str, default='')
     parser.add_argument('--startpsf', type=str, default='')
     parser.add_argument('--noskyfit', default=False, action='store_true')
+    parser.add_argument('--threshhold', default=5, type=int, 
+                        help='find sources down to threshhold*sigma')
 
     args = parser.parse_args()
 

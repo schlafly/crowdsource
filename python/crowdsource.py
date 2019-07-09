@@ -728,7 +728,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
            nskyx=0, nskyy=0, refit_psf=False,
            verbose=False, miniter=4, maxiter=10, blist=None,
            maxstars=40000, derivcentroids=False,
-           ntilex=1, ntiley=1, fewstars=100):
+           ntilex=1, ntiley=1, fewstars=100, threshhold=5):
 
     if isinstance(weight, int):
         weight = numpy.ones_like(im)*weight
@@ -758,7 +758,8 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
             xn, yn = peakfind(im-model-hsky,
                               model-msky, weight, dq, psf,
                               keepsat=(titer == 0),
-                              blendthreshhold=blendthresh)
+                              blendthreshhold=blendthresh,
+                              threshhold=threshhold)
             if len(xa) > 0 and len(xn) > 0:
                 keep = neighbor_dist(xn, yn, xa, ya) > 1.5
                 xn, yn = (c[keep] for c in (xn, yn))
@@ -872,7 +873,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         # (small) stamp is saturated.
         # these stars all have very bright inferred fluxes
         # i.e., 50k saturates, so we can cut there.
-        brightenough = (guessflux/fluxunc > 3) | (guessflux > 1e5)
+        brightenough = (guessflux/fluxunc > threshhold*3/5.) | (guessflux > 1e5)
         isolatedenough = cull_near(xa, ya, guessflux)
 
         keep = brightenough & isolatedenough
