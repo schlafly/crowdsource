@@ -116,14 +116,14 @@ def significance_image_lbs(im, model, isig, psf, sz=19):
     return fluxsig, modim*numpy.sqrt(ivarimsimple)
 
 
-def peakfind(im, model, isig, dq, psf, keepsat=False, threshhold=5,
-             blendthreshhold=0.3):
+def peakfind(im, model, isig, dq, psf, keepsat=False, threshold=5,
+             blendthreshold=0.3):
     psfstamp = psf(int(im.shape[0]/2.), int(im.shape[1]/2.), deriv=False, 
                    stampsz=59)
     sigim, modelsigim = significance_image(im, model, isig, psfstamp,
                                            sz=59)
     sig_max = filters.maximum_filter(sigim, 3)
-    x, y = numpy.nonzero((sig_max == sigim) & (sigim > threshhold) &
+    x, y = numpy.nonzero((sig_max == sigim) & (sigim > threshold) &
                          (keepsat | (isig > 0)))
     fluxratio = im[x, y]/numpy.clip(model[x, y], 0.01, numpy.inf)
     sigratio = (im[x, y]*isig[x, y])/numpy.clip(modelsigim[x, y], 0.01,
@@ -133,17 +133,17 @@ def peakfind(im, model, isig, dq, psf, keepsat=False, threshhold=5,
     m = ((isig[x, y] > 0) | keepsatcensrc)  # ~saturated, or saturated & keep
     if dq is not None and numpy.any(dq[x, y] & nodeblend_maskbit):
         nodeblend = (dq[x, y] & nodeblend_maskbit) != 0
-        blendthreshhold = numpy.ones_like(x)*blendthreshhold
-        blendthreshhold[nodeblend] = 100
+        blendthreshold = numpy.ones_like(x)*blendthreshold
+        blendthreshold[nodeblend] = 100
     if dq is not None and numpy.any(dq[x, y] & sharp_maskbit):
         sharp = (dq[x, y] & sharp_maskbit) != 0
         msharp = ~sharp | psfvalsharpcut(x, y, sigim, isig, psfstamp)
         # keep if not nebulous region or sharp peak.
         m = m & msharp
 
-    m = m & ((sigratio2 > blendthreshhold*2) |
-             ((fluxratio > blendthreshhold) & (sigratio > blendthreshhold/4.) &
-              (sigratio2 > blendthreshhold)))
+    m = m & ((sigratio2 > blendthreshold*2) |
+             ((fluxratio > blendthreshold) & (sigratio > blendthreshold/4.) &
+              (sigratio2 > blendthreshold)))
 
     return x[m], y[m]
 
@@ -153,7 +153,7 @@ def psfvalsharpcut(x, y, sigim, isig, psf):
     xr = numpy.clip(x+1, 0, sigim.shape[0]-1)
     yl = numpy.clip(y-1, 0, sigim.shape[1]-1)
     yr = numpy.clip(y+1, 0, sigim.shape[1]-1)
-    # sigim[x, y] should always be >0 from threshhold cut.
+    # sigim[x, y] should always be >0 from threshold cut.
     psfval1 = 1-(sigim[xl, y]+sigim[xr, y])/(2*sigim[x, y])
     psfval2 = 1-(sigim[x, yl]+sigim[x, yr])/(2*sigim[x, y])
     psfval3 = 1-(sigim[xl, yl]+sigim[xr, yr])/(2*sigim[x, y])
@@ -728,7 +728,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
            nskyx=0, nskyy=0, refit_psf=False,
            verbose=False, miniter=4, maxiter=10, blist=None,
            maxstars=40000, derivcentroids=False,
-           ntilex=1, ntiley=1, fewstars=100, threshhold=5):
+           ntilex=1, ntiley=1, fewstars=100, threshold=5):
 
     if isinstance(weight, int):
         weight = numpy.ones_like(im)*weight
@@ -758,8 +758,8 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
             xn, yn = peakfind(im-model-hsky,
                               model-msky, weight, dq, psf,
                               keepsat=(titer == 0),
-                              blendthreshhold=blendthresh,
-                              threshhold=threshhold)
+                              blendthreshold=blendthresh,
+                              threshold=threshold)
             if len(xa) > 0 and len(xn) > 0:
                 keep = neighbor_dist(xn, yn, xa, ya) > 1.5
                 xn, yn = (c[keep] for c in (xn, yn))
@@ -873,7 +873,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         # (small) stamp is saturated.
         # these stars all have very bright inferred fluxes
         # i.e., 50k saturates, so we can cut there.
-        brightenough = (guessflux/fluxunc > threshhold*3/5.) | (guessflux > 1e5)
+        brightenough = (guessflux/fluxunc > threshold*3/5.) | (guessflux > 1e5)
         isolatedenough = cull_near(xa, ya, guessflux)
 
         keep = brightenough & isolatedenough
