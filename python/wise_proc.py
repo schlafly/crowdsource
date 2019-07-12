@@ -392,7 +392,8 @@ if __name__ == "__main__":
         res = crowdsource.fit_im(
             im, psf, weight=sqivar, dq=flag, refit_psf=args.refit_psf,
             verbose=args.verbose, ntilex=4, ntiley=4, derivcentroids=True,
-            maxstars=30000*16, fewstars=50*16, blist=blist)
+            maxstars=30000*16, fewstars=50*16, blist=blist, 
+            threshold=threshold)
     else:
         forcecat = fits.getdata(args.forcecat, 1)
         x, y = forcecat['x'], forcecat['y']
