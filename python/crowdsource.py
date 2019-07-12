@@ -577,7 +577,8 @@ def get_sizes(x, y, imbs, weight=None, blist=None):
     # for very bright things, use a bigger PSF
     # but if there are too many of these, don't bother.
     cutoff2 = 20000
-    if numpy.sum(peakbright > cutoff2) < numpy.sum(peakbright > cutoff)/2:
+    if ((numpy.sum(peakbright > cutoff2) < numpy.sum(peakbright > cutoff)/2) 
+        and (numpy.sum(peakbright > cutoff) > 100)):
         sz[peakbright > cutoff2] = 149
     else:
         print('Too many bright sources, using smaller PSF stamp size...')
@@ -603,6 +604,9 @@ def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
     guessflux = None
     msky = 0
     model = 0
+
+    if len(x) == 0:
+        raise ValueError('must force some sources')
 
     if derivcentroids and not psfderiv:
         raise ValueError('derivcentroids only makes sense when psfderiv '
@@ -791,7 +795,10 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         # centroids.
         tpsfderiv = psfderiv if lastiter != titer else False
         repeat = 1+tpsfderiv*2
-        minsz = numpy.min(sz)
+        if len(sz) != 0:
+            minsz = numpy.min(sz)
+        else:
+            minsz = 19
         psfs = [numpy.zeros((len(xa), minsz, minsz), dtype='f4')
                 for i in range(repeat)]
         flux = numpy.zeros(len(xa)*repeat, dtype='f4')

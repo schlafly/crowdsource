@@ -71,7 +71,7 @@ def read_blist(brightstars, raim, decim, hdr, maxsep):
         return [xx, yy, mag]
 
 
-def massage_isig_and_dim(isig, im, flag, band, nm, fac=None):
+def massage_isig_and_dim(isig, im, flag, band, nm, nu, fac=None):
     """Construct a WISE inverse sigma image and add saturation to flag.
 
     unWISE provides nice inverse variance maps.  These however have no
@@ -98,7 +98,7 @@ def massage_isig_and_dim(isig, im, flag, band, nm, fac=None):
 
     satbit = 16 if band == 1 else 32
     satlimit = 85000 # if band == 1 else 130000
-    msat = ((flag & satbit) != 0) | (im > satlimit) | (nm == 0)
+    msat = ((flag & satbit) != 0) | (im > satlimit) | ((nm == 0) & (nu > 1))
     from scipy.ndimage import morphology
     # dilate = morphology.iterate_structure(
     #     morphology.generate_binary_structure(2, 1), 3)
@@ -118,6 +118,7 @@ def massage_isig_and_dim(isig, im, flag, band, nm, fac=None):
     sigma = numpy.sqrt(1./(isig + (isig == 0))**2 + floor**2 +
                        fac**2*numpy.clip(im, 0, numpy.inf))
     sigma[msat] = numpy.inf
+    sigma[isig == 0] = numpy.inf
     return (1./sigma).astype('f4'), flag
 
 
@@ -212,12 +213,16 @@ def read_wise(coadd_id, band, basedir, uncompressed=False,
     nmfn = wise_filename(basedir, coadd_id, band, 'n-m',
                          uncompressed=uncompressed,
                          drop_first_dir=drop_first_dir)
+    nufn = wise_filename(basedir, coadd_id, band, 'n-u',
+                         uncompressed=uncompressed,
+                         drop_first_dir=drop_first_dir)
 
     im, hdr = fits.getdata(imagefn, header=True)
     sqivar = numpy.sqrt(fits.getdata(ivarfn))
     flag = fits.getdata(flagfn)
     nm = fits.getdata(nmfn)
-    sqivar, flag = massage_isig_and_dim(sqivar, im, flag, band, nm)
+    nu = fits.getdata(nufn)
+    sqivar, flag = massage_isig_and_dim(sqivar, im, flag, band, nm, nu)
     return im, sqivar, flag, hdr
 
 
