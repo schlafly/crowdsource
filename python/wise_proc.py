@@ -318,6 +318,12 @@ def collapse_extraflags(bitmask, band):
 
 
 if __name__ == "__main__":
+
+    try:
+        print 'Running on host: ' + str(os.environ.get('HOSTNAME'))
+    except:
+        print "Couldn't retrieve hostname!"
+
     parser = argparse.ArgumentParser(description='Run crowdsource on unWISE coadd image')
     parser.add_argument('coadd_id', type=str, nargs=1)
     parser.add_argument('band', type=int, nargs=1)
@@ -338,7 +344,7 @@ if __name__ == "__main__":
     parser.add_argument('--startsky', type=str, default='')
     parser.add_argument('--startpsf', type=str, default='')
     parser.add_argument('--noskyfit', default=False, action='store_true')
-    parser.add_argument('--threshold', default=5, type=int, 
+    parser.add_argument('--threshold', default=5, type=float, 
                         help='find sources down to threshold*sigma')
 
     args = parser.parse_args()
