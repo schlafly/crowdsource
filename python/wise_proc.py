@@ -97,7 +97,7 @@ def massage_isig_and_dim(isig, im, flag, band, nm, nu, fac=None):
         floor = bandfloors[band]
 
     satbit = 16 if band == 1 else 32
-    satlimit = 85000 # if band == 1 else 130000
+    satlimit = 85000  # if band == 1 else 130000
     msat = ((flag & satbit) != 0) | (im > satlimit) | ((nm == 0) & (nu > 1))
     from scipy.ndimage import morphology
     # dilate = morphology.iterate_structure(
@@ -346,6 +346,7 @@ if __name__ == "__main__":
     parser.add_argument('--noskyfit', default=False, action='store_true')
     parser.add_argument('--threshold', default=5, type=float, 
                         help='find sources down to threshold*sigma')
+    parser.add_argument('--release', type=str, default='')
 
     args = parser.parse_args()
 
@@ -425,10 +426,14 @@ if __name__ == "__main__":
     ra, dec = wcs0.all_pix2world(y, x, 0)
     coadd_ids = numpy.zeros(len(ra), dtype='a8')
     bands = numpy.zeros(len(ra), dtype='i4')
-    ids = numpy.zeros(len(ra), dtype='a16')
+    ids = numpy.zeros(len(ra), dtype='U20')
     coadd_ids[:] = coadd_id
     bands[:] = band
-    ids = ['%sw%1do%07d' % (coadd_id, band, num) for num in range(len(ra))]
+    if len(args.release) == 0:
+        ids = ['%sw%1do%07d' % (coadd_id, band, num) for num in range(len(ra))]
+    else:
+        ids = ['%sw%1do%07dr%s' % (coadd_id, band, num, args.release)
+               for num in range(len(ra))]
 
     nmfn = wise_filename(basedir, coadd_id, band, 'n-m',
                          uncompressed=args.uncompressed)
