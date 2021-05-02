@@ -1011,7 +1011,7 @@ def compute_iso_fit(impsfstack, psfstack, weightstack, apcor, psfderiv):
                           psfderiv[1][i]*weightstack[i]])
         aa = aa.reshape(3, -1).T
         par[i, :] = numpy.linalg.lstsq(
-            aa, (impsfstack[i]*weightstack[i]).reshape(-1))[0]
+            aa, (impsfstack[i]*weightstack[i]).reshape(-1), rcond=None)[0]
     zeroflux = par[:, 0] == 0
     return (par[:, 0], 
             (1-zeroflux)*par[:, 1]/(par[:, 0]+zeroflux), 

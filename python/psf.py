@@ -1062,7 +1062,7 @@ def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
     isig_cen = central_stamp(isig, censize=pixsz)
     residfitdict = {}
     nperpar = (order+1)*(order+2)/2
-    residguess = numpy.zeros(nperpar, dtype='f4')
+    residguess = numpy.zeros(int(nperpar), dtype='f4')
 
     for i in range(pixsz):
         for j in range(pixsz):
