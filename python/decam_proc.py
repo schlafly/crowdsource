@@ -27,7 +27,7 @@ def read(imfn, extname, **kw):
 
 
 def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
-              maskdiffuse=True, corrects7=True):
+              maskdiffuse=True, corrects7=True,wcutoff=0):
     import warnings
     with warnings.catch_warnings(record=True) as wlist:
         warnings.simplefilter('always')
@@ -57,9 +57,9 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
     imded = 2**imded
     # flag 7 does not seem to indicate problems with the pixels.
     mzerowt = (((imded & ~(2**0 | 2**7)) != 0) |
-               (imdew < 0.) | ~numpy.isfinite(imdew))
+               (imdew < wcutoff) | ~numpy.isfinite(imdew))
     if badpixmask is None:
-        badpixmask = os.path.join(os.environ['DECAM_DIR'], 'data', 
+        badpixmask = os.path.join(os.environ['DECAM_DIR'], 'data',
                                   'badpixmasksefs_comp.fits')
     badmask = fits.getdata(badpixmask, extname=extname)
     imded |= ((badmask != 0) * extrabits['badpix'])
@@ -77,7 +77,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
         nebmask = nebulosity_mask.gen_mask(nebmod, imdei) == 0
         if numpy.any(nebmask):
             imded |= (nebmask * extrabits['diffuse'])
-            imded |= (nebmask * (crowdsource.nodeblend_maskbit | 
+            imded |= (nebmask * (crowdsource.nodeblend_maskbit |
                                  crowdsource.sharp_maskbit))
             print('Masking nebulosity, %5.2f' % (
                 numpy.sum(nebmask)/1./numpy.sum(numpy.isfinite(nebmask))))
@@ -90,7 +90,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
 
 def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                   outdir=None, verbose=False, nproc=numpy.inf, resume=False,
-                  outmodelfn=None, profile=False, maskdiffuse=True):
+                  outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0):
     if profile:
         import cProfile
         import pstats
@@ -164,8 +164,8 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
         if verbose:
             print('Fitting %s, extension %s.' % (imfn, name))
             sys.stdout.flush()
-        im, wt, dq = read_data(imfn, ivarfn, dqfn, name, 
-                               maskdiffuse=maskdiffuse)
+        im, wt, dq = read_data(imfn, ivarfn, dqfn, name,
+                               maskdiffuse=maskdiffuse,wcutoff=wcutoff)
         hdr = fits.getheader(imfn, extname=name)
         fwhm = hdr.get('FWHM', numpy.median(fwhms))
         if fwhm <= 0.:
@@ -363,6 +363,8 @@ if __name__ == "__main__":
                         help='print profiling statistics')
     parser.add_argument('--no-mask-diffuse', action='store_true',
                         help='turn off nebulosity masking')
+    parser.add_argument('--wcutoff', type=int,
+                        default=0, help='cutoff for inverse variances')
     parser.add_argument('imfn', type=str, help='Image file name')
     parser.add_argument('ivarfn', type=str, help='Inverse variance file name')
     parser.add_argument('dqfn', type=str, help='Data quality file name')
@@ -370,5 +372,5 @@ if __name__ == "__main__":
     process_image(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn,
                   outmodelfn=args.outmodelfn,
                   verbose=args.verbose, outdir=args.outdir,
-                  resume=args.resume, profile=args.profile, 
-                  maskdiffuse=(not args.no_mask_diffuse))
+                  resume=args.resume, profile=args.profile,
+                  maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff)
