@@ -27,7 +27,7 @@ def read(imfn, extname, **kw):
 
 
 def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
-              maskdiffuse=True, corrects7=True,wcutoff=0):
+              maskdiffuse=True, corrects7=True,wcutoff=0.0):
     import warnings
     with warnings.catch_warnings(record=True) as wlist:
         warnings.simplefilter('always')
@@ -90,7 +90,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
 
 def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                   outdir=None, verbose=False, nproc=numpy.inf, resume=False,
-                  outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0):
+                  outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0):
     if profile:
         import cProfile
         import pstats
@@ -363,8 +363,8 @@ if __name__ == "__main__":
                         help='print profiling statistics')
     parser.add_argument('--no-mask-diffuse', action='store_true',
                         help='turn off nebulosity masking')
-    parser.add_argument('--wcutoff', type=int,
-                        default=0, help='cutoff for inverse variances')
+    parser.add_argument('--wcutoff', type=float,
+                        default=0.0, help='cutoff for inverse variances')
     parser.add_argument('imfn', type=str, help='Image file name')
     parser.add_argument('ivarfn', type=str, help='Inverse variance file name')
     parser.add_argument('dqfn', type=str, help='Data quality file name')
