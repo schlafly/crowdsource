@@ -56,6 +56,8 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
         # (interpolated, unused, unused)
     imded = 2**imded
     # flag 7 does not seem to indicate problems with the pixels.
+    if wcutoff != 0.0:
+        print("weight_cutoff = {}".format(wcutoff))
     mzerowt = (((imded & ~(2**0 | 2**7)) != 0) |
                (imdew < wcutoff) | ~numpy.isfinite(imdew))
     if badpixmask is None:
