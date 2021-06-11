@@ -92,13 +92,14 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
 
 def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                   outdir=None, verbose=False, nproc=numpy.inf, resume=False,
-                  outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0):
+                  outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0, bin_weights_on=False):
     if profile:
         import cProfile
         import pstats
         pr = cProfile.Profile()
         pr.enable()
-
+    if bin_weights_on == True:
+        print("caution, weights are binarized")
     with fits.open(imfn) as hdulist:
         extnames = [hdu.name for hdu in hdulist]
     if 'PRIMARY' not in extnames:
@@ -212,7 +213,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                                  weight=wt, dq=dq,
                                  psfderiv=True, refit_psf=True,
                                  verbose=verbose, blist=blist,
-                                 maxstars=320000)
+                                 maxstars=320000,bin_weights_on=bin_weights_on)
 
         cat, modelim, skyim, psf = res
         if len(cat) > 0:
@@ -367,6 +368,8 @@ if __name__ == "__main__":
                         help='turn off nebulosity masking')
     parser.add_argument('--wcutoff', type=float,
                         default=0.0, help='cutoff for inverse variances')
+    parser.add_argument('--bin_weights_on', action='store_true',
+                        help='make WLS depend on binary weights only')
     parser.add_argument('imfn', type=str, help='Image file name')
     parser.add_argument('ivarfn', type=str, help='Inverse variance file name')
     parser.add_argument('dqfn', type=str, help='Data quality file name')
@@ -375,4 +378,4 @@ if __name__ == "__main__":
                   outmodelfn=args.outmodelfn,
                   verbose=args.verbose, outdir=args.outdir,
                   resume=args.resume, profile=args.profile,
-                  maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff)
+                  maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,bin_weights_on=args.bin_weights_on)

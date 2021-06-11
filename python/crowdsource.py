@@ -118,7 +118,7 @@ def significance_image_lbs(im, model, isig, psf, sz=19):
 
 def peakfind(im, model, isig, dq, psf, keepsat=False, threshold=5,
              blendthreshold=0.3):
-    psfstamp = psf(int(im.shape[0]/2.), int(im.shape[1]/2.), deriv=False, 
+    psfstamp = psf(int(im.shape[0]/2.), int(im.shape[1]/2.), deriv=False,
                    stampsz=59)
     sigim, modelsigim = significance_image(im, model, isig, psfstamp,
                                            sz=59)
@@ -241,7 +241,7 @@ def in_padded_region(flatcoord, imshape, pad):
 
 def fit_once(im, x, y, psfs, weight=None,
              psfderiv=False, nskyx=0, nskyy=0,
-             guess=None):
+             guess=None,bin_weights_on=False):
     """Fit fluxes for psfs at x & y in image im.
 
     Args:
@@ -277,7 +277,10 @@ def fit_once(im, x, y, psfs, weight=None,
         weight = numpy.ones_like(im)
     weight = numpy.pad(weight, [pad, pad], constant_values=0.,
                        mode='constant')
-    weight[weight == 0.] = 1.e-20
+    if bin_weights_on == True:
+        weight = (weight != 0.)
+    else:
+        weight[weight == 0.] = 1.e-20
     pix = numpy.arange(stampsz*stampsz, dtype='i4').reshape(stampsz, stampsz)
     # convention: x is the first index, y is the second
     # sorry.
@@ -577,7 +580,7 @@ def get_sizes(x, y, imbs, weight=None, blist=None):
     # for very bright things, use a bigger PSF
     # but if there are too many of these, don't bother.
     cutoff2 = 20000
-    if ((numpy.sum(peakbright > cutoff2) < numpy.sum(peakbright > cutoff)/2) 
+    if ((numpy.sum(peakbright > cutoff2) < numpy.sum(peakbright > cutoff)/2)
         and (numpy.sum(peakbright > cutoff) > 100)):
         sz[peakbright > cutoff2] = 149
     else:
@@ -599,7 +602,7 @@ def get_sizes(x, y, imbs, weight=None, blist=None):
 def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
                  nskyx=0, nskyy=0, refit_psf=False,
                  niter=4, blist=None, derivcentroids=False, refit_sky=True,
-                 startsky=numpy.nan):
+                 startsky=numpy.nan,bin_weights_on=False):
     repeat = 3 if psfderiv else 1
     guessflux = None
     msky = 0
@@ -619,7 +622,7 @@ def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
                   'back to 0.01 pix inside image.')
 
     for titer in range(niter):
-        if (refit_sky and 
+        if (refit_sky and
             ((titer > 0) or numpy.any(~numpy.isfinite(startsky)))):
             sky = sky_im(im-model, weight=weight, npix=100)
         else:
@@ -638,21 +641,21 @@ def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
         flux, model, msky = fit_once(
                 im-sky, x, y, psfsfull,
                 psfderiv=psfderiv, weight=weight, guess=guess,
-                nskyx=nskyx, nskyy=nskyy)
+                nskyx=nskyx, nskyy=nskyy, bin_weights_on=bin_weights_on)
         import gc
         gc.collect()
         flux = flux[0]
         skypar = flux[len(x)*repeat:]
         guessflux = flux[:len(x)*repeat:repeat]
         for i in range(repeat):
-            psfs[i][...] = [psfmod.central_stamp(psfsfull[i][j], minsz) 
+            psfs[i][...] = [psfmod.central_stamp(psfsfull[i][j], minsz)
                             for j in range(len(psfsfull[i]))]
         centroids = compute_centroids(x, y, psfs, flux, im-(sky+msky),
                                       im-model-sky,
                                       weight, derivcentroids=derivcentroids)
         xcen, ycen, stamps = centroids
         if refit_psf:
-            psf, x, y = refit_psf_from_stamps(psf, x, y, xcen, ycen, 
+            psf, x, y = refit_psf_from_stamps(psf, x, y, xcen, ycen,
                                               stamps)
             # we are letting the positions get updated, even when
             # psfderiv is false, only for the mean shift that
@@ -673,7 +676,7 @@ def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
             ycen[m] /= dcen[m]
             x, y = (numpy.clip(c, -0.499, s-0.501)
                     for c, s in zip((x+xcen, y+ycen), im.shape))
-        print('Iteration %d, median sky %6.2f' % 
+        print('Iteration %d, median sky %6.2f' %
               (titer+1, numpy.median(sky+msky)))
 
 
@@ -732,7 +735,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
            nskyx=0, nskyy=0, refit_psf=False,
            verbose=False, miniter=4, maxiter=10, blist=None,
            maxstars=40000, derivcentroids=False,
-           ntilex=1, ntiley=1, fewstars=100, threshold=5):
+           ntilex=1, ntiley=1, fewstars=100, threshold=5, bin_weights_on=False):
 
     if isinstance(weight, int):
         weight = numpy.ones_like(im)*weight
@@ -823,7 +826,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
             tflux, tmodel, tmsky = fit_once(
                 im[sall]-sky[sall], xa[mbda]-bdxaf, ya[mbda]-bdyaf, psfsbda,
                 psfderiv=tpsfderiv, weight=weightbda, guess=guessmbda,
-                nskyx=nskyx, nskyy=nskyy)
+                nskyx=nskyx, nskyy=nskyy, bin_weights_on=bin_weights_on)
             model[spri] = tmodel[sfit]
             msky[spri] = tmsky[sfit]
             ind = numpy.flatnonzero(mbd)
@@ -860,7 +863,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
             break
         guessflux = flux[:len(xa)*repeat:repeat]
         if refit_psf and len(xa) > 0:
-            psf, xa, ya = refit_psf_from_stamps(psf, xa, ya, xcen, ycen, 
+            psf, xa, ya = refit_psf_from_stamps(psf, xa, ya, xcen, ycen,
                                                 stamps)
         # enforce maximum step
         if derivcentroids:
@@ -1006,15 +1009,15 @@ def compute_iso_fit(impsfstack, psfstack, weightstack, apcor, psfderiv):
     nstar = len(impsfstack)
     par = numpy.zeros((nstar, 3), dtype='f4')
     for i in range(len(impsfstack)):
-        aa = numpy.array([psfstack[i]*weightstack[i], 
-                          psfderiv[0][i]*weightstack[i], 
+        aa = numpy.array([psfstack[i]*weightstack[i],
+                          psfderiv[0][i]*weightstack[i],
                           psfderiv[1][i]*weightstack[i]])
         aa = aa.reshape(3, -1).T
         par[i, :] = numpy.linalg.lstsq(
             aa, (impsfstack[i]*weightstack[i]).reshape(-1), rcond=None)[0]
     zeroflux = par[:, 0] == 0
-    return (par[:, 0], 
-            (1-zeroflux)*par[:, 1]/(par[:, 0]+zeroflux), 
+    return (par[:, 0],
+            (1-zeroflux)*par[:, 1]/(par[:, 0]+zeroflux),
             (1-zeroflux)*par[:, 2]/(par[:, 0]+zeroflux))
 
 
