@@ -365,6 +365,7 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
         pr.disable()
         pstats.Stats(pr).sort_stats('cumulative').print_stats(60)
 
+#hmm, my cleaning broke something
 def sub_process(args):
     name, imfn, ivarfn, dqfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars = args
     if verbose:
