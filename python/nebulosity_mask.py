@@ -9,7 +9,7 @@ import numpy as np
 import os, sys
 import tensorflow as tf
 
-tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 def equalize_histogram(img, n_bins=256, asinh_stretch=False):
     # from http://www.janeriksolem.net/2009/06/histogram-equalization-with-python-and.html
@@ -56,14 +56,9 @@ def equalize_histogram_wise(img, n_bins=256, asinh_stretch=False):
 def load_model(fname_base):
     with open(fname_base + '.json', 'r') as f:
         model_json = f.read()
-    stdout = sys.stdout
-    stderr = sys.stderr
-    sys.stdout = open('/dev/null', 'w')
-    sys.stderr = open('/dev/null', 'w')
+        
     model = kmodels.model_from_json(model_json)
     model.load_weights(fname_base + '.h5')
-    sys.stdout = stdout
-    sys.stdout = stderr
 
     return model
 
