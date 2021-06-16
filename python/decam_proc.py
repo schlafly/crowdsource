@@ -343,22 +343,42 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
 
     newexts = numpy.setdiff1d(numpy.setdiff1d(extnames,extnamesdone),['PRIMARY'])
 
-    nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr) for n in newexts]
+    if nproc != np.inf:
+        max_nproc = np.max([nproc, len(newexts)])
+        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr) for n in newexts[0:max_nproc]]
+    else:
+        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr) for n in newexts]
 
-    result = pqdm(nargs, sub_process,n_jobs=num_procs)
+    result = pqdm(nargs, sub_process, n_jobs=num_procs)
 
     for s in result:
+        hdr = fits.Header.fromstring(s[0])
         print(result)
-        fits.append(outfn, numpy.zeros(0), s[0]) # append some header
+        fits.append(outfn, numpy.zeros(0), hdr) # append some header
+
+        hdupsf = fits.BinTableHDU(s[1])
+        hdupsf.name = hdr['EXTNAME'][:-4] + '_PSF'
+
+        hducat = fits.BinTableHDU(s[2])
+        hducat.name = hdr['EXTNAME'][:-4] + '_CAT'
+
         hdulist = fits.open(outfn, mode='append')
-        hdulist.append(s[1]) #append the psf field for the ccd
-        hdulist.append(s[2]) #append the cat field for the ccd
+        hdulist.append(hdupsf) #append the psf field for the ccd
+        hdulist.append(hducat) #append the cat field for the ccd
         hdulist.close(closed=True)
 
         if outmodelfn:
+            hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MOD'
+            compkw = {'compression_type': 'GZIP_1',
+                      'quantize_method': 1, 'quantize_level': -4,
+                      'tile_size': s[3].shape}
+            model = fits.CompImageHDU(s[3], hdr, **compkw)
+            hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_SKY'
+            sky = fits.CompImageHDU(s[4], hdr, **compkw)
+
             modhdulist = fits.open(outmodelfn, mode='append')
-            modhdulist.append(s[3])
-            modhdulist.append(s[4])
+            modhdulist.append(model)
+            modhdulist.append(sky)
             modhdulist.close(closed=True)
 
     if profile:
@@ -448,22 +468,11 @@ def sub_process(args):
     gain = hdr['GAINCRWD']*numpy.ones(len(cat), dtype='f4')
     cat = rec_append_fields(cat, ['ra', 'dec', 'decapsid', 'gain'],
                             [ra, dec, decapsid, gain])
-    hdr_rec = copy.deepcopy(hdr)
-
-    hdupsf = fits.BinTableHDU(psf.serialize())
-    hdupsf.name = hdr['EXTNAME'][:-4] + '_PSF'
-    hducat = fits.BinTableHDU(cat)
-    hducat.name = hdr['EXTNAME'][:-4] + '_CAT'
 
     if outmodelfn:
-        hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MOD'
-        compkw = {'compression_type': 'GZIP_1',
-                  'quantize_method': 1, 'quantize_level': -4,
-                  'tile_size': modelim.shape}
-        model = fits.CompImageHDU(modelim, hdr, **compkw)
-        hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_SKY'
-        sky = fits.CompImageHDU(skyim, hdr, **compkw)
-    return [hdr_rec, hdupsf, hducat, model, sky]
+        return [hdr.tostring(), psf.serialize(), cat, modelim, skyim]
+
+    return [hdr.tostring(), psf.serialize(), cat]
 
 def decam_psf(filt, fwhm):
     if filt not in 'ugrizY':
@@ -575,10 +584,12 @@ if __name__ == "__main__":
                       outmodelfn=args.outmodelfn,
                       verbose=args.verbose, outdir=args.outdir,
                       resume=args.resume, profile=args.profile,
-                      maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,bin_weights_on=args.bin_weights_on, num_procs=args.parallel,nproc=args.ccd_num)
+                      maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,
+                      bin_weights_on=args.bin_weights_on, num_procs=args.parallel,nproc=args.ccd_num)
     else:
         process_image(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn,
                       outmodelfn=args.outmodelfn,
                       verbose=args.verbose, outdir=args.outdir,
                       resume=args.resume, profile=args.profile,
-                      maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,bin_weights_on=args.bin_weights_on,nproc=args.ccd_num)
+                      maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,
+                      bin_weights_on=args.bin_weights_on,nproc=args.ccd_num)
