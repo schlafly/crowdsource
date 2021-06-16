@@ -347,8 +347,8 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
 
     result = pqdm(nargs, sub_process,n_jobs=num_procs)
 
-    print(result)
     for s in result:
+        print(result)
         fits.append(outfn, numpy.zeros(0), s[0]) # append some header
         hdulist = fits.open(outfn, mode='append')
         hdulist.append(s[1]) #append the psf field for the ccd
