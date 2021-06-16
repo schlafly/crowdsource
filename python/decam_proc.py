@@ -382,6 +382,7 @@ def sub_process(args):
         fwhm = fwhmmn
     psf = decam_psf(filt[0], fwhm)
     wcs0 = wcs.WCS(hdr)
+    from astropy.coordinates.angle_utilities import angular_separation
     if brightstars is not None:
         sep = angular_separation(numpy.radians(brightstars['ra']),
                                  numpy.radians(brightstars['dec']),
