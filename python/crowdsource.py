@@ -16,7 +16,7 @@ entirely simultaneously.
 
 import numpy
 import pdb
-import pqdm
+from pqdm.processes import pqdm
 import psf as psfmod
 import scipy.ndimage.filters as filters
 from collections import OrderedDict
