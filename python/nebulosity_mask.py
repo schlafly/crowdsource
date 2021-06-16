@@ -6,7 +6,7 @@ import keras
 import keras.models as kmodels
 
 import numpy as np
-
+import sys
 
 def equalize_histogram(img, n_bins=256, asinh_stretch=False):
     # from http://www.janeriksolem.net/2009/06/histogram-equalization-with-python-and.html
@@ -106,7 +106,7 @@ def gen_mask_wise(model, img):
     mask[mask == 0] = 1  # nebulosity_light -> normal
     return mask
 
-    
+
 def test_plots(model, imfns, extname='N26'):
     from matplotlib import pyplot as p
     from astropy.io import fits

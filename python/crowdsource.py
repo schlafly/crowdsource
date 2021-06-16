@@ -19,6 +19,7 @@ import pdb
 import psf as psfmod
 import scipy.ndimage.filters as filters
 from collections import OrderedDict
+import sys
 
 nodeblend_maskbit = 2**30
 sharp_maskbit = 2**31
