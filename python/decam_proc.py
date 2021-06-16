@@ -343,7 +343,7 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
 
     newexts = numpy.setdiff1d(numpy.setdiff1d(extnames,extnamesdone),['PRIMARY'])
 
-    nargs = [(n, outfn, imfn, ivarfn, dqfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr) for n in newexts]
+    nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr) for n in newexts]
 
     result = pqdm(nargs, sub_process,n_jobs=num_procs)
 
@@ -367,7 +367,7 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
 
 #hmm, my cleaning broke something
 def sub_process(args):
-    name, outfn, imfn, ivarfn, dqfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr = args
+    name, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr = args
     if verbose:
         print('Fitting %s, extension %s.' % (imfn, name))
         sys.stdout.flush()
