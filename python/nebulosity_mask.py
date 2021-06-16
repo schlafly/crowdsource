@@ -7,6 +7,9 @@ import keras.models as kmodels
 
 import numpy as np
 import os, sys
+import tensorflow as tf
+
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 def equalize_histogram(img, n_bins=256, asinh_stretch=False):
     # from http://www.janeriksolem.net/2009/06/histogram-equalization-with-python-and.html
