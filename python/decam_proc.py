@@ -438,7 +438,7 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
             sky = fits.CompImageHDU(skyim, hdr, **compkw)
         return [hdr_rec, hdupsf, hducat, model, sky]
 
-    newexts = np.setdiff1d(np.setdiff1d(extnames,extnamesdone),['PRIMARY'])
+    newexts = numpy.setdiff1d(np.setdiff1d(extnames,extnamesdone),['PRIMARY'])
     result = pqdm(newexts, sub_process,n_jobs=num_procs)
 
     for s in result:
