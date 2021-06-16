@@ -331,7 +331,6 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
         hdulist.close()
     if outmodelfn and (not resume or not os.path.exists(outmodelfn)):
         fits.writeto(outmodelfn, None, prihdr, overwrite=overwrite)
-    count = 0
     fwhms = []
     for name in extnames:
         if name == 'PRIMARY':
@@ -342,105 +341,11 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
     fwhms = numpy.array(fwhms)
     fwhms = fwhms[fwhms > 0]
 
-    def sub_process(name):
-        if verbose:
-            print('Fitting %s, extension %s.' % (imfn, name))
-            sys.stdout.flush()
-        im, wt, dq = read_data(imfn, ivarfn, dqfn, name,
-                               maskdiffuse=maskdiffuse,wcutoff=wcutoff)
-        hdr = fits.getheader(imfn, extname=name)
-        fwhm = hdr.get('FWHM', numpy.median(fwhms))
-        if fwhm <= 0.:
-            fwhm = 4.
-        fwhmmn, fwhmsd = numpy.mean(fwhms), numpy.std(fwhms)
-        if fwhmsd > 0.4:
-            fwhm = fwhmmn
-        psf = decam_psf(filt[0], fwhm)
-        wcs0 = wcs.WCS(hdr)
-        if brightstars is not None:
-            sep = angular_separation(numpy.radians(brightstars['ra']),
-                                     numpy.radians(brightstars['dec']),
-                                     numpy.radians(hdr['CENRA1']),
-                                     numpy.radians(hdr['CENDEC1']))
-            sep = numpy.degrees(sep)
-            m = sep < 0.2
-            # CCD is 4094 pix wide => everything is at most 0.15 deg
-            # from center
-            if numpy.any(m):
-                yb, xb = wcs0.all_world2pix(brightstars['ra'][m],
-                                            brightstars['dec'][m], 0)
-                vmag = brightstars['vtmag'][m]
-                # WCS module and I order x and y differently...
-                m = ((xb > 0) & (xb < im.shape[0]) &
-                     (yb > 0) & (yb < im.shape[1]))
-                if numpy.any(m):
-                    xb, yb = xb[m], yb[m]
-                    vmag = vmag[m]
-                    blist = [xb, yb, vmag]
-                else:
-                    blist = None
-            else:
-                blist = None
-        else:
-            blist = None
-
-        if blist is not None:
-            dq = mask_very_bright_stars(dq, blist)
-
-        # the actual fit
-        res = crowdsource.fit_im(im, psf, ntilex=4, ntiley=2,
-                                 weight=wt, dq=dq,
-                                 psfderiv=True, refit_psf=True,
-                                 verbose=verbose, blist=blist,
-                                 maxstars=320000,bin_weights_on=bin_weights_on)
-
-        cat, modelim, skyim, psf = res
-        if len(cat) > 0:
-            ra, dec = wcs0.all_pix2world(cat['y'], cat['x'], 0.)
-        else:
-            ra = numpy.zeros(0, dtype='f8')
-            dec = numpy.zeros(0, dtype='f8')
-        from numpy.lib.recfunctions import rec_append_fields
-        decapsid = numpy.zeros(len(cat), dtype='i8')
-        decapsid[:] = (prihdr['EXPNUM']*2**32*2**7 +
-                       hdr['CCDNUM']*2**32 +
-                       numpy.arange(len(cat), dtype='i8'))
-        if verbose:
-            print('Writing %s %s, found %d sources.' % (outfn, name, len(cat)))
-            sys.stdout.flush()
-        hdr['EXTNAME'] = hdr['EXTNAME']+'_HDR'
-        if numpy.any(wt > 0):
-            hdr['GAINCRWD'] = numpy.nanmedian((im*wt**2.)[wt > 0])
-            hdr['SKYCRWD'] = numpy.nanmedian(skyim[wt > 0])
-        else:
-            hdr['GAINCRWD'] = 4
-            hdr['SKYCRWD'] = 0
-        if len(cat) > 0:
-            hdr['FWHMCRWD'] = numpy.nanmedian(cat['fwhm'])
-        else:
-            hdr['FWHMCRWD'] = 0.0
-        gain = hdr['GAINCRWD']*numpy.ones(len(cat), dtype='f4')
-        cat = rec_append_fields(cat, ['ra', 'dec', 'decapsid', 'gain'],
-                                [ra, dec, decapsid, gain])
-        hdr_rec = copy.deepcopy(hdr)
-
-        hdupsf = fits.BinTableHDU(psf.serialize())
-        hdupsf.name = hdr['EXTNAME'][:-4] + '_PSF'
-        hducat = fits.BinTableHDU(cat)
-        hducat.name = hdr['EXTNAME'][:-4] + '_CAT'
-
-        if outmodelfn:
-            hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MOD'
-            compkw = {'compression_type': 'GZIP_1',
-                      'quantize_method': 1, 'quantize_level': -4,
-                      'tile_size': modelim.shape}
-            model = fits.CompImageHDU(modelim, hdr, **compkw)
-            hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_SKY'
-            sky = fits.CompImageHDU(skyim, hdr, **compkw)
-        return [hdr_rec, hdupsf, hducat, model, sky]
-
     newexts = numpy.setdiff1d(numpy.setdiff1d(extnames,extnamesdone),['PRIMARY'])
-    result = pqdm(newexts, sub_process,n_jobs=num_procs)
+
+    nargs = [(n, imfn, ivarfn, dqfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars) for n in range(newexts)]
+
+    result = pqdm(nargs, sub_process,n_jobs=num_procs)
 
     print(result)
     for s in result:
@@ -459,6 +364,104 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
     if profile:
         pr.disable()
         pstats.Stats(pr).sort_stats('cumulative').print_stats(60)
+
+def sub_process(args):
+    name, imfn, ivarfn, dqfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars = args
+    if verbose:
+        print('Fitting %s, extension %s.' % (imfn, name))
+        sys.stdout.flush()
+    im, wt, dq = read_data(imfn, ivarfn, dqfn, name,
+                           maskdiffuse=maskdiffuse,wcutoff=wcutoff)
+    hdr = fits.getheader(imfn, extname=name)
+    fwhm = hdr.get('FWHM', numpy.median(fwhms))
+    if fwhm <= 0.:
+        fwhm = 4.
+    fwhmmn, fwhmsd = numpy.mean(fwhms), numpy.std(fwhms)
+    if fwhmsd > 0.4:
+        fwhm = fwhmmn
+    psf = decam_psf(filt[0], fwhm)
+    wcs0 = wcs.WCS(hdr)
+    if brightstars is not None:
+        sep = angular_separation(numpy.radians(brightstars['ra']),
+                                 numpy.radians(brightstars['dec']),
+                                 numpy.radians(hdr['CENRA1']),
+                                 numpy.radians(hdr['CENDEC1']))
+        sep = numpy.degrees(sep)
+        m = sep < 0.2
+        # CCD is 4094 pix wide => everything is at most 0.15 deg
+        # from center
+        if numpy.any(m):
+            yb, xb = wcs0.all_world2pix(brightstars['ra'][m],
+                                        brightstars['dec'][m], 0)
+            vmag = brightstars['vtmag'][m]
+            # WCS module and I order x and y differently...
+            m = ((xb > 0) & (xb < im.shape[0]) &
+                 (yb > 0) & (yb < im.shape[1]))
+            if numpy.any(m):
+                xb, yb = xb[m], yb[m]
+                vmag = vmag[m]
+                blist = [xb, yb, vmag]
+            else:
+                blist = None
+        else:
+            blist = None
+    else:
+        blist = None
+
+    if blist is not None:
+        dq = mask_very_bright_stars(dq, blist)
+
+    # the actual fit
+    res = crowdsource.fit_im(im, psf, ntilex=4, ntiley=2,
+                             weight=wt, dq=dq,
+                             psfderiv=True, refit_psf=True,
+                             verbose=verbose, blist=blist,
+                             maxstars=320000,bin_weights_on=bin_weights_on)
+
+    cat, modelim, skyim, psf = res
+    if len(cat) > 0:
+        ra, dec = wcs0.all_pix2world(cat['y'], cat['x'], 0.)
+    else:
+        ra = numpy.zeros(0, dtype='f8')
+        dec = numpy.zeros(0, dtype='f8')
+    from numpy.lib.recfunctions import rec_append_fields
+    decapsid = numpy.zeros(len(cat), dtype='i8')
+    decapsid[:] = (prihdr['EXPNUM']*2**32*2**7 +
+                   hdr['CCDNUM']*2**32 +
+                   numpy.arange(len(cat), dtype='i8'))
+    if verbose:
+        print('Writing %s %s, found %d sources.' % (outfn, name, len(cat)))
+        sys.stdout.flush()
+    hdr['EXTNAME'] = hdr['EXTNAME']+'_HDR'
+    if numpy.any(wt > 0):
+        hdr['GAINCRWD'] = numpy.nanmedian((im*wt**2.)[wt > 0])
+        hdr['SKYCRWD'] = numpy.nanmedian(skyim[wt > 0])
+    else:
+        hdr['GAINCRWD'] = 4
+        hdr['SKYCRWD'] = 0
+    if len(cat) > 0:
+        hdr['FWHMCRWD'] = numpy.nanmedian(cat['fwhm'])
+    else:
+        hdr['FWHMCRWD'] = 0.0
+    gain = hdr['GAINCRWD']*numpy.ones(len(cat), dtype='f4')
+    cat = rec_append_fields(cat, ['ra', 'dec', 'decapsid', 'gain'],
+                            [ra, dec, decapsid, gain])
+    hdr_rec = copy.deepcopy(hdr)
+
+    hdupsf = fits.BinTableHDU(psf.serialize())
+    hdupsf.name = hdr['EXTNAME'][:-4] + '_PSF'
+    hducat = fits.BinTableHDU(cat)
+    hducat.name = hdr['EXTNAME'][:-4] + '_CAT'
+
+    if outmodelfn:
+        hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MOD'
+        compkw = {'compression_type': 'GZIP_1',
+                  'quantize_method': 1, 'quantize_level': -4,
+                  'tile_size': modelim.shape}
+        model = fits.CompImageHDU(modelim, hdr, **compkw)
+        hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_SKY'
+        sky = fits.CompImageHDU(skyim, hdr, **compkw)
+    return [hdr_rec, hdupsf, hducat, model, sky]
 
 def decam_psf(filt, fwhm):
     if filt not in 'ugrizY':
