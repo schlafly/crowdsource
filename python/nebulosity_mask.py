@@ -54,10 +54,13 @@ def load_model(fname_base):
     with open(fname_base + '.json', 'r') as f:
         model_json = f.read()
     stdout = sys.stdout
+    stderr = sys.stderr
     sys.stdout = open('/dev/null', 'w')
+    sys.stderr = open('/dev/null', 'w')
     model = kmodels.model_from_json(model_json)
     model.load_weights(fname_base + '.h5')
     sys.stdout = stdout
+    sys.stdout = stderr
 
     return model
 
