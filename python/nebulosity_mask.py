@@ -62,10 +62,12 @@ def equalize_histogram_wise(img, n_bins=256, asinh_stretch=False):
 def load_model(fname_base):
     with open(fname_base + '.json', 'r') as f:
         model_json = f.read()
-    with HiddenPrints():
-        model = kmodels.model_from_json(model_json)
-        model.load_weights(fname_base + '.h5')
-
+    stdout = sys.stdout
+    sys.stdout = open('/dev/null', 'w')
+    model = kmodels.model_from_json(model_json)
+    model.load_weights(fname_base + '.h5')
+    sys.stdout = stdout
+    
     return model
 
 
