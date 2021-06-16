@@ -556,6 +556,8 @@ if __name__ == "__main__":
                         help='resume if file already exists')
     parser.add_argument('--parallel', type=int,
                         default=1, help='num of parallel processors')
+    parser.add_argument('--ccd_num', type=int,
+                        default=None, help='limit to num ccds run')
     parser.add_argument('--profile', '-p', action='store_true',
                         help='print profiling statistics')
     parser.add_argument('--no-mask-diffuse', action='store_true',
@@ -573,10 +575,10 @@ if __name__ == "__main__":
                       outmodelfn=args.outmodelfn,
                       verbose=args.verbose, outdir=args.outdir,
                       resume=args.resume, profile=args.profile,
-                      maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,bin_weights_on=args.bin_weights_on, num_procs=args.parallel)
+                      maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,bin_weights_on=args.bin_weights_on, num_procs=args.parallel,nproc=args.ccd_num)
     else:
         process_image(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn,
                       outmodelfn=args.outmodelfn,
                       verbose=args.verbose, outdir=args.outdir,
                       resume=args.resume, profile=args.profile,
-                      maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,bin_weights_on=args.bin_weights_on)
+                      maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,bin_weights_on=args.bin_weights_on,nproc=args.ccd_num)
