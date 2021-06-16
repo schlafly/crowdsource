@@ -158,7 +158,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
             fwhms.append(hdr['FWHM'])
     fwhms = numpy.array(fwhms)
     fwhms = fwhms[fwhms > 0]
-    for name in extnames:
+    for name in extnames: #CCD for loop
         if name == 'PRIMARY':
             continue
         if extnamesdone is not None and name in extnamesdone:
@@ -243,14 +243,14 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
         gain = hdr['GAINCRWD']*numpy.ones(len(cat), dtype='f4')
         cat = rec_append_fields(cat, ['ra', 'dec', 'decapsid', 'gain'],
                                 [ra, dec, decapsid, gain])
-        fits.append(outfn, numpy.zeros(0), hdr)
+        fits.append(outfn, numpy.zeros(0), hdr) # append some header
         hdupsf = fits.BinTableHDU(psf.serialize())
         hdupsf.name = hdr['EXTNAME'][:-4] + '_PSF'
         hducat = fits.BinTableHDU(cat)
         hducat.name = hdr['EXTNAME'][:-4] + '_CAT'
         hdulist = fits.open(outfn, mode='append')
-        hdulist.append(hdupsf)
-        hdulist.append(hducat)
+        hdulist.append(hdupsf) #append the psf field for the ccd
+        hdulist.append(hducat) #append the cat field for the ccd
         hdulist.close(closed=True)
         if outmodelfn:
             modhdulist = fits.open(outmodelfn, mode='append')
@@ -272,6 +272,191 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
         pr.disable()
         pstats.Stats(pr).sort_stats('cumulative').print_stats(60)
 
+def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
+                  outdir=None, verbose=False, nproc=numpy.inf, resume=False,
+                  outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0, bin_weights_on=False, num_procs=1):
+    if profile:
+        import cProfile
+        import pstats
+        pr = cProfile.Profile()
+        pr.enable()
+    if bin_weights_on == True:
+        print("caution, weights are binarized")
+    with fits.open(imfn) as hdulist:
+        extnames = [hdu.name for hdu in hdulist]
+    if 'PRIMARY' not in extnames:
+        raise ValueError('No PRIMARY header in file')
+    prihdr = fits.getheader(imfn, extname='PRIMARY')
+    if 'CENTRA' in prihdr:
+        bstarfn = os.path.join(os.environ['DECAM_DIR'], 'data',
+                               'tyc2brighttrim.fits')
+        brightstars = fits.getdata(bstarfn)
+        from astropy.coordinates.angle_utilities import angular_separation
+        sep = angular_separation(numpy.radians(brightstars['ra']),
+                                 numpy.radians(brightstars['dec']),
+                                 numpy.radians(prihdr['CENTRA']),
+                                 numpy.radians(prihdr['CENTDEC']))
+        sep = numpy.degrees(sep)
+        m = sep < 3
+        brightstars = brightstars[m]
+        dmjd = prihdr['MJD-OBS'] - 51544.5  # J2000 MJD.
+        cosd = numpy.cos(numpy.radians(numpy.clip(brightstars['dec'],
+                                                  -89.9999, 89.9999)))
+        brightstars['ra'] += dmjd*brightstars['pmra']/365.25/cosd/1000/60/60
+        brightstars['dec'] += dmjd*brightstars['pmde']/365.25/1000/60/60
+    else:
+        brightstars = None
+    filt = prihdr['filter']
+    if outfn is None or len(outfn) == 0:
+        outfn = os.path.splitext(os.path.basename(imfn))[0]
+        if outfn[-5:] == '.fits':
+            outfn = outfn[:-5]
+        outfn = outfn + '.cat.fits'
+    if outdir is not None:
+        outfn = os.path.join(outdir, outfn)
+    if not resume or not os.path.exists(outfn):
+        fits.writeto(outfn, None, prihdr, overwrite=overwrite)
+        extnamesdone = None
+    else:
+        hdulist = fits.open(outfn)
+        extnamesdone = []
+        for hdu in hdulist:
+            if hdu.name == 'PRIMARY':
+                continue
+            ext, exttype = hdu.name.split('_')
+            if exttype != 'CAT':
+                continue
+            extnamesdone.append(ext)
+        hdulist.close()
+    if outmodelfn and (not resume or not os.path.exists(outmodelfn)):
+        fits.writeto(outmodelfn, None, prihdr, overwrite=overwrite)
+    count = 0
+    fwhms = []
+    for name in extnames:
+        if name == 'PRIMARY':
+            continue
+        hdr = fits.getheader(imfn, extname=name)
+        if 'FWHM' in hdr:
+            fwhms.append(hdr['FWHM'])
+    fwhms = numpy.array(fwhms)
+    fwhms = fwhms[fwhms > 0]
+
+    def sub_process(name):
+        if verbose:
+            print('Fitting %s, extension %s.' % (imfn, name))
+            sys.stdout.flush()
+        im, wt, dq = read_data(imfn, ivarfn, dqfn, name,
+                               maskdiffuse=maskdiffuse,wcutoff=wcutoff)
+        hdr = fits.getheader(imfn, extname=name)
+        fwhm = hdr.get('FWHM', numpy.median(fwhms))
+        if fwhm <= 0.:
+            fwhm = 4.
+        fwhmmn, fwhmsd = numpy.mean(fwhms), numpy.std(fwhms)
+        if fwhmsd > 0.4:
+            fwhm = fwhmmn
+        psf = decam_psf(filt[0], fwhm)
+        wcs0 = wcs.WCS(hdr)
+        if brightstars is not None:
+            sep = angular_separation(numpy.radians(brightstars['ra']),
+                                     numpy.radians(brightstars['dec']),
+                                     numpy.radians(hdr['CENRA1']),
+                                     numpy.radians(hdr['CENDEC1']))
+            sep = numpy.degrees(sep)
+            m = sep < 0.2
+            # CCD is 4094 pix wide => everything is at most 0.15 deg
+            # from center
+            if numpy.any(m):
+                yb, xb = wcs0.all_world2pix(brightstars['ra'][m],
+                                            brightstars['dec'][m], 0)
+                vmag = brightstars['vtmag'][m]
+                # WCS module and I order x and y differently...
+                m = ((xb > 0) & (xb < im.shape[0]) &
+                     (yb > 0) & (yb < im.shape[1]))
+                if numpy.any(m):
+                    xb, yb = xb[m], yb[m]
+                    vmag = vmag[m]
+                    blist = [xb, yb, vmag]
+                else:
+                    blist = None
+            else:
+                blist = None
+        else:
+            blist = None
+
+        if blist is not None:
+            dq = mask_very_bright_stars(dq, blist)
+
+        # the actual fit
+        res = crowdsource.fit_im(im, psf, ntilex=4, ntiley=2,
+                                 weight=wt, dq=dq,
+                                 psfderiv=True, refit_psf=True,
+                                 verbose=verbose, blist=blist,
+                                 maxstars=320000,bin_weights_on=bin_weights_on)
+
+        cat, modelim, skyim, psf = res
+        if len(cat) > 0:
+            ra, dec = wcs0.all_pix2world(cat['y'], cat['x'], 0.)
+        else:
+            ra = numpy.zeros(0, dtype='f8')
+            dec = numpy.zeros(0, dtype='f8')
+        from numpy.lib.recfunctions import rec_append_fields
+        decapsid = numpy.zeros(len(cat), dtype='i8')
+        decapsid[:] = (prihdr['EXPNUM']*2**32*2**7 +
+                       hdr['CCDNUM']*2**32 +
+                       numpy.arange(len(cat), dtype='i8'))
+        if verbose:
+            print('Writing %s %s, found %d sources.' % (outfn, name, len(cat)))
+            sys.stdout.flush()
+        hdr['EXTNAME'] = hdr['EXTNAME']+'_HDR'
+        if numpy.any(wt > 0):
+            hdr['GAINCRWD'] = numpy.nanmedian((im*wt**2.)[wt > 0])
+            hdr['SKYCRWD'] = numpy.nanmedian(skyim[wt > 0])
+        else:
+            hdr['GAINCRWD'] = 4
+            hdr['SKYCRWD'] = 0
+        if len(cat) > 0:
+            hdr['FWHMCRWD'] = numpy.nanmedian(cat['fwhm'])
+        else:
+            hdr['FWHMCRWD'] = 0.0
+        gain = hdr['GAINCRWD']*numpy.ones(len(cat), dtype='f4')
+        cat = rec_append_fields(cat, ['ra', 'dec', 'decapsid', 'gain'],
+                                [ra, dec, decapsid, gain])
+        hdr_rec = copy.deepcopy(hdr)
+
+        hdupsf = fits.BinTableHDU(psf.serialize())
+        hdupsf.name = hdr['EXTNAME'][:-4] + '_PSF'
+        hducat = fits.BinTableHDU(cat)
+        hducat.name = hdr['EXTNAME'][:-4] + '_CAT'
+
+        if outmodelfn:
+            hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MOD'
+            compkw = {'compression_type': 'GZIP_1',
+                      'quantize_method': 1, 'quantize_level': -4,
+                      'tile_size': modelim.shape}
+            model = fits.CompImageHDU(modelim, hdr, **compkw)
+            hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_SKY'
+            sky = fits.CompImageHDU(skyim, hdr, **compkw)
+        return [hdr_rec, hdupsf, hducat, model, sky]
+
+    newexts = np.setdiff1d(np.setdiff1d(extnames,extnamesdone),['PRIMARY'])
+    result = pqdm(newexts, sub_process)
+
+    for s in result:
+        fits.append(outfn, numpy.zeros(0), s[0]) # append some header
+        hdulist = fits.open(outfn, mode='append')
+        hdulist.append(s[1]) #append the psf field for the ccd
+        hdulist.append(s[2]) #append the cat field for the ccd
+        hdulist.close(closed=True)
+
+        if outmodelfn:
+            modhdulist = fits.open(outmodelfn, mode='append')
+            modhdulist.append(s[3])
+            modhdulist.append(s[4])
+            modhdulist.close(closed=True)
+
+    if profile:
+        pr.disable()
+        pstats.Stats(pr).sort_stats('cumulative').print_stats(60)
 
 def decam_psf(filt, fwhm):
     if filt not in 'ugrizY':
@@ -362,6 +547,8 @@ if __name__ == "__main__":
                         type=str, default=None)
     parser.add_argument('--resume', '-r', action='store_true',
                         help='resume if file already exists')
+    parser.add_argument('--parallel', type=int,
+                        default=1, help='num of parallel processors')
     parser.add_argument('--profile', '-p', action='store_true',
                         help='print profiling statistics')
     parser.add_argument('--no-mask-diffuse', action='store_true',
@@ -374,8 +561,15 @@ if __name__ == "__main__":
     parser.add_argument('ivarfn', type=str, help='Inverse variance file name')
     parser.add_argument('dqfn', type=str, help='Data quality file name')
     args = parser.parse_args()
-    process_image(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn,
-                  outmodelfn=args.outmodelfn,
-                  verbose=args.verbose, outdir=args.outdir,
-                  resume=args.resume, profile=args.profile,
-                  maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,bin_weights_on=args.bin_weights_on)
+    if args.parallel > 1:
+        process_image_p(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn,
+                      outmodelfn=args.outmodelfn,
+                      verbose=args.verbose, outdir=args.outdir,
+                      resume=args.resume, profile=args.profile,
+                      maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,bin_weights_on=args.bin_weights_on, num_procs=args.parallel)
+    else:
+        process_image(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn,
+                      outmodelfn=args.outmodelfn,
+                      verbose=args.verbose, outdir=args.outdir,
+                      resume=args.resume, profile=args.profile,
+                      maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,bin_weights_on=args.bin_weights_on)
