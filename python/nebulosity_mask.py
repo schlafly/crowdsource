@@ -8,15 +8,6 @@ import keras.models as kmodels
 import numpy as np
 import os, sys
 
-class HiddenPrints:
-    def __enter__(self):
-        self._original_stdout = sys.stdout
-        sys.stdout = open(os.devnull, 'w')
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        sys.stdout.close()
-        sys.stdout = self._original_stdout
-
 def equalize_histogram(img, n_bins=256, asinh_stretch=False):
     # from http://www.janeriksolem.net/2009/06/histogram-equalization-with-python-and.html
 
@@ -67,7 +58,7 @@ def load_model(fname_base):
     model = kmodels.model_from_json(model_json)
     model.load_weights(fname_base + '.h5')
     sys.stdout = stdout
-    
+
     return model
 
 

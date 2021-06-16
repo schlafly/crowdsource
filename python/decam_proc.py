@@ -12,7 +12,6 @@ from functools import partial
 import crowdsource
 from pqdm.processes import pqdm
 
-
 badpixmaskfn = '/n/fink2/www/eschlafly/decam/badpixmasksefs_comp.fits'
 
 extrabits = ({'badpix': 2**20,
@@ -214,7 +213,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                                  weight=wt, dq=dq,
                                  psfderiv=True, refit_psf=True,
                                  verbose=verbose, blist=blist,
-                                 maxstars=320000,bin_weights_on=bin_weights_on)
+                                 maxstars=320000,bin_weights_on=bin_weights_on, ccd=name)
 
         cat, modelim, skyim, psf = res
         if len(cat) > 0:
@@ -417,7 +416,7 @@ def sub_process(args):
                              weight=wt, dq=dq,
                              psfderiv=True, refit_psf=True,
                              verbose=verbose, blist=blist,
-                             maxstars=320000,bin_weights_on=bin_weights_on)
+                             maxstars=320000,bin_weights_on=bin_weights_on, ccd=name)
 
     cat, modelim, skyim, psf = res
     if len(cat) > 0:

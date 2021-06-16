@@ -736,7 +736,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
            nskyx=0, nskyy=0, refit_psf=False,
            verbose=False, miniter=4, maxiter=10, blist=None,
            maxstars=40000, derivcentroids=False,
-           ntilex=1, ntiley=1, fewstars=100, threshold=5, bin_weights_on=False):
+           ntilex=1, ntiley=1, fewstars=100, threshold=5, bin_weights_on=False, ccd=None)):
 
     if isinstance(weight, int):
         weight = numpy.ones_like(im)*weight
@@ -892,9 +892,9 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         passno = passno[keep]
         guessflux = guessflux[keep]
         if verbose:
-            print('Iteration %2d, found %6d sources; %4d close and '
+            print('Extension %s, iteration %2d, found %6d sources; %4d close and '
                   '%4d faint sources removed.' %
-                  (titer+1, len(xn),
+                  (ccd, titer+1, len(xn),
                    numpy.sum(~isolatedenough),
                    numpy.sum(~brightenough & isolatedenough)))
 
