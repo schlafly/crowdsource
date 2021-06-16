@@ -9,7 +9,7 @@ import numpy
 import psf as psfmod
 from astropy.io import fits
 import crowdsource
-import unwise_psf
+from unwise_psf import unwise_psf
 import unwise_primary
 from astropy import wcs
 from collections import OrderedDict
@@ -320,9 +320,9 @@ def collapse_extraflags(bitmask, band):
 if __name__ == "__main__":
 
     try:
-        print 'Running on host: ' + str(os.environ.get('HOSTNAME'))
+        print('Running on host: ' + str(os.environ.get('HOSTNAME')))
     except:
-        print "Couldn't retrieve hostname!"
+        print("Couldn't retrieve hostname!")
 
     parser = argparse.ArgumentParser(description='Run crowdsource on unWISE coadd image')
     parser.add_argument('coadd_id', type=str, nargs=1)

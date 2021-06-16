@@ -711,20 +711,20 @@ def refit_psf_from_stamps(psf, x, y, xcen, ycen, stamps):
                          stamps[1], stamps[2], stamps[3], nkeep=200)
         if npsf is not None:
             npsf.fitfun = psffitfun
-        else:
-            shiftx = xcen + xe + x - numpy.round(x)
-            shifty = ycen + ye + y - numpy.round(y)
-            npsf = find_psf(x, shiftx, y, shifty,
-                            stamps[0], stamps[3], stamps[1])
-            # we removed the centroid offset of the model PSFs;
-            # we need to correct the positions to compensate
-        if npsf is not None:
-            xnew = x + xe
-            ynew = y + ye
-            psf = npsf
-        else:
-            xnew = x
-            ynew = y
+    else:
+        shiftx = xcen + xe + x - numpy.round(x)
+        shifty = ycen + ye + y - numpy.round(y)
+        npsf = find_psf(x, shiftx, y, shifty,
+                        stamps[0], stamps[3], stamps[1])
+        # we removed the centroid offset of the model PSFs;
+        # we need to correct the positions to compensate
+    if npsf is not None:
+        xnew = x + xe
+        ynew = y + ye
+        psf = npsf
+    else:
+        xnew = x
+        ynew = y
     return psf, xnew, ynew
 
 
