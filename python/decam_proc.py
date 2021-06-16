@@ -10,6 +10,7 @@ from astropy.io import fits
 from astropy import wcs
 from functools import partial
 import crowdsource
+from pqdm.processes import pqdm
 
 
 badpixmaskfn = '/n/fink2/www/eschlafly/decam/badpixmasksefs_comp.fits'
