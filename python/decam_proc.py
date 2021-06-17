@@ -93,7 +93,8 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
 
 def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                   outdir=None, verbose=False, nproc=numpy.inf, resume=False,
-                  outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0, bin_weights_on=False, plot=False):
+                  outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0,
+                  bin_weights_on=False, plot=False, miniter=4, maxiter=10,titer_thresh=2):
     if profile:
         import cProfile
         import pstats
@@ -214,7 +215,8 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                                  weight=wt, dq=dq,
                                  psfderiv=True, refit_psf=True,
                                  verbose=verbose, blist=blist,
-                                 maxstars=320000,bin_weights_on=bin_weights_on, ccd=name, plot=plot)
+                                 maxstars=320000,bin_weights_on=bin_weights_on,
+                                 ccd=name, plot=plot, miniter=miniter, maxiter=miniter,titer_thresh=titer_thresh)
 
         cat, modelim, skyim, psf = res
         if len(cat) > 0:
@@ -275,7 +277,8 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
 
 def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                   outdir=None, verbose=False, nproc=numpy.inf, resume=False,
-                  outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0, bin_weights_on=False, num_procs=1, plot=False):
+                  outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0,
+                  bin_weights_on=False, plot=False, miniter=4, maxiter=10,titer_thresh=2, num_procs=1):
     if profile:
         import cProfile
         import pstats
@@ -345,9 +348,9 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
 
     if nproc != numpy.inf:
         max_nproc = numpy.min([nproc, len(newexts)])
-        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot) for n in newexts[0:max_nproc]]
+        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh) for n in newexts[0:max_nproc]]
     else:
-        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot) for n in newexts]
+        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh) for n in newexts]
 
     result = pqdm(nargs, sub_process, n_jobs=num_procs)
 
@@ -385,7 +388,7 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
         pstats.Stats(pr).sort_stats('cumulative').print_stats(60)
 
 def sub_process(args):
-    name, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot = args
+    name, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh) = args
     if verbose:
         print('Fitting %s, extension %s.' % (imfn, name))
         sys.stdout.flush()
@@ -436,7 +439,8 @@ def sub_process(args):
                              weight=wt, dq=dq,
                              psfderiv=True, refit_psf=True,
                              verbose=verbose, blist=blist,
-                             maxstars=320000,bin_weights_on=bin_weights_on, ccd=name, plot=plot)
+                             maxstars=320000,bin_weights_on=bin_weights_on,
+                             ccd=name, plot=plot,miniter=miniter, maxiter=miniter,titer_thresh=titer_thresh)
 
     cat, modelim, skyim, psf = res
     if len(cat) > 0:
@@ -563,6 +567,12 @@ if __name__ == "__main__":
                         help='resume if file already exists')
     parser.add_argument('--parallel', type=int,
                         default=1, help='num of parallel processors')
+    parser.add_argument('--miniter', type=int,
+                        default=4, help='min fit im iterations')
+    parser.add_argument('--maxiter', type=int,
+                        default=10, help='max fit im iterations')
+    parser.add_argument('--titer_thresh', type=int,
+                        default=2, help='threshold for deblending increase')
     parser.add_argument('--ccd_num', type=int,
                         default=None, help='limit to num ccds run')
     parser.add_argument('--profile', '-p', action='store_true',
@@ -585,11 +595,13 @@ if __name__ == "__main__":
                       verbose=args.verbose, outdir=args.outdir,
                       resume=args.resume, profile=args.profile,
                       maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,
-                      bin_weights_on=args.bin_weights_on, num_procs=args.parallel,nproc=args.ccd_num,plot=args.plot_on)
+                      bin_weights_on=args.bin_weights_on, num_procs=args.parallel,
+                      nproc=args.ccd_num,plot=args.plot_on, miniter=args.miniter, maxiter=args.maxiter, titer_thresh=args.titer_thresh)
     else:
         process_image(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn,
                       outmodelfn=args.outmodelfn,
                       verbose=args.verbose, outdir=args.outdir,
                       resume=args.resume, profile=args.profile,
                       maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,
-                      bin_weights_on=args.bin_weights_on,nproc=args.ccd_num,plot=args.plot_on)
+                      bin_weights_on=args.bin_weights_on,nproc=args.ccd_num,
+                      plot=args.plot_on,maxiter=args.maxiter, titer_thresh=args.titer_thresh)
