@@ -344,7 +344,7 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
     newexts = numpy.setdiff1d(numpy.setdiff1d(extnames,extnamesdone),['PRIMARY'])
 
     if nproc != numpy.inf:
-        max_nproc = numpy.max([nproc, len(newexts)])
+        max_nproc = numpy.min([nproc, len(newexts)])
         nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr) for n in newexts[0:max_nproc]]
     else:
         nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr) for n in newexts]
