@@ -695,7 +695,7 @@ def plot_psf_fits(stamp, x, y, model, isig, name=None):
     p.subplot(1, 3, 3)
     p.imshow(datim-modim, aspect='equal', vmin=-0.001, vmax=0.001)
     p.title('Residuals')
-    plt.savefig('psf_'+str(name[0])+'_'+name[1]+'.png', dpi=150, bbox_inches='tight', pad_inches=0.1)
+    p.savefig('psf_'+str(name[0])+'_'+name[1]+'.png', dpi=150, bbox_inches='tight', pad_inches=0.1)
 
 
 def plot_psf_fits_brightness(stamp, x, y, model, isig):
