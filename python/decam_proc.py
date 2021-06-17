@@ -476,7 +476,7 @@ def sub_process(args):
 
     return [hdr.tostring(), psf.serialize(), cat]
 
-def decam_psf(filt, fwhm, pixsz = 9):
+def decam_psf(filt, fwhm, pixsz = 9, nlinperpar = 3):
     if filt not in 'ugrizY':
         tpsf = psfmod.moffat_psf(fwhm, stampsz=511, deriv=False)
         return psfmod.SimplePSF(tpsf)
@@ -497,7 +497,6 @@ def decam_psf(filt, fwhm, pixsz = 9):
         convpsffwhm = 0.
     tpsf = psfmod.stamp2model(numpy.array([tpsf, tpsf, tpsf, tpsf]),
                               normalize=normalizesz)
-    nlinperpar = 3
     pixsz = pixsz
     extraparam = numpy.zeros(
         1, dtype=[('convparam', 'f4', 3*nlinperpar+1),

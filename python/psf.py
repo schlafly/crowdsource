@@ -24,7 +24,7 @@ def shift(im, offset, **kw):
     return shift(im, offset, **kw)
 
 
-def central_stamp(stamp, censize=19):
+def central_stamp(stamp, censize=25): #this is usually 19
     if censize is None:
         censize = 19
     stampsz = stamp.shape[-1]
@@ -997,7 +997,7 @@ def stamp2model(corn, normalize=-1):
 
 def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
                            isig, pixsz=9, nkeep=200, plot=False,
-                           filter='g', name=None):
+                           filter='g', name=None, nlinperpar = 3):
     # clean and shift the PSFs first.
     shiftx = xcen + x - numpy.round(x)
     shifty = ycen + y - numpy.round(y)
@@ -1089,7 +1089,6 @@ def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
     cornresid = modresid.render_model(xx, yy, deriv=False,
                                       stampsz=outstampsz)
     modtotal = stamp2model(cornwing+cornresid, normalize=normalizesz)
-    nlinperpar = 3
     extraparam = numpy.zeros(
         1, dtype=[('convparam', 'f4', 4*nlinperpar+1),
                   ('resparam', 'f4', (nlinperpar, pixsz, pixsz))])
