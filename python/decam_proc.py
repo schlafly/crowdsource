@@ -604,4 +604,4 @@ if __name__ == "__main__":
                       resume=args.resume, profile=args.profile,
                       maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,
                       bin_weights_on=args.bin_weights_on,nproc=args.ccd_num,
-                      plot=args.plot_on,maxiter=args.maxiter, titer_thresh=args.titer_thresh)
+                      plot=args.plot_on,miniter=args.miniter,maxiter=args.maxiter, titer_thresh=args.titer_thresh)
