@@ -694,7 +694,7 @@ def plot_psf_fits(stamp, x, y, model, isig, name=None):
     p.subplot(1,3,1)
     p.imshow(datim, aspect='equal', vmin=-0.005, vmax=0.005, cmap='cet_bkr')
     p.title('Stamps')
-    p.ubplot(1,3,2)
+    p.subplot(1,3,2)
     p.imshow(modim, aspect='equal', vmin=-0.005, vmax=0.005, cmap='cet_bkr')
     p.title('Model')
     p.subplot(1,3,3)
