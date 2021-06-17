@@ -94,7 +94,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
 def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                   outdir=None, verbose=False, nproc=numpy.inf, resume=False,
                   outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0,
-                  bin_weights_on=False, plot=False, miniter=4, maxiter=10,titer_thresh=2):
+                  bin_weights_on=False, plot=False, miniter=4, maxiter=10,titer_thresh=2,pixsz=9):
     if profile:
         import cProfile
         import pstats
@@ -178,7 +178,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
         fwhmmn, fwhmsd = numpy.mean(fwhms), numpy.std(fwhms)
         if fwhmsd > 0.4:
             fwhm = fwhmmn
-        psf = decam_psf(filt[0], fwhm)
+        psf = decam_psf(filt[0], fwhm,pixsz=pixsz)
         wcs0 = wcs.WCS(hdr)
         if brightstars is not None:
             sep = angular_separation(numpy.radians(brightstars['ra']),
@@ -278,7 +278,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
 def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                   outdir=None, verbose=False, nproc=numpy.inf, resume=False,
                   outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0,
-                  bin_weights_on=False, plot=False, miniter=4, maxiter=10,titer_thresh=2, num_procs=1):
+                  bin_weights_on=False, plot=False, miniter=4, maxiter=10,titer_thresh=2, num_procs=1,pixsz=9):
     if profile:
         import cProfile
         import pstats
@@ -388,7 +388,7 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
         pstats.Stats(pr).sort_stats('cumulative').print_stats(60)
 
 def sub_process(args):
-    name, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh = args
+    name, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh,pixsz = args
     if verbose:
         print('Fitting %s, extension %s.' % (imfn, name))
         sys.stdout.flush()
@@ -401,7 +401,7 @@ def sub_process(args):
     fwhmmn, fwhmsd = numpy.mean(fwhms), numpy.std(fwhms)
     if fwhmsd > 0.4:
         fwhm = fwhmmn
-    psf = decam_psf(filt[0], fwhm)
+    psf = decam_psf(filt[0], fwhm, pixsz)
     wcs0 = wcs.WCS(hdr)
     from astropy.coordinates.angle_utilities import angular_separation
     if brightstars is not None:
@@ -476,7 +476,7 @@ def sub_process(args):
 
     return [hdr.tostring(), psf.serialize(), cat]
 
-def decam_psf(filt, fwhm):
+def decam_psf(filt, fwhm, pixsz = 9):
     if filt not in 'ugrizY':
         tpsf = psfmod.moffat_psf(fwhm, stampsz=511, deriv=False)
         return psfmod.SimplePSF(tpsf)
@@ -498,14 +498,14 @@ def decam_psf(filt, fwhm):
     tpsf = psfmod.stamp2model(numpy.array([tpsf, tpsf, tpsf, tpsf]),
                               normalize=normalizesz)
     nlinperpar = 3
-    pixsz = 9
+    pixsz = pixsz
     extraparam = numpy.zeros(
         1, dtype=[('convparam', 'f4', 3*nlinperpar+1),
                   ('resparam', 'f4', (nlinperpar, pixsz, pixsz))])
     extraparam['convparam'][0, 0:4] = [convpsffwhm, 1., 0., 1.]
     extraparam['resparam'][0, :, :, :] = 0.
     tpsf.extraparam = extraparam
-    tpsf.fitfun = partial(psfmod.fit_linear_static_wing, filter=filt)
+    tpsf.fitfun = partial(psfmod.fit_linear_static_wing, filter=filt, pixsz=pixsz)
     return tpsf
 
 
@@ -573,6 +573,8 @@ if __name__ == "__main__":
                         default=10, help='max fit im iterations')
     parser.add_argument('--titer_thresh', type=int,
                         default=2, help='threshold for deblending increase')
+    parser.add_argument('--pixsz', type=int,
+                        default=9, help='size of pixelized psf stamp')
     parser.add_argument('--ccd_num', type=int,
                         default=None, help='limit to num ccds run')
     parser.add_argument('--profile', '-p', action='store_true',
@@ -596,7 +598,7 @@ if __name__ == "__main__":
                       resume=args.resume, profile=args.profile,
                       maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,
                       bin_weights_on=args.bin_weights_on, num_procs=args.parallel,
-                      nproc=args.ccd_num,plot=args.plot_on, miniter=args.miniter, maxiter=args.maxiter, titer_thresh=args.titer_thresh)
+                      nproc=args.ccd_num,plot=args.plot_on, miniter=args.miniter, maxiter=args.maxiter, titer_thresh=args.titer_thresh,pixsz=args.pixsz)
     else:
         process_image(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn,
                       outmodelfn=args.outmodelfn,
@@ -604,4 +606,4 @@ if __name__ == "__main__":
                       resume=args.resume, profile=args.profile,
                       maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,
                       bin_weights_on=args.bin_weights_on,nproc=args.ccd_num,
-                      plot=args.plot_on,miniter=args.miniter,maxiter=args.maxiter, titer_thresh=args.titer_thresh)
+                      plot=args.plot_on,miniter=args.miniter,maxiter=args.maxiter, titer_thresh=args.titer_thresh,pixsz=args.pixsz)
