@@ -692,10 +692,10 @@ def plot_psf_fits(stamp, x, y, model, isig, name=None):
             modim[i*sz:(i+1)*sz, j*sz:(j+1)*sz] = modim0-medmodel
     fig = p.figure(figsize=(24,8), dpi=150)
     ax = fig.add_subplot(1,3,1)
-    ax.imshow(datim, aspect='equal', vmin=-0.005, vmax=0.005, cmap='cet_bkr'))
+    ax.imshow(datim, aspect='equal', vmin=-0.005, vmax=0.005, cmap='cet_bkr')
     p.title('Stamps')
     ax = fig.add_subplot(1,3,2)
-    ax.imshow(modim, aspect='equal', vmin=-0.005, vmax=0.005, cmap='cet_bkr'))
+    ax.imshow(modim, aspect='equal', vmin=-0.005, vmax=0.005, cmap='cet_bkr')
     ax.title('Model')
     ax = fig.add_subplot(1,3,3)
     ax.imshow(datim-modim, aspect='equal', vmin=-0.001, vmax=0.001, cmap='cet_bkr')
