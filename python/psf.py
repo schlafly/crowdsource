@@ -699,7 +699,7 @@ def plot_psf_fits(stamp, x, y, model, isig, name=None):
     p.title('Model')
     p.subplot(1,3,3)
     p.imshow(datim-modim, aspect='equal', vmin=-0.001, vmax=0.001, cmap='cet_bkr')
-    p.itle('Residuals')
+    p.title('Residuals')
     p.savefig('psf_'+str(name[1])+'_'+name[0]+'.png', dpi=150, bbox_inches='tight', pad_inches=0.1)
 
 
