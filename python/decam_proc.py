@@ -353,7 +353,6 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
 
     for s in result:
         hdr = fits.Header.fromstring(s[0])
-        print(result)
         fits.append(outfn, numpy.zeros(0), hdr) # append some header
 
         hdupsf = fits.BinTableHDU(s[1])
