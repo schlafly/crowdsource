@@ -621,8 +621,7 @@ def select_stamps(psfstack, imstack, weightstack, shiftx, shifty):
     return okpsf
 
 
-def shift_and_normalize_stamps(psfstack, modstack, weightstack,
-                               shiftx, shifty):
+def shift_and_normalize_stamps(psfstack, modstack, weightstack, shiftx, shifty):
     xr = numpy.round(shiftx)
     yr = numpy.round(shifty)
     psfstack = psfstack.copy()
@@ -667,9 +666,8 @@ def extract_params_moffat(param, order):
              param[nperpar*2:nperpar*3])]
 
 
-def plot_psf_fits(stamp, x, y, model, isig):
+def plot_psf_fits(stamp, x, y, model, isig, name=None):
     from matplotlib import pyplot as p
-    import util_efs
     datim = numpy.zeros((stamp.shape[1]*10, stamp.shape[1]*10), dtype='f4')
     modim = numpy.zeros((stamp.shape[1]*10, stamp.shape[1]*10), dtype='f4')
     xbd = numpy.linspace(numpy.min(x)-0.01, numpy.max(x)+0.01, 11)
@@ -689,15 +687,15 @@ def plot_psf_fits(stamp, x, y, model, isig):
             modim[i*sz:(i+1)*sz, j*sz:(j+1)*sz] = modim0-medmodel
     p.figure('psfs')
     p.subplot(1, 3, 1)
-    util_efs.imshow(datim, aspect='equal', vmin=-0.005, vmax=0.005)
+    p.imshow(datim, aspect='equal', vmin=-0.005, vmax=0.005)
     p.title('Stamps')
     p.subplot(1, 3, 2)
-    util_efs.imshow(modim, aspect='equal', vmin=-0.005, vmax=0.005)
+    p.imshow(modim, aspect='equal', vmin=-0.005, vmax=0.005)
     p.title('Model')
     p.subplot(1, 3, 3)
-    util_efs.imshow(datim-modim, aspect='equal', vmin=-0.001, vmax=0.001)
+    p.imshow(datim-modim, aspect='equal', vmin=-0.001, vmax=0.001)
     p.title('Residuals')
-    p.draw()
+    plt.savefig('psf_'+str(name[0])+'_'+name[1]+'.png', dpi=150, bbox_inches='tight', pad_inches=0.1)
 
 
 def plot_psf_fits_brightness(stamp, x, y, model, isig):
@@ -736,7 +734,7 @@ def damper(chi, damp):
 
 
 def fit_variable_moffat_psf(x, y, xcen, ycen, stamp, imstamp, modstamp,
-                            isig, order=1, pixsz=9, nkeep=200, plot=False):
+                            isig, order=1, pixsz=9, nkeep=200, plot=False, name=None):
     # clean and shift the PSFs first.
     shiftx = xcen + x - numpy.round(x)
     shifty = ycen + y - numpy.round(y)
@@ -818,7 +816,7 @@ def fit_variable_moffat_psf(x, y, xcen, ycen, stamp, imstamp, modstamp,
     if plot:
         norm = fullparam[-1]
         modstamps = norm*psf.render_model(x, y, stampsz=stamp.shape[-1])
-        plot_psf_fits(stamp, x, y, modstamps, isig)
+        plot_psf_fits(stamp, x, y, modstamps, isig, name=name)
     return psf
 
 
@@ -994,7 +992,7 @@ def stamp2model(corn, normalize=-1):
 
 def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
                            isig, pixsz=9, nkeep=200, plot=False,
-                           filter='g'):
+                           filter='g', name=None):
     # clean and shift the PSFs first.
     shiftx = xcen + x - numpy.round(x)
     shifty = ycen + y - numpy.round(y)
@@ -1097,7 +1095,7 @@ def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
     if plot:
         modstamps = modtotal.render_model(x, y, deriv=False,
                                           stampsz=stamp.shape[-1])
-        plot_psf_fits(stamp, x, y, modstamps, isig)
+        plot_psf_fits(stamp, x, y, modstamps, isig, name=name)
     return modtotal
 
 

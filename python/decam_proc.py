@@ -93,7 +93,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
 
 def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                   outdir=None, verbose=False, nproc=numpy.inf, resume=False,
-                  outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0, bin_weights_on=False):
+                  outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0, bin_weights_on=False, plot=False):
     if profile:
         import cProfile
         import pstats
@@ -214,7 +214,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                                  weight=wt, dq=dq,
                                  psfderiv=True, refit_psf=True,
                                  verbose=verbose, blist=blist,
-                                 maxstars=320000,bin_weights_on=bin_weights_on, ccd=name)
+                                 maxstars=320000,bin_weights_on=bin_weights_on, ccd=name, plot=plot)
 
         cat, modelim, skyim, psf = res
         if len(cat) > 0:
@@ -275,7 +275,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
 
 def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                   outdir=None, verbose=False, nproc=numpy.inf, resume=False,
-                  outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0, bin_weights_on=False, num_procs=1):
+                  outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0, bin_weights_on=False, num_procs=1, plot=False):
     if profile:
         import cProfile
         import pstats
@@ -345,9 +345,9 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
 
     if nproc != numpy.inf:
         max_nproc = numpy.min([nproc, len(newexts)])
-        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr) for n in newexts[0:max_nproc]]
+        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot) for n in newexts[0:max_nproc]]
     else:
-        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr) for n in newexts]
+        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot) for n in newexts]
 
     result = pqdm(nargs, sub_process, n_jobs=num_procs)
 
@@ -384,9 +384,8 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
         pr.disable()
         pstats.Stats(pr).sort_stats('cumulative').print_stats(60)
 
-#hmm, my cleaning broke something
 def sub_process(args):
-    name, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr = args
+    name, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot = args
     if verbose:
         print('Fitting %s, extension %s.' % (imfn, name))
         sys.stdout.flush()
@@ -437,7 +436,7 @@ def sub_process(args):
                              weight=wt, dq=dq,
                              psfderiv=True, refit_psf=True,
                              verbose=verbose, blist=blist,
-                             maxstars=320000,bin_weights_on=bin_weights_on, ccd=name)
+                             maxstars=320000,bin_weights_on=bin_weights_on, ccd=name, plot=plot)
 
     cat, modelim, skyim, psf = res
     if len(cat) > 0:
@@ -574,6 +573,8 @@ if __name__ == "__main__":
                         default=0.0, help='cutoff for inverse variances')
     parser.add_argument('--bin_weights_on', action='store_true',
                         help='make WLS depend on binary weights only')
+    parser.add_argument('--plot_on', action='store_true',
+                        help='save psf diagonsitic plots at each titer')
     parser.add_argument('imfn', type=str, help='Image file name')
     parser.add_argument('ivarfn', type=str, help='Inverse variance file name')
     parser.add_argument('dqfn', type=str, help='Data quality file name')
@@ -584,11 +585,11 @@ if __name__ == "__main__":
                       verbose=args.verbose, outdir=args.outdir,
                       resume=args.resume, profile=args.profile,
                       maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,
-                      bin_weights_on=args.bin_weights_on, num_procs=args.parallel,nproc=args.ccd_num)
+                      bin_weights_on=args.bin_weights_on, num_procs=args.parallel,nproc=args.ccd_num,plot=args.plot_on)
     else:
         process_image(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn,
                       outmodelfn=args.outmodelfn,
                       verbose=args.verbose, outdir=args.outdir,
                       resume=args.resume, profile=args.profile,
                       maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,
-                      bin_weights_on=args.bin_weights_on,nproc=args.ccd_num)
+                      bin_weights_on=args.bin_weights_on,nproc=args.ccd_num,plot=args.plot_on)

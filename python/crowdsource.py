@@ -699,7 +699,7 @@ def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
 
 
 
-def refit_psf_from_stamps(psf, x, y, xcen, ycen, stamps):
+def refit_psf_from_stamps(psf, x, y, xcen, ycen, stamps, name=None, plot=False):
     # how far the centroids of the model PSFs would
     # be from (0, 0) if instantiated there
     # this initial definition includes the known offset (since
@@ -712,7 +712,7 @@ def refit_psf_from_stamps(psf, x, y, xcen, ycen, stamps):
     if hasattr(psf, 'fitfun'):
         psffitfun = psf.fitfun
         npsf = psffitfun(x, y, xcen+xe, ycen+ye, stamps[0],
-                         stamps[1], stamps[2], stamps[3], nkeep=200)
+                         stamps[1], stamps[2], stamps[3], nkeep=200, name=name, plot=plot)
         if npsf is not None:
             npsf.fitfun = psffitfun
         else:
@@ -736,7 +736,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
            nskyx=0, nskyy=0, refit_psf=False,
            verbose=False, miniter=4, maxiter=10, blist=None,
            maxstars=40000, derivcentroids=False,
-           ntilex=1, ntiley=1, fewstars=100, threshold=5, bin_weights_on=False, ccd=None):
+           ntilex=1, ntiley=1, fewstars=100, threshold=5, bin_weights_on=False, ccd=None, plot=False):
 
     if isinstance(weight, int):
         weight = numpy.ones_like(im)*weight
@@ -865,7 +865,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         guessflux = flux[:len(xa)*repeat:repeat]
         if refit_psf and len(xa) > 0:
             psf, xa, ya = refit_psf_from_stamps(psf, xa, ya, xcen, ycen,
-                                                stamps)
+                                                stamps, name=(titer, ccd), plot=plot)
         # enforce maximum step
         if derivcentroids:
             maxstep = 1
