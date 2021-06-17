@@ -388,7 +388,7 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
         pstats.Stats(pr).sort_stats('cumulative').print_stats(60)
 
 def sub_process(args):
-    name, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh) = args
+    name, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh = args
     if verbose:
         print('Fitting %s, extension %s.' % (imfn, name))
         sys.stdout.flush()
