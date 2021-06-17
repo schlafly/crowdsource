@@ -216,7 +216,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                                  psfderiv=True, refit_psf=True,
                                  verbose=verbose, blist=blist,
                                  maxstars=320000,bin_weights_on=bin_weights_on,
-                                 ccd=name, plot=plot, miniter=miniter, maxiter=miniter,titer_thresh=titer_thresh)
+                                 ccd=name, plot=plot, miniter=miniter, maxiter=maxiter,titer_thresh=titer_thresh)
 
         cat, modelim, skyim, psf = res
         if len(cat) > 0:
@@ -440,7 +440,7 @@ def sub_process(args):
                              psfderiv=True, refit_psf=True,
                              verbose=verbose, blist=blist,
                              maxstars=320000,bin_weights_on=bin_weights_on,
-                             ccd=name, plot=plot,miniter=miniter, maxiter=miniter,titer_thresh=titer_thresh)
+                             ccd=name, plot=plot,miniter=miniter, maxiter=maxiter,titer_thresh=titer_thresh)
 
     cat, modelim, skyim, psf = res
     if len(cat) > 0:
