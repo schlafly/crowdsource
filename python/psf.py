@@ -24,7 +24,7 @@ def shift(im, offset, **kw):
     return shift(im, offset, **kw)
 
 
-def central_stamp(stamp, censize=25): #this is usually 19
+def central_stamp(stamp, censize=19):
     if censize is None:
         censize = 19
     stampsz = stamp.shape[-1]
