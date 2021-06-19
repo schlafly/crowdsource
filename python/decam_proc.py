@@ -348,14 +348,13 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
 
     if nproc != numpy.inf:
         max_nproc = numpy.min([nproc, len(newexts)])
-        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh) for n in newexts[0:max_nproc]]
+        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh,pixsz) for n in newexts[0:max_nproc]]
     else:
-        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh) for n in newexts]
+        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh,pixsz) for n in newexts]
 
     result = pqdm(nargs, sub_process, n_jobs=num_procs)
 
     for s in result:
-        print(s)
         hdr = fits.Header.fromstring(s[0])
         fits.append(outfn, numpy.zeros(0), hdr) # append some header
 
