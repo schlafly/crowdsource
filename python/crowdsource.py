@@ -1159,11 +1159,11 @@ def find_psf(xcen, shiftx, ycen, shifty, psfstack, weightstack,
         print('Fewer than 5 stars accepted in image, keeping original PSF')
         return None
     if numpy.sum(okpsf) > nkeep:
-        #okpsf = okpsf & (totalflux > -numpy.sort(-totalflux[okpsf])[nkeep-1])
-        choose_subset = numpy.zeros(okpsf.shape)
-        choose_subset[okpsf] = numpy.choice(numpy.sum(okpsf), nkeep, replace=Flase)
-        okpsf = okpsf & choose_subset
-        print('Too many PSF options %d' % (numpy.sum(okpsf)))
+        okpsf = okpsf & (totalflux > -numpy.sort(-totalflux[okpsf])[nkeep-1])
+        #choose_subset = numpy.zeros(okpsf.shape)
+        #choose_subset[okpsf] = numpy.choice(numpy.sum(okpsf), nkeep, replace=Flase)
+        #okpsf = okpsf & choose_subset
+        #print('Too many PSF options %d' % (numpy.sum(okpsf)))
     psfstack = psfstack[okpsf, :, :]
     weightstack = weightstack[okpsf, :, :]
     totalflux = totalflux[okpsf]

@@ -702,7 +702,7 @@ def plot_psf_fits(stamp, x, y, model, isig, name=None):
     p.title('Residuals')
     p.savefig('psf_'+name[1]+'_'+str(name[0])+'.png', dpi=150, bbox_inches='tight', pad_inches=0.1)
 
-    numpy.savez('psf_loc',x=x,y=y)
+    #numpy.savez('psf_loc',x=x,y=y)
 
 def plot_psf_fits_brightness(stamp, x, y, model, isig):
     from matplotlib import pyplot as p
