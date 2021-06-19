@@ -1148,7 +1148,7 @@ def find_psf(xcen, shiftx, ycen, shifty, psfstack, weightstack,
     tfracflux2 = ((toneflux-tmedflux*psfstack.shape[1]*psfstack.shape[2]) /
                   numpy.clip(timflux, 100, numpy.inf))
     okpsf = ((numpy.abs(psfqf - 1) < 0.03) &
-             (tfracflux > 0.5) & (tfracflux2 > 0.2))
+             (tfracflux > 0.8) & (tfracflux2 > 0.2)) # 2021_06_19 changed from (tfracflux > 0.5) 
     if numpy.sum(okpsf) > 0:
         shiftxm = numpy.median(shiftx[okpsf])
         shiftym = numpy.median(shifty[okpsf])
