@@ -576,7 +576,7 @@ if __name__ == "__main__":
     parser.add_argument('--pixsz', type=int,
                         default=9, help='size of pixelized psf stamp')
     parser.add_argument('--ccd_num', type=int,
-                        default=None, help='limit to num ccds run')
+                        default=np.inf, help='limit to num ccds run')
     parser.add_argument('--profile', '-p', action='store_true',
                         help='print profiling statistics')
     parser.add_argument('--no-mask-diffuse', action='store_true',
