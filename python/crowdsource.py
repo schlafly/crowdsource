@@ -1163,7 +1163,7 @@ def find_psf(xcen, shiftx, ycen, shifty, psfstack, weightstack,
         choose_subset = numpy.zeros(okpsf.shape)
         choose_subset[okpsf] = numpy.choice(numpy.sum(okpsf), nkeep, replace=Flase)
         okpsf = okpsf & choose_subset
-        print('Too many PSF options ' numpy.sum(okpsf))
+        print('Too many PSF options %d' % (numpy.sum(okpsf)))
     psfstack = psfstack[okpsf, :, :]
     weightstack = weightstack[okpsf, :, :]
     totalflux = totalflux[okpsf]
