@@ -680,6 +680,8 @@ def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
         print('Iteration %d, median sky %6.2f' %
               (titer+1, numpy.median(sky+msky)))
 
+    print('Flux Shape' % flux.shape)
+    sys.stdout.flush()
 
     stats = compute_stats(x-numpy.round(x), y-numpy.round(y),
                           stamps[0], stamps[2], stamps[3], stamps[1], flux)
