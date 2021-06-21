@@ -680,13 +680,11 @@ def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
         print('Iteration %d, median sky %6.2f' %
               (titer+1, numpy.median(sky+msky)))
 
-    sys.stdout.flush()
-
-    # stats = compute_stats(x-numpy.round(x), y-numpy.round(y),
-    #                       stamps[0], stamps[2], stamps[3], stamps[1], flux)
-    # stats['sky'] = extract_im(x, y, sky+msky).astype('f4')
-    # if dq is not None:
-    #     stats['flags'] = extract_im(x, y, dq).astype('i4')
+    stats = compute_stats(x-numpy.round(x), y-numpy.round(y),
+                          stamps[0], stamps[2], stamps[3], stamps[1], flux)
+    stats['sky'] = extract_im(x, y, sky+msky).astype('f4')
+    if dq is not None:
+        stats['flags'] = extract_im(x, y, dq).astype('i4')
     stars = OrderedDict([('x', x), ('y', y), ('flux', flux),
                          ('deltx', xcen), ('delty', ycen)])
                         #   +
