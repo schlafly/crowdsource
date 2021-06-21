@@ -686,9 +686,8 @@ def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
     if dq is not None:
         stats['flags'] = extract_im(x, y, dq).astype('i4')
     stars = OrderedDict([('x', x), ('y', y), ('flux', flux),
-                         ('deltx', xcen), ('delty', ycen)])
-                        #   +
-                        # [(f, stats[f]) for f in stats])
+                         ('deltx', xcen), ('delty', ycen)] +
+                        [(f, stats[f]) for f in stats])
     dtypenames = list(stars.keys())
     dtypeformats = [stars[n].dtype for n in dtypenames]
     dtype = dict(names=dtypenames, formats=dtypeformats)
