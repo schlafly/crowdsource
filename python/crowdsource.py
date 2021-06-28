@@ -736,7 +736,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
            verbose=False, miniter=4, maxiter=10, blist=None,
            maxstars=40000, derivcentroids=False,
            ntilex=1, ntiley=1, fewstars=100, threshold=5, bin_weights_on=False,
-           ccd=None, plot=False, titer_thresh=2):
+           ccd=None, plot=False, titer_thresh=2, blendthreshu=2):
 
     if isinstance(weight, int):
         weight = numpy.ones_like(im)*weight
@@ -762,7 +762,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         lsky = sky_im(im-model, weight=weight, npix=50*roughfwhm)
         if titer != lastiter:
             # in first passes, do not split sources!
-            blendthresh = 2 if titer < titer_thresh else 0.2
+            blendthresh = blendthreshu if titer < titer_thresh else 0.2
             xn, yn = peakfind(im-model-hsky,
                               model-msky, weight, dq, psf,
                               keepsat=(titer == 0),
