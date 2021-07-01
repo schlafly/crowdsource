@@ -737,7 +737,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
            ntilex=1, ntiley=1, fewstars=100, threshold=5, bin_weights_on=False,
            ccd=None, plot=False, titer_thresh=2, blendthreshu=2, psfvalsharpcutfac=0.7):
     if psfvalsharpcutfac != 0.7:
-        print("psfvalsharpcutfac is nonstandard: %4d" % psfvalsharpcutfac)
+        print("psfvalsharpcutfac is nonstandard: %.2f" % psfvalsharpcutfac)
     if isinstance(weight, int):
         weight = numpy.ones_like(im)*weight
 
