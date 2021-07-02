@@ -56,7 +56,7 @@ def equalize_histogram_wise(img, n_bins=256, asinh_stretch=False):
 def load_model(fname_base):
     with open(fname_base + '.json', 'r') as f:
         model_json = f.read()
-        
+
     model = kmodels.model_from_json(model_json)
     model.load_weights(fname_base + '.h5')
 
@@ -88,6 +88,24 @@ def gen_mask(model, img):
 
     return mask[1:-1, 1:-1]
 
+def gen_prob(model, img):
+    img = np.pad(img, 1, mode='constant', constant_values=np.median(img))
+    _, h, w, _ = model.layers[0].input_shape
+
+    mask = np.empty((img.shape[0],img.shape[1],1), dtype='u1')
+
+    for j0, k0, subimg in subimages(img, (h, w)):
+        subimg, _ = equalize_histogram(subimg.astype('f8'),
+                                       asinh_stretch=True, n_bins=3000)
+        subimg /= 255.
+        subimg.shape = (1, subimg.shape[0], subimg.shape[1], 1)
+        pred = model.predict(subimg, batch_size=1)[0]
+        mask[j0:j0+h, k0:k0+w,0] = pred[0]
+        mask[j0:j0+h, k0:k0+w,1] = pred[1]
+        mask[j0:j0+h, k0:k0+w,2] = pred[2]
+        mask[j0:j0+h, k0:k0+w,3] = pred[3]
+
+    return mask[1:-1, 1:-1,:]
 
 def gen_mask_wise(model, img):
     _, h, w, _ = model.layers[0].input_shape
