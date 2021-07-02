@@ -118,7 +118,7 @@ def significance_image_lbs(im, model, isig, psf, sz=19):
 
 
 def peakfind(im, model, isig, dq, psf, keepsat=False, threshold=5,
-             blendthreshold=0.3,psfvalsharpcutfac=0.7):
+             blendthreshold=0.3,psfvalsharpcutfac=0.7,psfsharpsat=0.7):
     psfstamp = psf(int(im.shape[0]/2.), int(im.shape[1]/2.), deriv=False,
                    stampsz=59)
     sigim, modelsigim = significance_image(im, model, isig, psfstamp,
@@ -138,7 +138,7 @@ def peakfind(im, model, isig, dq, psf, keepsat=False, threshold=5,
         blendthreshold[nodeblend] = 100
     if dq is not None and numpy.any(dq[x, y] & sharp_maskbit):
         sharp = (dq[x, y] & sharp_maskbit) != 0
-        msharp = ~sharp | psfvalsharpcut(x, y, sigim, isig, psfstamp,psfvalsharpcutfac=psfvalsharpcutfac)
+        msharp = ~sharp | psfvalsharpcut(x, y, sigim, isig, psfstamp,psfvalsharpcutfac=psfvalsharpcutfac,psfsharpsat=psfsharpsat)
         # keep if not nebulous region or sharp peak.
         m = m & msharp
 
@@ -149,7 +149,7 @@ def peakfind(im, model, isig, dq, psf, keepsat=False, threshold=5,
     return x[m], y[m]
 
 
-def psfvalsharpcut(x, y, sigim, isig, psf, psfvalsharpcutfac=0.7):
+def psfvalsharpcut(x, y, sigim, isig, psf, psfvalsharpcutfac=0.7,psfsharpsat=0.7):
     xl = numpy.clip(x-1, 0, sigim.shape[0]-1)
     xr = numpy.clip(x+1, 0, sigim.shape[0]-1)
     yl = numpy.clip(y-1, 0, sigim.shape[1]-1)
@@ -169,7 +169,7 @@ def psfvalsharpcut(x, y, sigim, isig, psf, psfvalsharpcutfac=0.7):
     psfval2pp = 1-(pp[half, half-1]+pp[half, half+1])/(2*ppcen)
     psfval3pp = 1-(pp[half-1, half-1]+pp[half+1, half+1])/(2*ppcen)
     psfval4pp = 1-(pp[half-1, half+1]+pp[half+1, half-1])/(2*ppcen)
-    fac = psfvalsharpcutfac*(1-0.7*(isig[x, y] == 0))
+    fac = psfvalsharpcutfac*(1-psfsharpsat*(isig[x, y] == 0))
     # more forgiving if center is masked.
     res = ((psfval1 > psfval1pp*fac) & (psfval2 > psfval2pp*fac) &
            (psfval3 > psfval3pp*fac) & (psfval4 > psfval4pp*fac))
@@ -735,9 +735,11 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
            verbose=False, miniter=4, maxiter=10, blist=None,
            maxstars=40000, derivcentroids=False,
            ntilex=1, ntiley=1, fewstars=100, threshold=5, bin_weights_on=False,
-           ccd=None, plot=False, titer_thresh=2, blendthreshu=2, psfvalsharpcutfac=0.7):
+           ccd=None, plot=False, titer_thresh=2, blendthreshu=2, psfvalsharpcutfac=0.7,psfsharpsat=0.7):
     if psfvalsharpcutfac != 0.7:
         print("psfvalsharpcutfac is nonstandard: %.2f" % psfvalsharpcutfac)
+    if psfsharpsat != 0.7:
+        print("psfsharpsat is nonstandard: %.2f" % psfsharpsat)
     if isinstance(weight, int):
         weight = numpy.ones_like(im)*weight
 
@@ -768,7 +770,8 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
                               keepsat=(titer == 0),
                               blendthreshold=blendthresh,
                               threshold=threshold,
-                              psfvalsharpcutfac=psfvalsharpcutfac)
+                              psfvalsharpcutfac=psfvalsharpcutfac,
+                              psfsharpsat=psfsharpsat)
             if len(xa) > 0 and len(xn) > 0:
                 keep = neighbor_dist(xn, yn, xa, ya) > 1.5
                 xn, yn = (c[keep] for c in (xn, yn))
