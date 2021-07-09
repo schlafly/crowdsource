@@ -102,13 +102,14 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
     if maskdiffuse:
         if maskmet == "continuous":
             return imdei, imdew, imded, nebmask, nebprob
-        return imdei, imdew, imded, nebmask
-    return imdei, imdew, imded
+        return imdei, imdew, imded, nebmask, None
+    return imdei, imdew, imded, None, None
 
 def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                   outdir=None, verbose=False, nproc=numpy.inf, resume=False,
                   outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0,
-                  bin_weights_on=False, plot=False, miniter=4, maxiter=10,titer_thresh=2,pixsz=9):
+                  bin_weights_on=False, plot=False, miniter=4, maxiter=10,titer_thresh=2,
+                  pixsz=9,maskmet="discrete"):
     if profile:
         import cProfile
         import pstats
@@ -183,8 +184,8 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
         if verbose:
             print('Fitting %s, extension %s.' % (imfn, name))
             sys.stdout.flush()
-        im, wt, dq = read_data(imfn, ivarfn, dqfn, name,
-                               maskdiffuse=maskdiffuse,wcutoff=wcutoff)
+        im, wt, dq, msk, prb = read_data(imfn, ivarfn, dqfn, name,
+                               maskdiffuse=maskdiffuse,wcutoff=wcutoff,maskmet=maskmet)
         hdr = fits.getheader(imfn, extname=name)
         fwhm = hdr.get('FWHM', numpy.median(fwhms))
         if fwhm <= 0.:
@@ -230,7 +231,8 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                                  psfderiv=True, refit_psf=True,
                                  verbose=verbose, blist=blist,
                                  maxstars=320000,bin_weights_on=bin_weights_on,
-                                 ccd=name, plot=plot, miniter=miniter, maxiter=maxiter,titer_thresh=titer_thresh)
+                                 ccd=name, plot=plot, miniter=miniter, maxiter=maxiter,
+                                 titer_thresh=titer_thresh,msk=msk,prb=prb)
 
         cat, modelim, skyim, psf = res
         if len(cat) > 0:
