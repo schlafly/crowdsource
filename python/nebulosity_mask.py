@@ -93,20 +93,23 @@ def gen_prob(model, img):
     img = np.pad(img, 1, mode='constant', constant_values=np.median(img))
     _, h, w, _ = model.layers[0].input_shape
 
-    mask = np.empty((img.shape[0],img.shape[1],1), dtype='u1')
+    mask = np.empty((img.shape[0],img.shape[1],4))
+    mask_cnt = np.empty((img.shape[0],img.shape[1],4))
 
-    for j0, k0, subimg in subimages(img, (h, w)):
-        subimg, _ = equalize_histogram(subimg.astype('f8'),
-                                       asinh_stretch=True, n_bins=3000)
-        subimg /= 255.
-        subimg.shape = (1, subimg.shape[0], subimg.shape[1], 1)
-        pred = model.predict(subimg, batch_size=1)[0]
-        mask[j0:j0+h, k0:k0+w,0] = pred[0]
-        mask[j0:j0+h, k0:k0+w,1] = pred[1]
-        mask[j0:j0+h, k0:k0+w,2] = pred[2]
-        mask[j0:j0+h, k0:k0+w,3] = pred[3]
-
-    return mask[1:-1, 1:-1,:]
+    for shx in [0,128,256,384]:
+        for shy in [0,128,256,384]:
+            for j0, k0, subimg in subimages_AKS(img, (h, w),shiftx=shx,shifty=shy):
+                subimg, _ = equalize_histogram(subimg.astype('f8'),
+                                               asinh_stretch=True, n_bins=3000)
+                subimg /= 255.
+                subimg.shape = (1, subimg.shape[0], subimg.shape[1], 1)
+                pred = model.predict(subimg, batch_size=1)[0]
+                mask[j0:j0+h, k0:k0+w,0] += pred[0]*pred[0]
+                mask[j0:j0+h, k0:k0+w,1] += pred[0]*pred[1]
+                mask[j0:j0+h, k0:k0+w,2] += pred[0]*pred[2]
+                mask[j0:j0+h, k0:k0+w,3] += pred[0]*pred[3]
+                mask_cnt[j0:j0+h, k0:k0+w] += pred[0]
+    return np.divide(mask[1:-1, 1:-1],mask_cnt[1:-1, 1:-1])
 
 def gen_mask_wise(model, img):
     _, h, w, _ = model.layers[0].input_shape
