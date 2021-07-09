@@ -681,9 +681,17 @@ def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
 
     stats = compute_stats(x-numpy.round(x), y-numpy.round(y),
                           stamps[0], stamps[2], stamps[3], stamps[1], flux)
-    stats['sky'] = extract_im(x, y, sky+msky).astype('f4')
     if dq is not None:
-        stats['flags'] = extract_im(x, y, dq).astype('i4')
+        stats['flags'] = extract_im(xa, ya, dq).astype('i4')
+    if msk is not None:
+        stats['neb_mask'] = extract_im(xa, ya, msk).astype('i4')
+    if prb is not None:
+        stats['pN'] = extract_im(xa, ya, prb[:,:,0]).astype('f4')
+        stats['pL'] = extract_im(xa, ya, prb[:,:,1]).astype('f4')
+        stats['pR'] = extract_im(xa, ya, prb[:,:,2]).astype('f4')
+        stats['pE'] = extract_im(xa, ya, prb[:,:,3]).astype('f4')
+    stats['sky'] = extract_im(xa, ya, sky+msky).astype('f4')
+
     stars = OrderedDict([('x', x), ('y', y), ('flux', flux),
                          ('deltx', xcen), ('delty', ycen)] +
                         [(f, stats[f]) for f in stats])
@@ -864,6 +872,13 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
                                   flux)
             if dq is not None:
                 stats['flags'] = extract_im(xa, ya, dq).astype('i4')
+            if msk is not None:
+                stats['neb_mask'] = extract_im(xa, ya, msk).astype('i4')
+            if prb is not None:
+                stats['pN'] = extract_im(xa, ya, prb[:,:,0]).astype('f4')
+                stats['pL'] = extract_im(xa, ya, prb[:,:,1]).astype('f4')
+                stats['pR'] = extract_im(xa, ya, prb[:,:,2]).astype('f4')
+                stats['pE'] = extract_im(xa, ya, prb[:,:,3]).astype('f4')
             stats['sky'] = extract_im(xa, ya, sky+msky).astype('f4')
             break
         guessflux = flux[:len(xa)*repeat:repeat]
