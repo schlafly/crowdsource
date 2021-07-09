@@ -69,6 +69,10 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
     mzerowt = mzerowt | (badmask != 0)
     imdew[mzerowt] = 0.
     imdew[:] = numpy.sqrt(imdew)
+    if corrects7 and (extname == 'S7'):
+        imdei = correct_sky_offset(imdei, weight=imdew)
+        half = imded.shape[1] // 2
+        imded[:, half:] |= extrabits['s7unstable']
     if maskdiffuse:
         import nebulosity_mask
         nebmod = getattr(read_data, 'nebmod', None)
@@ -84,10 +88,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
                                  crowdsource.sharp_maskbit))
             print('Masking nebulosity, %5.2f' % (
                 numpy.sum(nebmask)/1./numpy.sum(numpy.isfinite(nebmask))))
-    if corrects7 and (extname == 'S7'):
-        imdei = correct_sky_offset(imdei, weight=imdew)
-        half = imded.shape[1] // 2
-        imded[:, half:] |= extrabits['s7unstable']
+
     return imdei, imdew, imded
 
 

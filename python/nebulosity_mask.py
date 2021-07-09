@@ -62,15 +62,16 @@ def load_model(fname_base):
 
     return model
 
+def subimages(img, shape, shiftx=0, shifty=0):
+    j = np.arange(shiftx, img.shape[0]+shape[0]-1+shiftx, shape[0], dtype=int)
+    k = np.arange(shifty, img.shape[1]+shape[1]-1+shifty, shape[1], dtype=int)
 
-def subimages(img, shape):
-    j = np.arange(0, img.shape[0]+shape[0]-1, shape[0], dtype=int)
-    k = np.arange(0, img.shape[1]+shape[1]-1, shape[1], dtype=int)
+    jm = j[j<=img.shape[0]]
+    km = k[k<=img.shape[1]]
 
-    for j0, j1 in zip(j[:-1], j[1:]):
-        for k0, k1 in zip(k[:-1], k[1:]):
+    for j0, j1 in zip(jm[:-1], jm[1:]):
+        for k0, k1 in zip(km[:-1], km[1:]):
             yield j0, k0, img[j0:j1, k0:k1]
-
 
 def gen_mask(model, img):
     img = np.pad(img, 1, mode='constant', constant_values=np.median(img))
