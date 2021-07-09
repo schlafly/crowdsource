@@ -8,6 +8,7 @@ import keras.models as kmodels
 import numpy as np
 import os, sys
 import tensorflow as tf
+from skimage import filters
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -109,7 +110,12 @@ def gen_prob(model, img):
                 mask[j0:j0+h, k0:k0+w,2] += pred[0]*pred[2]
                 mask[j0:j0+h, k0:k0+w,3] += pred[0]*pred[3]
                 mask_cnt[j0:j0+h, k0:k0+w] += pred[0]
-    return np.divide(mask[1:-1, 1:-1],mask_cnt[1:-1, 1:-1])
+    nebprob = np.divide(mask[1:-1, 1:-1],mask_cnt[1:-1, 1:-1])
+    nebprob[:,:,0] = filters.gaussian(nebprob[:,:,0], sigma=(128),truncate=1,multichannel=False)
+    nebprob[:,:,1] = filters.gaussian(nebprob[:,:,1], sigma=(128),truncate=1,multichannel=False)
+    nebprob[:,:,2] = filters.gaussian(nebprob[:,:,2], sigma=(128),truncate=1,multichannel=False)
+    nebprob[:,:,3] = filters.gaussian(nebprob[:,:,3], sigma=(128),truncate=1,multichannel=False)
+    return nebprob
 
 def gen_mask_wise(model, img):
     _, h, w, _ = model.layers[0].input_shape

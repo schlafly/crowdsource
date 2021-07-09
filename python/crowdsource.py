@@ -1134,7 +1134,7 @@ def add_bright_stars(xa, ya, blist, im):
             yout.append(y)
     return (numpy.array(xout, dtype='f4'), numpy.array(yout, dtype='f4'))
 
-
+## This is almost entirely deprecated for the psf.py module... go look there.
 def find_psf(xcen, shiftx, ycen, shifty, psfstack, weightstack,
              imstack, stampsz=59, nkeep=100):
     """Find PSF from stamps."""

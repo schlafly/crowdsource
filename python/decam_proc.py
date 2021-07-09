@@ -28,7 +28,7 @@ def read(imfn, extname, **kw):
 
 
 def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
-              maskdiffuse=True, corrects7=True,wcutoff=0.0):
+              maskdiffuse=True, corrects7=True,wcutoff=0.0,maskmet="discrete"):
     import warnings
     with warnings.catch_warnings(record=True) as wlist:
         warnings.simplefilter('always')
@@ -81,16 +81,29 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
                                  'weights', '27th_try')
             nebmod = nebulosity_mask.load_model(modfn)
             read_data.nebmod = nebmod
-        nebmask = nebulosity_mask.gen_mask(nebmod, imdei) == 0
+        if maskmet == "discrete":
+            nebmask = nebulosity_mask.gen_mask(nebmod, imdei) == 0
+        elif maskmet == "continuous":
+            nebprob = nebulosity_mask.gen_prob(nebmod, imdei)
+            # hard code decision boundary for now
+            alpha = 2.0
+            gam = 0.5
+            decnum = (nebprob[:,:,0] .+ gam.*nebprob[:,:,1])./(nebprob[:,:,1] .+ nebprob[:,:,2] .+ nebprob[:,:,3]);
+            nebmask = (decnum > alpha)
+        else:
+            raise ValueError("maskmet must be either continuous or discrete")
+
         if numpy.any(nebmask):
             imded |= (nebmask * extrabits['diffuse'])
             imded |= (nebmask * (crowdsource.nodeblend_maskbit |
                                  crowdsource.sharp_maskbit))
             print('Masking nebulosity, %5.2f' % (
                 numpy.sum(nebmask)/1./numpy.sum(numpy.isfinite(nebmask))))
-
+    if maskdiffuse:
+        if maskmet == "continuous":
+            return imdei, imdew, imded, nebmask, nebprob
+        return imdei, imdew, imded, nebmask
     return imdei, imdew, imded
-
 
 def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                   outdir=None, verbose=False, nproc=numpy.inf, resume=False,
