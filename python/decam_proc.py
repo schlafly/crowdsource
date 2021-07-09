@@ -28,7 +28,7 @@ def read(imfn, extname, **kw):
 
 
 def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
-              maskdiffuse=True, corrects7=True,wcutoff=0.0,maskmet="discrete"):
+              maskdiffuse=True, corrects7=True,wcutoff=0.0,contmask=False):
     import warnings
     with warnings.catch_warnings(record=True) as wlist:
         warnings.simplefilter('always')
@@ -81,9 +81,9 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
                                  'weights', '27th_try')
             nebmod = nebulosity_mask.load_model(modfn)
             read_data.nebmod = nebmod
-        if maskmet == "discrete":
+        if contmask == False:
             nebmask = nebulosity_mask.gen_mask(nebmod, imdei) == 0
-        elif maskmet == "continuous":
+        elif contmask == True:
             nebprob = nebulosity_mask.gen_prob(nebmod, imdei)
             # hard code decision boundary for now
             alpha = 2.0
@@ -91,16 +91,16 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
             decnum = (nebprob[:,:,0] .+ gam.*nebprob[:,:,1])./(nebprob[:,:,1] .+ nebprob[:,:,2] .+ nebprob[:,:,3]);
             nebmask = (decnum > alpha)
         else:
-            raise ValueError("maskmet must be either continuous or discrete")
+            raise ValueError("contmask must be bool")
 
         if numpy.any(nebmask):
             imded |= (nebmask * extrabits['diffuse'])
             imded |= (nebmask * (crowdsource.nodeblend_maskbit |
                                  crowdsource.sharp_maskbit))
-            print('Masking nebulosity, %5.2f' % (
+            print('Masking nebulosity fraction, %5.2f' % (
                 numpy.sum(nebmask)/1./numpy.sum(numpy.isfinite(nebmask))))
     if maskdiffuse:
-        if maskmet == "continuous":
+        if contmask == True:
             return imdei, imdew, imded, nebmask, nebprob
         return imdei, imdew, imded, nebmask, None
     return imdei, imdew, imded, None, None
@@ -109,7 +109,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                   outdir=None, verbose=False, nproc=numpy.inf, resume=False,
                   outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0,
                   bin_weights_on=False, plot=False, miniter=4, maxiter=10,titer_thresh=2,
-                  pixsz=9,maskmet="discrete"):
+                  pixsz=9,contmask=False):
     if profile:
         import cProfile
         import pstats
@@ -185,7 +185,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
             print('Fitting %s, extension %s.' % (imfn, name))
             sys.stdout.flush()
         im, wt, dq, msk, prb = read_data(imfn, ivarfn, dqfn, name,
-                               maskdiffuse=maskdiffuse,wcutoff=wcutoff,maskmet=maskmet)
+                               maskdiffuse=maskdiffuse,wcutoff=wcutoff,contmask=contmask)
         hdr = fits.getheader(imfn, extname=name)
         fwhm = hdr.get('FWHM', numpy.median(fwhms))
         if fwhm <= 0.:
@@ -603,6 +603,8 @@ if __name__ == "__main__":
                         default=0.0, help='cutoff for inverse variances')
     parser.add_argument('--bin_weights_on', action='store_true',
                         help='make WLS depend on binary weights only')
+    parser.add_argument('--contmask', action='store_true',
+                        help='make WLS depend on binary weights only')
     parser.add_argument('--plot_on', action='store_true',
                         help='save psf diagonsitic plots at each titer')
     parser.add_argument('imfn', type=str, help='Image file name')
@@ -616,7 +618,9 @@ if __name__ == "__main__":
                       resume=args.resume, profile=args.profile,
                       maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,
                       bin_weights_on=args.bin_weights_on, num_procs=args.parallel,
-                      nproc=args.ccd_num,plot=args.plot_on, miniter=args.miniter, maxiter=args.maxiter, titer_thresh=args.titer_thresh,pixsz=args.pixsz)
+                      nproc=args.ccd_num,plot=args.plot_on, miniter=args.miniter,
+                      maxiter=args.maxiter, titer_thresh=args.titer_thresh,pixsz=args.pixsz,
+                      contmask=args.contmask)
     else:
         process_image(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn,
                       outmodelfn=args.outmodelfn,
@@ -624,4 +628,6 @@ if __name__ == "__main__":
                       resume=args.resume, profile=args.profile,
                       maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,
                       bin_weights_on=args.bin_weights_on,nproc=args.ccd_num,
-                      plot=args.plot_on,miniter=args.miniter,maxiter=args.maxiter, titer_thresh=args.titer_thresh,pixsz=args.pixsz)
+                      plot=args.plot_on,miniter=args.miniter,maxiter=args.maxiter,
+                      titer_thresh=args.titer_thresh,pixsz=args.pixsz,
+                      contmask=args.contmask)
