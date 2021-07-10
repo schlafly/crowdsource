@@ -88,7 +88,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
             # hard code decision boundary for now
             alpha = 2.0
             gam = 0.5
-            decnum = (nebprob[:,:,0] .+ gam.*nebprob[:,:,1])./(nebprob[:,:,1] .+ nebprob[:,:,2] .+ nebprob[:,:,3]);
+            decnum = numpy.divide(nebprob[:,:,0] + gam*nebprob[:,:,1],nebprob[:,:,1] + nebprob[:,:,2] + nebprob[:,:,3])
             nebmask = (decnum > alpha)
         else:
             raise ValueError("contmask must be bool")
