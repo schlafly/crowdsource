@@ -288,9 +288,31 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
             modhdulist.append(fits.CompImageHDU(modelim, hdr, **compkw))
             hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_SKY'
             modhdulist.append(fits.CompImageHDU(skyim, hdr, **compkw))
+            if contmask == True:
+                scale=8
+                from ternary.helpers import simplex_iterator
+                d = []
+                dkey = []
+                for (i,j,k) in simplex_iterator(scale):
+                    d.append([i/scale,j/scale,k/scale])
+                    dkey.append((i,j))
+                darr = np.array(d)
+
+                tempdata = np.array([prb[:,:,0].flatten(),prb[:,:,1].flatten(),(prb[:,:,2]+prb[:,:,3]).flatten()])
+                outv = np.empty((len(d),tempdata.shape[1]))
+                np.sum((darr[:,:,np.newaxis]-tempdata[np.newaxis,:,:])**2,axis=1,out=outv)
+                argminlist = np.argmin(outv,axis=0)
+                cnts = np.zeros(len(d))
+                for i in range(len(d)):
+                    cnts[i] = np.sum(np.equal(argminlist,i))
+                cnts *= len(d)/tempdata.shape[1]
+                c1 = fits.Column(name='NLRE_keys0', array=np.array(dkey)[:,0], format='I')
+                c2 = fits.Column(name='NLRE_keys1', array=np.array(dkey)[:,1], format='I')
+                c3 = fits.Column(name='NLRE_vals', array=cnts, format='E')
+                modhdulist.append(fits.BinTableHDU.from_columns([c1, c2, c3],name='NLREDict'))
             if msk is not None:
                 hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MSK'
-                modhdulist.append(fits.CompImageHDU(msk.astype('i4'), hdr, **compkw))
+                modhdulist.append(fits.CompImageHDU(msk.astype('i1'), hdr, **compkw))
             modhdulist.close(closed=True)
         count += 1
         if count > nproc:
