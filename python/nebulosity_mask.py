@@ -96,7 +96,7 @@ def gen_prob(model, img):
     _, h, w, _ = model.layers[0].input_shape
 
     mask = np.empty((img.shape[0]-1,img.shape[1]-1,4),dtype=numpy.float32)
-    mask_cnt = np.empty((img.shape[0]-1,img.shape[1]-1,4),dtype=numpy.uint8)
+    mask_cnt = np.empty((img.shape[0]-1,img.shape[1]-1,4),dtype=numpy.float32)
 
     for shx in [0,128,256,384]:
         for shy in [0,128,256,384]:
@@ -115,12 +115,12 @@ def gen_prob(model, img):
                 mask[x0:x1, y0:y1,2] += pred[0]*pred[2]
                 mask[x0:x1, y0:y1,3] += pred[0]*pred[3]
                 mask_cnt[j0:j0+h, k0:k0+w] += pred[0]
-    nebprob = np.divide(mask,mask_cnt, out=mask)
-    filters.gaussian(nebprob[:,:,0], sigma=(128),truncate=1,multichannel=False,output=nebprob[:,:,0])
-    filters.gaussian(nebprob[:,:,1], sigma=(128),truncate=1,multichannel=False,output=nebprob[:,:,1])
-    filters.gaussian(nebprob[:,:,2], sigma=(128),truncate=1,multichannel=False,output=nebprob[:,:,2])
-    filters.gaussian(nebprob[:,:,3], sigma=(128),truncate=1,multichannel=False,output=nebprob[:,:,3])
-    return nebprob
+    np.divide(mask,mask_cnt, out=mask)
+    filters.gaussian(mask[:,:,0], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,0])
+    filters.gaussian(mask[:,:,1], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,1])
+    filters.gaussian(mask[:,:,2], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,2])
+    filters.gaussian(mask[:,:,3], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,3])
+    return mask
 
 def gen_mask_wise(model, img):
     _, h, w, _ = model.layers[0].input_shape
