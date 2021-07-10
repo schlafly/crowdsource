@@ -5,6 +5,7 @@ import sys
 import pdb
 import argparse
 import numpy
+import numpy as np
 import psf as psfmod
 from astropy.io import fits
 from astropy import wcs

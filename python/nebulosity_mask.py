@@ -6,6 +6,7 @@ import keras
 import keras.models as kmodels
 
 import numpy as np
+import numpy
 import os, sys
 import tensorflow as tf
 from skimage import filters
@@ -108,7 +109,7 @@ def gen_prob(model, img):
 
                 x0,x1=np.clip([j0-1,j0+h-1,k0-1,k0+w-1],0,img.shape[0]-1)
                 y0,y1=np.clip([j0-1,j0+h-1,k0-1,k0+w-1],0,img.shape[1]-1)
-                
+
                 mask[x0:x1, y0:y1,0] += pred[0]*pred[0]
                 mask[x0:x1, y0:y1,1] += pred[0]*pred[1]
                 mask[x0:x1, y0:y1,2] += pred[0]*pred[2]
