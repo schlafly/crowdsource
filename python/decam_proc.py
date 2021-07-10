@@ -89,7 +89,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
             # hard code decision boundary for now
             alpha = 2.0
             gam = 0.5
-            decnum = np.empty((imdei.shape[0],imdei.shape[0]),dtype=numpy.float32)
+            decnum = np.empty((imdei.shape[0],imdei.shape[1]),dtype=numpy.float32)
             numpy.divide(nebprob[:,:,0] + gam*nebprob[:,:,1],nebprob[:,:,1] + nebprob[:,:,2] + nebprob[:,:,3],out=decnum)
             nebmask = (decnum > alpha)
         else:
