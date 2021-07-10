@@ -95,8 +95,8 @@ def gen_prob(model, img):
     img = np.pad(img, 1, mode='constant', constant_values=np.median(img))
     _, h, w, _ = model.layers[0].input_shape
 
-    mask = np.empty((img.shape[0]-1,img.shape[1]-1,4),dtype=numpy.float32)
-    mask_cnt = np.empty((img.shape[0]-1,img.shape[1]-1,4),dtype=numpy.float32)
+    mask = np.empty((img.shape[0]-2,img.shape[1]-2,4),dtype=numpy.float32)
+    mask_cnt = np.empty((img.shape[0]-2,img.shape[1]-2,4),dtype=numpy.float32)
 
     for shx in [0,128,256,384]:
         for shy in [0,128,256,384]:
