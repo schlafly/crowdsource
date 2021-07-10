@@ -10,6 +10,7 @@ import numpy
 import os, sys
 import tensorflow as tf
 from skimage import filters
+import resource
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -97,6 +98,8 @@ def gen_prob(model, img):
 
     mask = np.empty((img.shape[0]-2,img.shape[1]-2,4),dtype=numpy.float32)
     mask_cnt = np.empty((img.shape[0]-2,img.shape[1]-2,4),dtype=numpy.float32)
+
+    print ('Memory %s (KB)' % resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
 
     for shx in [0,128,256,384]:
         for shy in [0,128,256,384]:
