@@ -312,7 +312,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                 modhdulist.append(fits.BinTableHDU.from_columns([c1, c2, c3],name='NLREDict'))
             if msk is not None:
                 hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MSK'
-                modhdulist.append(fits.CompImageHDU(msk.astype('i1'), hdr, **compkw))
+                modhdulist.append(fits.CompImageHDU(msk.astype('i4'), hdr, **compkw))
             modhdulist.close(closed=True)
         count += 1
         if count > nproc:
