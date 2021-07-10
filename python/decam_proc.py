@@ -113,6 +113,9 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
     if profile:
         import cProfile
         import pstats
+        from guppy import hpy
+        hp = hpy()
+        before = hp.heap()
         pr = cProfile.Profile()
         pr.enable()
     if bin_weights_on == True:
@@ -293,6 +296,9 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
     if profile:
         pr.disable()
         pstats.Stats(pr).sort_stats('cumulative').print_stats(60)
+        after = hp.heap()
+        leftover = after - before
+        print(leftover)
 
 def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                   outdir=None, verbose=False, nproc=numpy.inf, resume=False,
