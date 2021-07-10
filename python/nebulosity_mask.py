@@ -107,8 +107,8 @@ def gen_prob(model, img):
                 subimg.shape = (1, subimg.shape[0], subimg.shape[1], 1)
                 pred = model.predict(subimg, batch_size=1)[0]
 
-                x0,x1=np.clip([j0-1,j0+h-1,k0-1,k0+w-1],0,img.shape[0]-1)
-                y0,y1=np.clip([j0-1,j0+h-1,k0-1,k0+w-1],0,img.shape[1]-1)
+                x0,x1=np.clip([j0-1,j0+h-1],0,img.shape[0]-1)
+                y0,y1=np.clip([k0-1,k0+w-1],0,img.shape[1]-1)
 
                 mask[x0:x1, y0:y1,0] += pred[0]*pred[0]
                 mask[x0:x1, y0:y1,1] += pred[0]*pred[1]
