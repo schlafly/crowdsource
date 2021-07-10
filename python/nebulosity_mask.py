@@ -99,7 +99,7 @@ def gen_prob(model, img):
 
     for shx in [0,128,256,384]:
         for shy in [0,128,256,384]:
-            for j0, k0, subimg in subimages_AKS(img, (h, w),shiftx=shx,shifty=shy):
+            for j0, k0, subimg in subimages(img, (h, w),shiftx=shx,shifty=shy):
                 subimg, _ = equalize_histogram(subimg.astype('f8'),
                                                asinh_stretch=True, n_bins=3000)
                 subimg /= 255.
