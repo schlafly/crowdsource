@@ -294,7 +294,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
             if contmask == True:
                 ## here we grossly reuse the arrays previously allocated
                 ## in order to save memory and allocation times
-                mask_cnt = np.full((msk.shape[0],msk.shape[1]),-1,dtype=numpy.int16)
+                mskcnt = np.full((msk.shape[0],msk.shape[1]),-1,dtype=numpy.int16)
                 decnum = np.empty((msk.shape[0],msk.shape[1]),dtype=numpy.float32)
                 scale=8
                 from ternary.helpers import simplex_iterator
