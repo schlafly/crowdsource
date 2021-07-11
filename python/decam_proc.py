@@ -294,7 +294,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
             if contmask == True:
                 ## here we grossly reuse the arrays previously allocated
                 ## in order to save memory and allocation times
-                mask_cnt = np.empty((msk.shape[0],msk.shape[1]),dtype=numpy.int16)
+                mask_cnt = np.full((msk.shape[0],msk.shape[1]),-1,dtype=numpy.int16)
                 scale=8
                 from ternary.helpers import simplex_iterator
                 d = []
@@ -306,7 +306,6 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
 
                 prb[:,:,2] += prb[:,:,3]
                 prb[:,:,3] = 3
-                np.copyto(mskcnt,-1)
                 for i in range(len(d)):
                     np.sum((tempdata-darr[i,:,np.newaxis,np.newaxis])**2,axis=0,out=decnum)
                     np.less(decnum,prb[:,:,3],out=msk)
