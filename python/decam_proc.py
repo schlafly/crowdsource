@@ -306,6 +306,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
 
                 prb[:,:,2] += prb[:,:,3]
                 prb[:,:,3] = 3
+                decnum = np.empty((imdei.shape[0],imdei.shape[1]),dtype=numpy.float32)
                 for i in range(len(d)):
                     np.sum((prb[:,:,0:3]-darr[np.newaxis,np.newaxis,i,:])**2,axis=2,out=decnum)
                     np.less(decnum,prb[:,:,3],out=msk)
