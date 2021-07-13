@@ -96,11 +96,12 @@ def gen_prob(model, img):
     img = np.pad(img, 1, mode='constant', constant_values=np.median(img))
     _, h, w, _ = model.layers[0].input_shape
 
-    mask = np.empty((img.shape[0]-2,img.shape[1]-2,4),dtype=numpy.float32)
-    mask_cnt = np.empty((img.shape[0]-2,img.shape[1]-2,4),dtype=numpy.float32)
+    mask = np.zeros((img.shape[0]-2,img.shape[1]-2,4),dtype=numpy.float32)
+    mask_cnt = np.zeros((img.shape[0]-2,img.shape[1]-2,4),dtype=numpy.float32)
 
     print ('Memory %s (KB)' % resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
 
+    eps = 1e-4
     for shx in [0,128,256,384]:
         for shy in [0,128,256,384]:
             for j0, k0, subimg in subimages(img, (h, w),shiftx=shx,shifty=shy):
@@ -113,11 +114,11 @@ def gen_prob(model, img):
                 x0,x1=np.clip([j0-1,j0+h-1],0,img.shape[0]-1)
                 y0,y1=np.clip([k0-1,k0+w-1],0,img.shape[1]-1)
 
-                mask[x0:x1, y0:y1,0] += pred[0]*pred[0]
-                mask[x0:x1, y0:y1,1] += pred[0]*pred[1]
-                mask[x0:x1, y0:y1,2] += pred[0]*pred[2]
-                mask[x0:x1, y0:y1,3] += pred[0]*pred[3]
-                mask_cnt[j0:j0+h, k0:k0+w] += pred[0]
+                mask[x0:x1, y0:y1,0] += (pred[0]+eps)*pred[0]
+                mask[x0:x1, y0:y1,1] += (pred[0]+eps)*pred[1]
+                mask[x0:x1, y0:y1,2] += (pred[0]+eps)*pred[2]
+                mask[x0:x1, y0:y1,3] += (pred[0]+eps)*pred[3]
+                mask_cnt[j0:j0+h, k0:k0+w] += (pred[0]+eps)
     np.divide(mask,mask_cnt, out=mask)
     filters.gaussian(mask[:,:,0], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,0])
     filters.gaussian(mask[:,:,1], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,1])

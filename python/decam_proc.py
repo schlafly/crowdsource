@@ -89,8 +89,9 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
             # hard code decision boundary for now
             alpha = 2.0
             gam = 0.5
-            decnum = np.empty((imdei.shape[0],imdei.shape[1]),dtype=numpy.float32)
-            numpy.divide(nebprob[:,:,0] + gam*nebprob[:,:,1],nebprob[:,:,1] + nebprob[:,:,2] + nebprob[:,:,3],out=decnum)
+            eps = 1e-4
+            decnum = np.zeros((imdei.shape[0],imdei.shape[1]),dtype=numpy.float32)
+            numpy.divide(nebprob[:,:,0] + gam*nebprob[:,:,1],eps + nebprob[:,:,1] + nebprob[:,:,2] + nebprob[:,:,3],out=decnum)
             nebmask = (decnum > alpha)
         else:
             raise ValueError("contmask must be bool")
@@ -294,8 +295,9 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
             if contmask == True:
                 ## here we grossly reuse the arrays previously allocated
                 ## in order to save memory and allocation times
-                mskcnt = np.full((msk.shape[0],msk.shape[1]),-1,dtype=numpy.int16)
-                decnum = np.empty((msk.shape[0],msk.shape[1]),dtype=numpy.float32)
+
+                dq.fill(-1)
+                im.fill(0)
                 scale=8
                 from ternary.helpers import simplex_iterator
                 d = []
@@ -309,19 +311,20 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                 prb[:,:,3] = 3
 
                 for i in range(len(d)):
-                    np.sum((prb[:,:,0:3]-darr[np.newaxis,np.newaxis,i,:])**2,axis=2,out=decnum)
-                    np.less(decnum,prb[:,:,3],out=msk)
-                    prb[:,:,3][msk] = decnum[msk]
-                    np.copyto(mskcnt,i,where=msk)
+                    np.sum((prb[:,:,0:3]-darr[np.newaxis,np.newaxis,i,:])**2,axis=2,out=im)
+                    np.less(im,prb[:,:,3],out=msk)
+                    prb[:,:,3][msk] = im[msk]
+                    np.copyto(dq,i,where=msk)
 
                 cnts = np.zeros(len(d))
                 for i in range(len(d)):
-                    cnts[i] = np.sum(np.equal(mskcnt,i))
+                    cnts[i] = np.sum(np.equal(dq,i))
                 cnts *= len(d)/(prb.shape[0]*prb.shape[1])
+                extname = hdr['EXTNAME'][:-4] + '_NLRE'
                 c1 = fits.Column(name='NLRE_keys0', array=np.array(dkey)[:,0], format='I')
                 c2 = fits.Column(name='NLRE_keys1', array=np.array(dkey)[:,1], format='I')
                 c3 = fits.Column(name='NLRE_vals', array=cnts, format='E')
-                modhdulist.append(fits.BinTableHDU.from_columns([c1, c2, c3],name='NLREDict'))
+                modhdulist.append(fits.BinTableHDU.from_columns([c1, c2, c3],name=extname))
             modhdulist.close(closed=True)
         count += 1
         if count > nproc:
