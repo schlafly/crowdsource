@@ -232,7 +232,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
             if not bmask_off: #obviously we could save overhead by muting the blist code
                 #do that not at 3 am
                 dq = mask_very_bright_stars(dq, blist)
-            if bmask_off
+            if bmask_off:
                 print("Bright stars were not masked")
 
         # the actual fit
