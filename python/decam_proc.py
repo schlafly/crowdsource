@@ -112,7 +112,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                   outdir=None, verbose=False, nproc=numpy.inf, resume=False,
                   outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0,
                   bin_weights_on=False, plot=False, miniter=4, maxiter=10,titer_thresh=2,
-                  pixsz=9,contmask=False):
+                  pixsz=9,contmask=False,bmask_off=False):
     if profile:
         import cProfile
         import pstats
@@ -229,7 +229,11 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
             blist = None
 
         if blist is not None:
-            dq = mask_very_bright_stars(dq, blist)
+            if not bmask_off: #obviously we could save overhead by muting the blist code
+                #do that not at 3 am
+                dq = mask_very_bright_stars(dq, blist)
+            if bmask_off
+                print("Bright stars were not masked")
 
         # the actual fit
         res = crowdsource.fit_im(im, psf, ntilex=4, ntiley=2,
@@ -649,6 +653,8 @@ if __name__ == "__main__":
                         help='make WLS depend on binary weights only')
     parser.add_argument('--plot_on', action='store_true',
                         help='save psf diagonsitic plots at each titer')
+    parser.add_argument('--bmask_off', action='store_true',
+                        help='turn bright star masking off')
     parser.add_argument('imfn', type=str, help='Image file name')
     parser.add_argument('ivarfn', type=str, help='Inverse variance file name')
     parser.add_argument('dqfn', type=str, help='Data quality file name')
@@ -662,7 +668,7 @@ if __name__ == "__main__":
                       bin_weights_on=args.bin_weights_on, num_procs=args.parallel,
                       nproc=args.ccd_num,plot=args.plot_on, miniter=args.miniter,
                       maxiter=args.maxiter, titer_thresh=args.titer_thresh,pixsz=args.pixsz,
-                      contmask=args.contmask)
+                      contmask=args.contmask,bmask_off=args.bmask_off)
     else:
         process_image(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn,
                       outmodelfn=args.outmodelfn,
@@ -672,4 +678,4 @@ if __name__ == "__main__":
                       bin_weights_on=args.bin_weights_on,nproc=args.ccd_num,
                       plot=args.plot_on,miniter=args.miniter,maxiter=args.maxiter,
                       titer_thresh=args.titer_thresh,pixsz=args.pixsz,
-                      contmask=args.contmask)
+                      contmask=args.contmask,bmask_off=args.bmask_off)
