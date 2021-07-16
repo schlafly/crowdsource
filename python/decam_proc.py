@@ -80,7 +80,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
         import galaxy_mask
         leda = getattr(read_data, 'leda', None)
         if leda is None:
-            leda = galaxy_mask.read_leda_decaps
+            leda = galaxy_mask.read_leda_decaps()
             read_data.leda = leda
         gmsk = galaxy_mask.galaxy_mask(hdr,leda)
         if numpy.any(gmsk):
