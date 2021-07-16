@@ -35,7 +35,7 @@ def galaxy_mask(header,leda):
     relevant = w.world_to_pixel(coordleda[keep])
 
     with warnings.catch_warnings():
-        warnings.simplefilter('ignore', category=[AstropyWarning,RuntimeWarning])
+        warnings.simplefilter('ignore', category=(AstropyWarning,RuntimeWarning))
         wperm = Wcsprm(header=header.tostring().encode('utf-8'))
         cd = wperm.cd * wperm.cdelt[np.mod(np.linspace(0,3,4,dtype=int),2).reshape(2,2)]
     pscl = np.mean(np.sqrt(np.sum(cd**2,axis=1)))*3600 #convert back to arcsec from deg for interp
