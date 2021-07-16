@@ -5,6 +5,7 @@ from astropy.modeling.models import Ellipse2D
 from astropy.wcs import Wcsprm, WCS
 from astropy.coordinates import SkyCoord
 from pydl.pydlutils import spheregroup
+import numpy as np
 
 def galaxy_mask(header,leda):
     racen = header["CRVAL1"]
