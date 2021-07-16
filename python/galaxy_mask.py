@@ -41,7 +41,7 @@ def galaxy_mask(header,leda):
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', category=(AstropyWarning,RuntimeWarning))
         wperm = Wcsprm(header=header.tostring().encode('utf-8'))
-        cd = wperm.cd * wperm.cdelt[np.mod(np.linspace(0,3,4,dtype=int),2).reshape(2,2)]
+        cd = wperm.cd #* wperm.cdelt[np.mod(np.linspace(0,3,4,dtype=int),2).reshape(2,2)]
     pscl = np.mean(np.sqrt(np.sum(cd**2,axis=1)))*3600 #convert back to arcsec from deg for interp
     msz = np.ceil(3600*diam[keep]/pscl).astype(int) #this is the mask size in the pixel scale
     msz += np.mod(msz,2) == 0 #adjust even size to be odd so that the center means something
@@ -79,10 +79,6 @@ def galaxy_mask(header,leda):
         y, x = np.mgrid[0:mszn, 0:mszn]
         smsk = (e(x, y) == 1)
 
-        print(np.clip(ixn-mhn,a_min=0,a_max=None))
-        print(np.clip(ixn+mhn+1,a_min=None,a_max=sz[0]-1))
-        print(np.clip(mhn-ixn,a_min=0,a_max=None))
-        print(np.clip(sz[0]-ixn+mhn,a_min=None,a_max=mszn-1))
         outmsk[np.clip(ixn-mhn,a_min=0,a_max=None):np.clip(ixn+mhn+1,a_min=None,a_max=sz[0]),
            np.clip(iyn-mhn,a_min=0,a_max=None):np.clip(iyn+mhn+1,a_min=None,a_max=sz[1])] |= smsk[
         np.clip(mhn-ixn,a_min=0,a_max=None):np.clip(sz[0]-ixn+mhn,a_min=None,a_max=mszn),
