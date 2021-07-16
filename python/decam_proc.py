@@ -35,6 +35,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
     with warnings.catch_warnings(record=True) as wlist:
         warnings.simplefilter('always')
         imh = fits.getheader(imfn)
+        hdr = fits.getheader(imfn, extname=extname)
         imdei = fits.getdata(imfn, extname=extname).copy()
         imdew = fits.getdata(ivarfn, extname=extname).copy()
         imded = fits.getdata(dqfn, extname=extname).copy()
@@ -81,7 +82,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
         if leda is None:
             leda = galaxy_mask.read_leda_decaps
             read_data.leda = leda
-        gmsk = galaxy_mask.galaxy_mask(imh,leda)
+        gmsk = galaxy_mask.galaxy_mask(hdr,leda)
         if numpy.any(gmsk):
             imded |= (gmsk * extrabits['galaxy'])
             imded |= (gmsk * crowdsource.nodeblend_maskbit)
