@@ -79,7 +79,7 @@ def galaxy_mask(header,leda):
            np.clip(iyn-mhn,a_min=0,a_max=None):np.clip(iyn+mhn,a_min=None,a_max=sz[1]-1)] |= smsk[
         np.clip(mhn-ixn,a_min=0,a_max=None):np.clip(sz[0]-ixn+mhn-1,a_min=None,a_max=mszn-1),
              np.clip(mhn-iyn,a_min=0,a_max=None):np.clip(sz[1]-iyn+mhn-1,a_min=None,a_max=mszn-1)]
-    return outmsk
+    return outmsk.T #revist need for transpose
 
 def tan_unit_vectors(rain,decin,l0,p0):
     # handle the poles
