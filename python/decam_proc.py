@@ -22,7 +22,6 @@ extrabits = ({'badpix': 2**20,
               'brightstar': 2**23,
               'galaxy': 2**24})
 
-
 def read(imfn, extname, **kw):
     ivarfn = imfn.replace('_ooi_', '_oow_')
     dqfn = imfn.replace('_ooi_', '_ood_')
@@ -80,9 +79,9 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
         import galaxy_mask
         leda = getattr(read_data, 'leda', None)
         if leda is None:
-            leda = read_leda_decaps
+            leda = galaxy_mask.read_leda_decaps
             read_data.leda = leda
-        gmsk = galaxy_mask(imh,leda)
+        gmsk = galaxy_mask.galaxy_mask(imh,leda)
         if numpy.any(gmsk):
             imded |= (gmsk * extrabits['galaxy'])
             imded |= (gmsk * crowdsource.nodeblend_maskbit)
