@@ -19,7 +19,8 @@ badpixmaskfn = '/n/fink2/www/eschlafly/decam/badpixmasksefs_comp.fits'
 extrabits = ({'badpix': 2**20,
               'diffuse': 2**21,
               's7unstable': 2**22,
-              'brightstar': 2**23})
+              'brightstar': 2**23,
+              'galaxy': 2**24})
 
 
 def read(imfn, extname, **kw):
@@ -29,7 +30,8 @@ def read(imfn, extname, **kw):
 
 
 def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
-              maskdiffuse=True, corrects7=True,wcutoff=0.0,contmask=False):
+              maskdiffuse=True, corrects7=True,wcutoff=0.0,contmask=False,
+              maskgal=False):
     import warnings
     with warnings.catch_warnings(record=True) as wlist:
         warnings.simplefilter('always')
@@ -74,6 +76,16 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
         imdei = correct_sky_offset(imdei, weight=imdew)
         half = imded.shape[1] // 2
         imded[:, half:] |= extrabits['s7unstable']
+    if maskgal:
+        import galaxy_mask
+        leda = getattr(read_data, 'leda', None)
+        if leda is None:
+            leda = read_leda_decaps
+            read_data.leda = leda
+        gmsk = galaxy_mask(imh,leda)
+        if numpy.any(gmsk):
+            imded |= (gmsk * extrabits['galaxy'])
+            imded |= (gmsk * crowdsource.nodeblend_maskbit)
     if maskdiffuse:
         import nebulosity_mask
         nebmod = getattr(read_data, 'nebmod', None)
