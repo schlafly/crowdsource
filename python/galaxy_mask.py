@@ -8,20 +8,24 @@ from pydl.pydlutils import spheregroup
 import numpy as np
 
 def galaxy_mask(header,leda):
-    racen = header["CRVAL1"]
-    deccen = header["CRVAL2"]
-    c = SkyCoord(racen, deccen, frame='icrs', unit='deg')
-    sz = (header["NAXIS1"], header["NAXIS2"])
-    outmsk = np.zeros((sz[0],sz[1]),dtype=bool)
 
     ra, dec, theta, diam, ba = leda
+
+    sz = (header["NAXIS1"], header["NAXIS2"])
+    outmsk = np.zeros((sz[0],sz[1]),dtype=bool)
+    w = WCS(header)
 
     ##CCD corners (these are actually in the header for DECam)
     xc = [0,0,sz[0]-1,sz[0]-1]
     yc = [0,sz[1]-1,0,sz[1]-1]
+    xcen = (sz[0]-1)/2
+    ycen = (sz[1]-1)/2
 
-    w = WCS(header)
+    c = w.pixel_to_world(xcen,ycen)
     sep = c.separation(w.pixel_to_world(xc, yc))
+
+    racen = c.ra.degree
+    deccen = c.dec.degree
 
     dac = np.max(sep.degree)
     coordleda = SkyCoord(ra,dec,frame='icrs',unit='deg')
@@ -75,10 +79,10 @@ def galaxy_mask(header,leda):
         y, x = np.mgrid[0:mszn, 0:mszn]
         smsk = (e(x, y) == 1)
 
-        outmsk[np.clip(ixn-mhn,a_min=0,a_max=None):np.clip(ixn+mhn,a_min=None,a_max=sz[0]-1),
-           np.clip(iyn-mhn,a_min=0,a_max=None):np.clip(iyn+mhn,a_min=None,a_max=sz[1]-1)] |= smsk[
-        np.clip(mhn-ixn,a_min=0,a_max=None):np.clip(sz[0]-ixn+mhn-1,a_min=None,a_max=mszn-1),
-             np.clip(mhn-iyn,a_min=0,a_max=None):np.clip(sz[1]-iyn+mhn-1,a_min=None,a_max=mszn-1)]
+        outmsk[np.clip(ixn-mhn,a_min=0,a_max=None):np.clip(ixn+mhn+1,a_min=None,a_max=sz[0]-1),
+           np.clip(iyn-mhn,a_min=0,a_max=None):np.clip(iyn+mhn+1,a_min=None,a_max=sz[1]-1)] |= smsk[
+        np.clip(mhn-ixn,a_min=0,a_max=None):np.clip(sz[0]-ixn+mhn,a_min=None,a_max=mszn-1),
+             np.clip(mhn-iyn,a_min=0,a_max=None):np.clip(sz[1]-iyn+mhn,a_min=None,a_max=mszn-1)]
     return outmsk.T #revist need for transpose
 
 def tan_unit_vectors(rain,decin,l0,p0):
