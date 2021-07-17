@@ -99,7 +99,7 @@ def gen_prob(model, img):
     mask = np.zeros((img.shape[0]-2,img.shape[1]-2,4),dtype=numpy.float32)
     mask_cnt = np.zeros((img.shape[0]-2,img.shape[1]-2,4),dtype=numpy.float32)
 
-    print ('Memory %s (KB)' % resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+    #print ('Memory %s (KB)' % resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
 
     eps = 1e-4
     for shx in [0,128,256,384]:
