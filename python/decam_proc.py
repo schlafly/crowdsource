@@ -693,4 +693,4 @@ if __name__ == "__main__":
                       bin_weights_on=args.bin_weights_on,nproc=args.ccd_num,
                       plot=args.plot_on,miniter=args.miniter,maxiter=args.maxiter,
                       titer_thresh=args.titer_thresh,pixsz=args.pixsz,
-                      contmask=args.contmask,bmask_off=args.bmask_off,maskgal=args.maskgal))
+                      contmask=args.contmask,bmask_off=args.bmask_off,maskgal=args.maskgal)
