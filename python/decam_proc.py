@@ -124,7 +124,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                   outdir=None, verbose=False, nproc=numpy.inf, resume=False,
                   outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0,
                   bin_weights_on=False, plot=False, miniter=4, maxiter=10,titer_thresh=2,
-                  pixsz=9,contmask=False,bmask_off=False):
+                  pixsz=9,contmask=False,bmask_off=False,maskgal=False):
     if profile:
         import cProfile
         import pstats
@@ -203,7 +203,8 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
             print('Fitting %s, extension %s.' % (imfn, name))
             sys.stdout.flush()
         im, wt, dq, msk, prb = read_data(imfn, ivarfn, dqfn, name,
-                               maskdiffuse=maskdiffuse,wcutoff=wcutoff,contmask=contmask)
+                               maskdiffuse=maskdiffuse,wcutoff=wcutoff,
+                               contmask=contmask,maskgal=maskgal)
         hdr = fits.getheader(imfn, extname=name)
         fwhm = hdr.get('FWHM', numpy.median(fwhms))
         if fwhm <= 0.:
@@ -667,6 +668,8 @@ if __name__ == "__main__":
                         help='save psf diagonsitic plots at each titer')
     parser.add_argument('--bmask_off', action='store_true',
                         help='turn bright star masking off')
+    parser.add_argument('--maskgal', action='store_true',
+                        help='turn on galaxy masking from leda catalogue')
     parser.add_argument('imfn', type=str, help='Image file name')
     parser.add_argument('ivarfn', type=str, help='Inverse variance file name')
     parser.add_argument('dqfn', type=str, help='Data quality file name')
@@ -680,7 +683,7 @@ if __name__ == "__main__":
                       bin_weights_on=args.bin_weights_on, num_procs=args.parallel,
                       nproc=args.ccd_num,plot=args.plot_on, miniter=args.miniter,
                       maxiter=args.maxiter, titer_thresh=args.titer_thresh,pixsz=args.pixsz,
-                      contmask=args.contmask,bmask_off=args.bmask_off)
+                      contmask=args.contmask,bmask_off=args.bmask_off,maskgal=args.maskgal)
     else:
         process_image(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn,
                       outmodelfn=args.outmodelfn,
@@ -690,4 +693,4 @@ if __name__ == "__main__":
                       bin_weights_on=args.bin_weights_on,nproc=args.ccd_num,
                       plot=args.plot_on,miniter=args.miniter,maxiter=args.maxiter,
                       titer_thresh=args.titer_thresh,pixsz=args.pixsz,
-                      contmask=args.contmask,bmask_off=args.bmask_off)
+                      contmask=args.contmask,bmask_off=args.bmask_off,maskgal=args.maskgal))
