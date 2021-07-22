@@ -13,6 +13,7 @@ import unwise_psf
 import unwise_primary
 from astropy import wcs
 from collections import OrderedDict
+from pkg_resources import resource_filename
 
 
 extrabits = {'crowdsat': 2**25,
@@ -26,7 +27,7 @@ sharp_bits = (extrabits['w1brightoffedge'] | extrabits['w2brightoffedge'])
 
 
 def wise_filename(basedir, coadd_id, band, _type, uncompressed=False,
-                  drop_first_dir=False):
+                  drop_first_dir=False, epoch=-1):
     # type should be one of:
     # 'img-u', 'img-m', 'invvar-u', 'invvar-m', 'std-u', 'std-m'
     # 'n-u', 'n-m', 'frames', 'msk'
@@ -42,6 +43,9 @@ def wise_filename(basedir, coadd_id, band, _type, uncompressed=False,
     path = [basedir, coadd_id[0:3], coadd_id, fname]
     if drop_first_dir:
         del path[1]
+    if epoch >= 0:
+        epochstr = 'e%03d' % epoch if _type is not 'msk' else 'fulldepth'
+        path = path[0:1] + [epochstr] + path[1:]
     fname = os.path.join(*path)
 
     if not uncompressed or _type == 'msk':
@@ -126,11 +130,10 @@ def wise_psf_stamp(band):
     # psf noise: ~roughly 0.1 count in outskirts of W1 and W2
     if band >= 3:
         raise ValueError('Need to stare at W3+ PSF more!')
-    if os.getenv('WISE_PSF_DIR', None) is None:
-        raise ValueError('WISE_PSF_DIR must be set.')
     psfnoise = 0.1
-    stamp = fits.getdata(os.path.join(os.getenv('WISE_PSF_DIR'),
-                                      'psf_model_w'+str(band)+'.fits'))
+    stampfn = resource_filename('unwise_psf',
+                                'data/psf_model_w'+str(band)+'.fits')
+    stamp = fits.getdata(stampfn)
     edges = numpy.concatenate([stamp[0, 1:-1], stamp[-1, 1:-1],
                                stamp[1:-1, 0], stamp[1:-1, -1]])
     medval = numpy.median(edges[edges != 0]) / 2
@@ -164,10 +167,10 @@ def wise_psf(band, coadd_id):
 
 
 def wise_psf_grid(band, coadd_id, basedir, uncompressed=False,
-                  drop_first_dir=False, ngrid=None):
+                  drop_first_dir=False, ngrid=None, epoch=-1):
     imagefn = wise_filename(basedir, coadd_id, band, 'img-m',
                             uncompressed=uncompressed,
-                            drop_first_dir=drop_first_dir)
+                            drop_first_dir=drop_first_dir, epoch=epoch)
     hdr = fits.getheader(imagefn)
     if ngrid is None:
         rr, dd = hdr['CRVAL1'], hdr['CRVAL2']
@@ -197,25 +200,25 @@ def wise_psf_grid(band, coadd_id, basedir, uncompressed=False,
 
 
 def read_wise(coadd_id, band, basedir, uncompressed=False,
-              drop_first_dir=False):
+              drop_first_dir=False, epoch=-1):
     assert((band == 1) or (band == 2))
     assert(len(coadd_id) == 8)
 
     imagefn = wise_filename(basedir, coadd_id, band, 'img-m',
                             uncompressed=uncompressed,
-                            drop_first_dir=drop_first_dir)
+                            drop_first_dir=drop_first_dir, epoch=epoch)
     ivarfn = wise_filename(basedir, coadd_id, band, 'invvar-m',
                            uncompressed=uncompressed,
-                           drop_first_dir=drop_first_dir)
+                           drop_first_dir=drop_first_dir, epoch=epoch)
     flagfn = wise_filename(basedir, coadd_id, band, 'msk',
                            uncompressed=uncompressed,
-                           drop_first_dir=drop_first_dir)
+                           drop_first_dir=drop_first_dir, epoch=epoch)
     nmfn = wise_filename(basedir, coadd_id, band, 'n-m',
                          uncompressed=uncompressed,
-                         drop_first_dir=drop_first_dir)
+                         drop_first_dir=drop_first_dir, epoch=epoch)
     nufn = wise_filename(basedir, coadd_id, band, 'n-u',
                          uncompressed=uncompressed,
-                         drop_first_dir=drop_first_dir)
+                         drop_first_dir=drop_first_dir, epoch=epoch)
 
     im, hdr = fits.getdata(imagefn, header=True)
     sqivar = numpy.sqrt(fits.getdata(ivarfn))
@@ -233,10 +236,10 @@ def ivarmap(isig, psfstamp):
 
 
 def brightlist(brightstars, coadd_id, band, basedir, uncompressed=False,
-               drop_first_dir=False):
+               drop_first_dir=False, epoch=-1):
     imagefn = wise_filename(basedir, coadd_id, band, 'img-m',
                             uncompressed=uncompressed,
-                            drop_first_dir=drop_first_dir)
+                            drop_first_dir=drop_first_dir, epoch=epoch)
     hdr = fits.getheader(imagefn)
     blist = read_blist(brightstars, hdr['CRVAL1'], hdr['CRVAL2'], hdr, 3)
     return blist
@@ -320,9 +323,9 @@ def collapse_extraflags(bitmask, band):
 if __name__ == "__main__":
 
     try:
-        print 'Running on host: ' + str(os.environ.get('HOSTNAME'))
+        print('Running on host: ' + str(os.environ.get('HOSTNAME')))
     except:
-        print "Couldn't retrieve hostname!"
+        print("Couldn't retrieve hostname!")
 
     parser = argparse.ArgumentParser(description='Run crowdsource on unWISE coadd image')
     parser.add_argument('coadd_id', type=str, nargs=1)
@@ -334,7 +337,7 @@ if __name__ == "__main__":
     parser.add_argument('--verbose', '-v', default=False, action='store_true')
     parser.add_argument('--uncompressed', '-u', default=False, action='store_true')
     parser.add_argument('--brightcat', '-b',
-                        default=os.environ.get('TMASS_BRIGHT'), type=str)
+                        default=os.environ.get('TMASS_BRIGHT', ''), type=str)
     parser.add_argument('--modelfn', '-m', default='', type=str,
                         help='file name for model image, if desired')
     parser.add_argument('--infoimfn', '-i', default='', type=str,
@@ -346,6 +349,8 @@ if __name__ == "__main__":
     parser.add_argument('--noskyfit', default=False, action='store_true')
     parser.add_argument('--threshold', default=5, type=float, 
                         help='find sources down to threshold*sigma')
+    parser.add_argument('--epoch', type=int, default=-1,
+                        help='epoch number of time-resolved WISE coadd')
 
     args = parser.parse_args()
 
@@ -354,11 +359,15 @@ if __name__ == "__main__":
     basedir = args.basedir
 
     im, sqivar, flag, hdr = read_wise(coadd_id, band, basedir,
-                                      uncompressed=args.uncompressed)
+                                      uncompressed=args.uncompressed,
+                                      epoch=args.epoch)
     if len(args.startsky) > 0:
         startsky = fits.getdata(args.startsky, 'SKY')
+    else:
+        startsky = numpy.nan
     flag_orig = fits.getdata(wise_filename(basedir, coadd_id, band, 'msk',
-                                           uncompressed=args.uncompressed))
+                                           uncompressed=args.uncompressed,
+                                           epoch=args.epoch))
 
     crowdsource.psfvalsharpcut.fac = 0.5
     if args.masknebulosity:
@@ -373,7 +382,7 @@ if __name__ == "__main__":
             print('Masking nebulosity, %5.2f' % (
                 numpy.sum(nebmask)/1./numpy.sum(numpy.isfinite(nebmask))))
 
-    psf = wise_psf_grid(band, coadd_id, basedir)
+    psf = wise_psf_grid(band, coadd_id, basedir, epoch=args.epoch)
     if len(args.startpsf) > 0:
         startpsf = fits.getdata(args.startpsf, 'PSF').astype('f4')
         # there can be some endianness issues; astype('f4') converts to native
@@ -390,9 +399,10 @@ if __name__ == "__main__":
     if len(args.brightcat) > 0:
         brightstars = fits.getdata(args.brightcat)
         blist = brightlist(brightstars, coadd_id, band, basedir,
-                           uncompressed=args.uncompressed)
+                           uncompressed=args.uncompressed, epoch=args.epoch)
     else:
         print('No bright star catalog, not marking bright stars.')
+        blist = None
 
     if args.verbose:
         t0 = time.time()
@@ -431,7 +441,7 @@ if __name__ == "__main__":
     ids = ['%sw%1do%07d' % (coadd_id, band, num) for num in range(len(ra))]
 
     nmfn = wise_filename(basedir, coadd_id, band, 'n-m',
-                         uncompressed=args.uncompressed)
+                         uncompressed=args.uncompressed, epoch=args.epoch)
     nmim = fits.getdata(nmfn)
     nms = crowdsource.extract_im(cat['x'], cat['y'], nmim)
     flags_unwise = crowdsource.extract_im(
