@@ -9,7 +9,7 @@ import numpy
 import psf as psfmod
 from astropy.io import fits
 import crowdsource
-import unwise_psf
+from unwise_psf import unwise_psf
 import unwise_primary
 from astropy import wcs
 from collections import OrderedDict
@@ -101,7 +101,7 @@ def massage_isig_and_dim(isig, im, flag, band, nm, nu, fac=None):
         floor = bandfloors[band]
 
     satbit = 16 if band == 1 else 32
-    satlimit = 85000 # if band == 1 else 130000
+    satlimit = 85000  # if band == 1 else 130000
     msat = ((flag & satbit) != 0) | (im > satlimit) | ((nm == 0) & (nu > 1))
     from scipy.ndimage import morphology
     # dilate = morphology.iterate_structure(
@@ -112,9 +112,9 @@ def massage_isig_and_dim(isig, im, flag, band, nm, nu, fac=None):
     isig[msat] = 0
     flag = flag.astype('i8')
     # zero out these bits; we claim them for our own purposes.
-    massagebits = (extrabits['crowdsat'] | crowdsource.nodeblend_maskbit | 
+    massagebits = (extrabits['crowdsat'] | crowdsource.nodeblend_maskbit |
                    crowdsource.sharp_maskbit | extrabits['nebulosity'])
-    flag &= ~massagebits  
+    flag &= ~massagebits
     flag[msat] |= extrabits['crowdsat']
     flag[(flag & nodeblend_bits) != 0] |= crowdsource.nodeblend_maskbit
     flag[(flag & sharp_bits) != 0] |= crowdsource.sharp_maskbit
@@ -347,10 +347,11 @@ if __name__ == "__main__":
     parser.add_argument('--startsky', type=str, default='')
     parser.add_argument('--startpsf', type=str, default='')
     parser.add_argument('--noskyfit', default=False, action='store_true')
-    parser.add_argument('--threshold', default=5, type=float, 
+    parser.add_argument('--threshold', default=5, type=float,
                         help='find sources down to threshold*sigma')
     parser.add_argument('--epoch', type=int, default=-1,
                         help='epoch number of time-resolved WISE coadd')
+    parser.add_argument('--release', type=str, default='')
 
     args = parser.parse_args()
 
@@ -393,7 +394,7 @@ if __name__ == "__main__":
         newstamps += resid
         psf = psfmod.GridInterpPSF(newstamps, psf.x, psf.y)
         from functools import partial
-        psf.fitfun = partial(psfmod.wise_psf_fit, 
+        psf.fitfun = partial(psfmod.wise_psf_fit,
                              psfstamp=(newstamps, psf.x, psf.y), grid=True)
 
     if len(args.brightcat) > 0:
@@ -413,7 +414,7 @@ if __name__ == "__main__":
         res = crowdsource.fit_im(
             im, psf, weight=sqivar, dq=flag, refit_psf=args.refit_psf,
             verbose=args.verbose, ntilex=4, ntiley=4, derivcentroids=True,
-            maxstars=30000*16, fewstars=50*16, blist=blist, 
+            maxstars=30000*16, fewstars=50*16, blist=blist,
             threshold=args.threshold)
     else:
         forcecat = fits.getdata(args.forcecat, 1)
@@ -435,10 +436,14 @@ if __name__ == "__main__":
     ra, dec = wcs0.all_pix2world(y, x, 0)
     coadd_ids = numpy.zeros(len(ra), dtype='a8')
     bands = numpy.zeros(len(ra), dtype='i4')
-    ids = numpy.zeros(len(ra), dtype='a16')
+    ids = numpy.zeros(len(ra), dtype='U20')
     coadd_ids[:] = coadd_id
     bands[:] = band
-    ids = ['%sw%1do%07d' % (coadd_id, band, num) for num in range(len(ra))]
+    if len(args.release) == 0:
+        ids = ['%sw%1do%07d' % (coadd_id, band, num) for num in range(len(ra))]
+    else:
+        ids = ['%sw%1do%07dr%s' % (coadd_id, band, num, args.release)
+               for num in range(len(ra))]
 
     nmfn = wise_filename(basedir, coadd_id, band, 'n-m',
                          uncompressed=args.uncompressed, epoch=args.epoch)
@@ -455,8 +460,8 @@ if __name__ == "__main__":
     cat = rfn.drop_fields(cat, ['flags'])
     cat = rfn.append_fields(
         cat, ['ra', 'dec', 'coadd_id', 'band', 'unwise_detid', 'nm',
-              'primary', 'flags_unwise', 'flags_info'], 
-        [ra, dec, coadd_ids, bands, ids, nms, primary, flags_unwise, 
+              'primary', 'flags_unwise', 'flags_info'],
+        [ra, dec, coadd_ids, bands, ids, nms, primary, flags_unwise,
          flags_info])
 
     hdr['EXTNAME'] = 'PRIMARY'
@@ -488,7 +493,7 @@ if __name__ == "__main__":
         # must recast flags_infoim as a u1; unsigned isn't supported
         # in tables, but signed int8 isn't supported in CompImageHDU.
         # ugh.
-        hdulist.append(fits.CompImageHDU(flags_infoim.astype('u1'), 
+        hdulist.append(fits.CompImageHDU(flags_infoim.astype('u1'),
                                          hdr, **compkw))
         hdulist.append(fits.ImageHDU(psfstamp, None, name='psf'))
         hdulist.close(closed=True)
