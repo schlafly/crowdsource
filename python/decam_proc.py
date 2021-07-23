@@ -77,15 +77,18 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
         half = imded.shape[1] // 2
         imded[:, half:] |= extrabits['s7unstable']
     if maskgal:
-        import galaxy_mask
-        leda = getattr(read_data, 'leda', None)
-        if leda is None:
-            leda = galaxy_mask.read_leda_decaps()
-            read_data.leda = leda
-        gmsk = galaxy_mask.galaxy_mask(hdr,leda)
-        if numpy.any(gmsk):
-            imded |= (gmsk * extrabits['galaxy'])
-            imded |= (gmsk * crowdsource.nodeblend_maskbit)
+        if imh["WCSCAL"] == "Successful":
+            import galaxy_mask
+            leda = getattr(read_data, 'leda', None)
+            if leda is None:
+                leda = galaxy_mask.read_leda_decaps()
+                read_data.leda = leda
+            gmsk = galaxy_mask.galaxy_mask(hdr,leda)
+            if numpy.any(gmsk):
+                imded |= (gmsk * extrabits['galaxy'])
+                imded |= (gmsk * crowdsource.nodeblend_maskbit)
+        else:
+            print("WCSCAL Unsucessful, Skipping galaxy masking...")
     if maskdiffuse:
         import nebulosity_mask
         nebmod = getattr(read_data, 'nebmod', None)
