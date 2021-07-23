@@ -61,7 +61,8 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
     imded = 2**imded
     # flag 7 does not seem to indicate problems with the pixels.
     if wcutoff != 0.0:
-        print("weight_cutoff = {}".format(wcutoff))
+        if verbose:
+            print("weight_cutoff = {}".format(wcutoff))
     mzerowt = (((imded & ~(2**0 | 2**7)) != 0) |
                (imdew < wcutoff) | ~numpy.isfinite(imdew))
     if badpixmask is None:
@@ -88,7 +89,8 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
                 imded |= (gmsk * extrabits['galaxy'])
                 imded |= (gmsk * crowdsource.nodeblend_maskbit)
         else:
-            print("WCSCAL Unsucessful, Skipping galaxy masking...")
+            if verbose:
+                print("WCSCAL Unsucessful, Skipping galaxy masking...")
     if maskdiffuse:
         import nebulosity_mask
         nebmod = getattr(read_data, 'nebmod', None)
@@ -109,14 +111,15 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
             numpy.divide(nebprob[:,:,0] + gam*nebprob[:,:,1],eps + nebprob[:,:,1] + nebprob[:,:,2] + nebprob[:,:,3],out=decnum)
             nebmask = (decnum > alpha)
         else:
-            raise ValueError("contmask must be bool")
+            raise ValueError("Contmask must be bool")
 
         if numpy.any(nebmask):
             imded |= (nebmask * extrabits['diffuse'])
             imded |= (nebmask * (crowdsource.nodeblend_maskbit |
                                  crowdsource.sharp_maskbit))
-            print('Masking nebulosity fraction, %5.2f' % (
-                numpy.sum(nebmask)/1./numpy.sum(numpy.isfinite(nebmask))))
+            if verbose:
+                print('Masking nebulosity fraction, %5.2f' % (
+                    numpy.sum(nebmask)/1./numpy.sum(numpy.isfinite(nebmask))))
     if maskdiffuse:
         if contmask == True:
             return imdei, imdew, imded, nebmask, nebprob
@@ -137,30 +140,38 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
         pr = cProfile.Profile()
         pr.enable()
     if bin_weights_on == True:
-        print("caution, weights are binarized")
+        if verbose:
+            print("Caution, weights are binarized")
     with fits.open(imfn) as hdulist:
         extnames = [hdu.name for hdu in hdulist]
     if 'PRIMARY' not in extnames:
         raise ValueError('No PRIMARY header in file')
     prihdr = fits.getheader(imfn, extname='PRIMARY')
-    if 'CENTRA' in prihdr:
-        bstarfn = os.path.join(os.environ['DECAM_DIR'], 'data',
-                               'tyc2brighttrim.fits')
-        brightstars = fits.getdata(bstarfn)
-        from astropy.coordinates.angle_utilities import angular_separation
-        sep = angular_separation(numpy.radians(brightstars['ra']),
-                                 numpy.radians(brightstars['dec']),
-                                 numpy.radians(prihdr['CENTRA']),
-                                 numpy.radians(prihdr['CENTDEC']))
-        sep = numpy.degrees(sep)
-        m = sep < 3
-        brightstars = brightstars[m]
-        dmjd = prihdr['MJD-OBS'] - 51544.5  # J2000 MJD.
-        cosd = numpy.cos(numpy.radians(numpy.clip(brightstars['dec'],
-                                                  -89.9999, 89.9999)))
-        brightstars['ra'] += dmjd*brightstars['pmra']/365.25/cosd/1000/60/60
-        brightstars['dec'] += dmjd*brightstars['pmde']/365.25/1000/60/60
+    if not bmask_off:
+        if 'CENTRA' in prihdr:
+            bstarfn = os.path.join(os.environ['DECAM_DIR'], 'data',
+                                   'tyc2brighttrim.fits')
+            brightstars = fits.getdata(bstarfn)
+            from astropy.coordinates.angle_utilities import angular_separation
+            sep = angular_separation(numpy.radians(brightstars['ra']),
+                                     numpy.radians(brightstars['dec']),
+                                     numpy.radians(prihdr['CENTRA']),
+                                     numpy.radians(prihdr['CENTDEC']))
+            sep = numpy.degrees(sep)
+            m = sep < 3
+            brightstars = brightstars[m]
+            dmjd = prihdr['MJD-OBS'] - 51544.5  # J2000 MJD.
+            cosd = numpy.cos(numpy.radians(numpy.clip(brightstars['dec'],
+                                                      -89.9999, 89.9999)))
+            brightstars['ra'] += dmjd*brightstars['pmra']/365.25/cosd/1000/60/60
+            brightstars['dec'] += dmjd*brightstars['pmde']/365.25/1000/60/60
+        else:
+            if verbose:
+                print("WCSCAL Unsucessful, Skipping bright star masking...")
+            brightstars = None
     else:
+        if verbose:
+            print("No bright star masking check was performed!")
         brightstars = None
     filt = prihdr['filter']
     if outfn is None or len(outfn) == 0:
@@ -196,11 +207,13 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
             fwhms.append(hdr['FWHM'])
     fwhms = numpy.array(fwhms)
     fwhms = fwhms[fwhms > 0]
-    for name in extnames: #CCD for loop
+    # Main CCD for loop
+    for name in extnames:
         if name == 'PRIMARY':
             continue
         if extnamesdone is not None and name in extnamesdone:
-            print('Skipping %s, extension %s; already done.' % (imfn, name))
+            if verbose:
+                print('Skipping %s, extension %s; already done.' % (imfn, name))
             continue
         if verbose:
             print('Fitting %s, extension %s.' % (imfn, name))
@@ -237,6 +250,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                     xb, yb = xb[m], yb[m]
                     vmag = vmag[m]
                     blist = [xb, yb, vmag]
+                    dq = mask_very_bright_stars(dq, blist)
                 else:
                     blist = None
             else:
@@ -244,14 +258,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
         else:
             blist = None
 
-        if blist is not None:
-            if not bmask_off: #obviously we could save overhead by muting the blist code
-                #do that not at 3 am
-                dq = mask_very_bright_stars(dq, blist)
-            if bmask_off:
-                print("Bright stars were not masked")
-
-        # the actual fit
+        # the actual fit (which has a nested iterative fit)
         res = crowdsource.fit_im(im, psf, ntilex=4, ntiley=2,
                                  weight=wt, dq=dq,
                                  psfderiv=True, refit_psf=True,
@@ -271,6 +278,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
         decapsid[:] = (prihdr['EXPNUM']*2**32*2**7 +
                        hdr['CCDNUM']*2**32 +
                        numpy.arange(len(cat), dtype='i8'))
+        ### Data Saving
         if verbose:
             print('Writing %s %s, found %d sources.' % (outfn, name, len(cat)))
             sys.stdout.flush()
@@ -315,7 +323,6 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
             if contmask == True:
                 ## here we grossly reuse the arrays previously allocated
                 ## in order to save memory and allocation times
-
                 dq.fill(-1)
                 im.fill(0)
                 scale=8
