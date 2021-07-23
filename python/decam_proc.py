@@ -22,11 +22,18 @@ extrabits = ({'badpix': 2**20,
               'brightstar': 2**23,
               'galaxy': 2**24})
 
+#this is a convenience function for developer access, not used in processing
 def read(imfn, extname, **kw):
     ivarfn = imfn.replace('_ooi_', '_oow_')
     dqfn = imfn.replace('_ooi_', '_ood_')
     return read_data(imfn, ivarfn, dqfn, extname, **kw)
 
+#wrapper to make file reading easier using the decam pattern
+def decaps_filenames(survey,date,filtf,vers):
+    imfn = "/n/fink2/"+survey+"/c4d_"+date+"_ooi_"+filt+"_"+vers+".fits.fz"
+    ivarfn = "/n/fink2/"+survey+"/c4d_"+date+"_oow_"+filtf+"_"+vers+".fits.fz"
+    dqfn = "/n/fink2/"+survey+"/c4d_"+date+"_ood_"+filtf+"_"+vers+".fits.fz"
+    return imfn, ivarfn, dqfn
 
 def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
               maskdiffuse=True, corrects7=True,wcutoff=0.0,contmask=False,
@@ -126,11 +133,11 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
         return imdei, imdew, imded, nebmask, None
     return imdei, imdew, imded, None, None
 
-def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
+def process_image(survey, date, filtf, vers, outfn=None, overwrite=False,
                   outdir=None, verbose=False, nproc=numpy.inf, resume=False,
                   outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0,
                   bin_weights_on=False, plot=False, miniter=4, maxiter=10,titer_thresh=2,
-                  pixsz=9,contmask=False,bmask_off=False,maskgal=False):
+                  pixsz=9,contmask=False,bmask_off=False,maskgal=False,extnamelist=None):
     if profile:
         import cProfile
         import pstats
@@ -142,6 +149,8 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
     if bin_weights_on == True:
         if verbose:
             print("Caution, weights are binarized")
+
+    imfn, ivarfn, dqfn = decaps_filenames(survey,date,filtf,vers)
     with fits.open(imfn) as hdulist:
         extnames = [hdu.name for hdu in hdulist]
     if 'PRIMARY' not in extnames:
@@ -174,13 +183,14 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
             print("No bright star masking check was performed!")
         brightstars = None
     filt = prihdr['filter']
+    # cat filename handling
     if outfn is None or len(outfn) == 0:
         outfn = os.path.splitext(os.path.basename(imfn))[0]
         if outfn[-5:] == '.fits':
             outfn = outfn[:-5]
         outfn = outfn + '.cat.fits'
-    if outdir is not None:
-        outfn = os.path.join(outdir, outfn)
+    if outdirc is not None:
+        outfn = os.path.join(outdirc, outfn)
     if not resume or not os.path.exists(outfn):
         fits.writeto(outfn, None, prihdr, overwrite=overwrite)
         extnamesdone = None
@@ -195,9 +205,17 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                 continue
             extnamesdone.append(ext)
         hdulist.close()
-    if outmodelfn and (not resume or not os.path.exists(outmodelfn)):
+    # model filename handling
+    if outmodel:
+        outmodelfn = os.path.splitext(os.path.basename(imfn))[0]
+        if outmodelfn[-5:] == '.fits':
+            outmodelfn = outmodelfn[:-5]
+        outmodelfn = outmodelfn + '.mod.fits'
+    if outdirm is not None:
+        outmodelfn = os.path.join(outdirm, outmodelfn)
+    if outmodel and (not resume or not os.path.exists(outmodelfn)):
         fits.writeto(outmodelfn, None, prihdr, overwrite=overwrite)
-    count = 0
+    # fwhm scrape all the ccds
     fwhms = []
     for name in extnames:
         if name == 'PRIMARY':
@@ -207,6 +225,12 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
             fwhms.append(hdr['FWHM'])
     fwhms = numpy.array(fwhms)
     fwhms = fwhms[fwhms > 0]
+    # Prepare main CCD for loop
+    count = 0
+    if extnamelist is not None:
+        if verbose:
+            s = ("Only running CCD subset: ["+', '.join(['%s']*len(extnamelist))+"]") % tuple(extnamelist)
+            print(s)
     # Main CCD for loop
     for name in extnames:
         if name == 'PRIMARY':
@@ -214,6 +238,8 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
         if extnamesdone is not None and name in extnamesdone:
             if verbose:
                 print('Skipping %s, extension %s; already done.' % (imfn, name))
+            continue
+        if extnamelist is not None and name not in extnamelist:
             continue
         if verbose:
             print('Fitting %s, extension %s.' % (imfn, name))
@@ -305,7 +331,7 @@ def process_image(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
         hdulist.append(hdupsf) #append the psf field for the ccd
         hdulist.append(hducat) #append the cat field for the ccd
         hdulist.close(closed=True)
-        if outmodelfn:
+        if outmodel:
             modhdulist = fits.open(outmodelfn, mode='append')
             hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MOD'
             # RICE should be significantly better here and supported in
@@ -595,7 +621,6 @@ def decam_psf(filt, fwhm, pixsz = 9, nlinperpar = 3):
     tpsf.fitfun = partial(psfmod.fit_linear_static_wing, filter=filt, pixsz=pixsz)
     return tpsf
 
-
 def correct_sky_offset(im, weight=None):
     xx = numpy.arange(im.shape[0], dtype='f4')
     xx -= numpy.median(xx)
@@ -621,7 +646,6 @@ def correct_sky_offset(im, weight=None):
     im[:, half:] -= (par[0] + par[1]*xx)
     return im
 
-
 def mask_very_bright_stars(dq, blist):
     dq = dq.copy()
     maskradpermag = 50
@@ -639,21 +663,49 @@ def mask_very_bright_stars(dq, blist):
                              crowdsource.sharp_maskbit)
     return dq
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Fit DECam frame')
 
+    #Required file name information
+    parser.add_argument('survey', type=str, help='File name survey (decaps1/2)',required=True)
+    parser.add_argument('date', type=str, help='File name date',required=True)
+    parser.add_argument('filtf', type=str, help='File name filter',required=True)
+    parser.add_argument('vers', type=str, help='File name version',required=True)
+    #Optional file naming directions
     parser.add_argument('--outfn', '-o', type=str,
                         default=None, help='output file name')
-    parser.add_argument('--outmodelfn', '-m', type=str,
-                        default=None, help='output model file name')
-    parser.add_argument('--verbose', '-v', action='store_true')
-    parser.add_argument('--outdir', '-d', help='output directory',
+    parser.add_argument('--outmodel', '-m', action='store_true',
+                        default=False, help='output model file')
+
+    parser.add_argument('--outdirc', '-d', help='cat output directory',
                         type=str, default=None)
+    parser.add_argument('--outdirm', '-e', help='mod output directory',
+                        type=str, default=None)
+    #Run options
+    parser.add_argument('--verbose', '-v', action='store_true',
+                        help="prints lots of nice info to cmd line")
     parser.add_argument('--resume', '-r', action='store_true',
                         help='resume if file already exists')
+    parser.add_argument('--bmask_off', '-b', action='store_true',
+                        help='turn bright star masking off')
+    parser.add_argument('--maskgal', '-g', action='store_true',
+                        help='turn on galaxy masking from leda catalogue')
+    parser.add_argument('--no-mask-diffuse', action='store_true',
+                        help='turn off nebulosity masking')
+    parser.add_argument('--contmask', '-c', action='store_true',
+                        help='use continuous nebulosity masking model')
+    # Fast short run options
     parser.add_argument('--parallel', type=int,
                         default=1, help='num of parallel processors')
+    parser.add_argument('--ccd_num', type=int,
+                        default=numpy.inf, help='limit to num ccds run')
+    parser.add_argument('--ccdlist', nargs='+', default=None,
+                        help='limit run to subset of ccds listed')
+    #Diagnostic options
+    parser.add_argument('--plot_on', action='store_true',
+                        help='save psf diagonsitic plots at each titer')
+    parser.add_argument('--profile', '-p', action='store_true',
+                        help='print profiling statistics')
     parser.add_argument('--miniter', type=int,
                         default=4, help='min fit im iterations')
     parser.add_argument('--maxiter', type=int,
@@ -662,30 +714,16 @@ if __name__ == "__main__":
                         default=2, help='threshold for deblending increase')
     parser.add_argument('--pixsz', type=int,
                         default=9, help='size of pixelized psf stamp')
-    parser.add_argument('--ccd_num', type=int,
-                        default=numpy.inf, help='limit to num ccds run')
-    parser.add_argument('--profile', '-p', action='store_true',
-                        help='print profiling statistics')
-    parser.add_argument('--no-mask-diffuse', action='store_true',
-                        help='turn off nebulosity masking')
+    #Experimental options
     parser.add_argument('--wcutoff', type=float,
                         default=0.0, help='cutoff for inverse variances')
     parser.add_argument('--bin_weights_on', action='store_true',
                         help='make WLS depend on binary weights only')
-    parser.add_argument('--contmask', action='store_true',
-                        help='make WLS depend on binary weights only')
-    parser.add_argument('--plot_on', action='store_true',
-                        help='save psf diagonsitic plots at each titer')
-    parser.add_argument('--bmask_off', action='store_true',
-                        help='turn bright star masking off')
-    parser.add_argument('--maskgal', action='store_true',
-                        help='turn on galaxy masking from leda catalogue')
-    parser.add_argument('imfn', type=str, help='Image file name')
-    parser.add_argument('ivarfn', type=str, help='Inverse variance file name')
-    parser.add_argument('dqfn', type=str, help='Data quality file name')
+
+    #handle possible ccd level parallelization
     args = parser.parse_args()
     if args.parallel > 1:
-        process_image_p(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn,
+        process_image_p(args.survey, args.date, args.filtf, args.vers, outfn=args.outfn,
                       outmodelfn=args.outmodelfn,
                       verbose=args.verbose, outdir=args.outdir,
                       resume=args.resume, profile=args.profile,
@@ -693,9 +731,11 @@ if __name__ == "__main__":
                       bin_weights_on=args.bin_weights_on, num_procs=args.parallel,
                       nproc=args.ccd_num,plot=args.plot_on, miniter=args.miniter,
                       maxiter=args.maxiter, titer_thresh=args.titer_thresh,pixsz=args.pixsz,
-                      contmask=args.contmask,bmask_off=args.bmask_off,maskgal=args.maskgal)
+                      contmask=args.contmask,bmask_off=args.bmask_off,maskgal=args.maskgal
+                      extnamelist=args.ccdlist
+        )
     else:
-        process_image(args.imfn, args.ivarfn, args.dqfn, outfn=args.outfn,
+        process_image(args.survey, args.date, args.filtf, args.vers, outfn=args.outfn,
                       outmodelfn=args.outmodelfn,
                       verbose=args.verbose, outdir=args.outdir,
                       resume=args.resume, profile=args.profile,
@@ -703,4 +743,6 @@ if __name__ == "__main__":
                       bin_weights_on=args.bin_weights_on,nproc=args.ccd_num,
                       plot=args.plot_on,miniter=args.miniter,maxiter=args.maxiter,
                       titer_thresh=args.titer_thresh,pixsz=args.pixsz,
-                      contmask=args.contmask,bmask_off=args.bmask_off,maskgal=args.maskgal)
+                      contmask=args.contmask,bmask_off=args.bmask_off,maskgal=args.maskgal,
+                      extnamelist=args.ccdlist
+        )
