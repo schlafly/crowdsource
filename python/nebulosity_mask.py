@@ -112,16 +112,16 @@ def gen_prob(model, img):
                 x0,x1=np.clip([j0-1,j0+h-1],0,img.shape[0]-1)
                 y0,y1=np.clip([k0-1,k0+w-1],0,img.shape[1]-1)
 
-                mask[x0:x1, y0:y1,0] += pred[0]#*(pred[0]+eps)
-                mask[x0:x1, y0:y1,1] += pred[1]#*(pred[0]+eps)
-                mask[x0:x1, y0:y1,2] += pred[2]#*(pred[0]+eps)
-                mask[x0:x1, y0:y1,3] += pred[3]#*(pred[0]+eps)
-                mask_cnt[j0:j0+h, k0:k0+w] += 1 #(pred[0]+eps)
+                mask[x0:x1, y0:y1,0] += pred[0]*(pred[0]+eps)
+                mask[x0:x1, y0:y1,1] += pred[1]*(pred[0]+eps)
+                mask[x0:x1, y0:y1,2] += pred[2]*(pred[0]+eps)
+                mask[x0:x1, y0:y1,3] += pred[3]*(pred[0]+eps)
+                mask_cnt[j0:j0+h, k0:k0+w] += (pred[0]+eps)
     np.divide(mask,mask_cnt, out=mask)
-    filters.gaussian(mask[:,:,0], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,0])
-    filters.gaussian(mask[:,:,1], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,1])
-    filters.gaussian(mask[:,:,2], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,2])
-    filters.gaussian(mask[:,:,3], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,3])
+    # filters.gaussian(mask[:,:,0], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,0])
+    # filters.gaussian(mask[:,:,1], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,1])
+    # filters.gaussian(mask[:,:,2], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,2])
+    # filters.gaussian(mask[:,:,3], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,3])
     return mask
 
 def gen_mask_wise(model, img):
