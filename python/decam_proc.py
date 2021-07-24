@@ -38,7 +38,7 @@ def decaps_filenames(survey,date,filtf,vers):
 #actual read function
 def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
               maskdiffuse=True, corrects7=True,wcutoff=0.0,contmask=False,
-              maskgal=False):
+              maskgal=False,verbose=False):
     import warnings
     with warnings.catch_warnings(record=True) as wlist:
         warnings.simplefilter('always')
@@ -554,7 +554,7 @@ def sub_process(args):
         sys.stdout.flush()
         im, wt, dq, msk, prb = read_data(imfn, ivarfn, dqfn, name,
                                maskdiffuse=maskdiffuse,wcutoff=wcutoff,
-                               contmask=contmask,maskgal=maskgal)
+                               contmask=contmask,maskgal=maskgal,verbose=verbose)
     hdr = fits.getheader(imfn, extname=name)
     fwhm = hdr.get('FWHM', numpy.median(fwhms))
     if fwhm <= 0.:
@@ -657,7 +657,7 @@ def sub_process(args):
         for i in range(len(d)):
             cnts[i] = np.sum(np.equal(dq,i))
         cnts *= len(d)/(prb.shape[0]*prb.shape[1])
-    print(verbose)
+
     output = [hdr.tostring(), psf.serialize(), cat]
     if outmodel:
         output.append(modelim)
