@@ -116,7 +116,7 @@ def gen_prob(model, img):
                 mask[x0:x1, y0:y1,1] += pred[1]*(pred[0]+eps)
                 mask[x0:x1, y0:y1,2] += pred[2]*(pred[0]+eps)
                 mask[x0:x1, y0:y1,3] += pred[3]*(pred[0]+eps)
-                mask_cnt[j0:j0+h, k0:k0+w] += (pred[0]+eps)
+                mask_cnt[x0:x1, y0:y1] += (pred[0]+eps)
     np.divide(mask,mask_cnt, out=mask)
     # filters.gaussian(mask[:,:,0], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,0])
     # filters.gaussian(mask[:,:,1], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,1])
