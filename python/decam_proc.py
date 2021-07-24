@@ -536,7 +536,7 @@ def process_image_p(survey, date, filtf, vers, outfn=None, overwrite=False,
                 c1 = fits.Column(name='NLRE_keys0', array=np.array(s[6])[:,0], format='I')
                 c2 = fits.Column(name='NLRE_keys1', array=np.array(s[6])[:,1], format='I')
                 c3 = fits.Column(name='NLRE_vals', array=s[7], format='E')
-                modhdulist.append(fits.BinTableHDU.from_columns([c1, c2, c3],name=extname))
+                modhdulist.append(fits.BinTableHDU.from_columns([c1, c2, c3],name=hdr['EXTNAME']))
             modhdulist.close(closed=True)
 
     if profile:
