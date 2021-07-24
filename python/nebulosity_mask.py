@@ -122,7 +122,7 @@ def gen_prob(model, img):
     # filters.gaussian(mask[:,:,1], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,1])
     # filters.gaussian(mask[:,:,2], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,2])
     # filters.gaussian(mask[:,:,3], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,3])
-    return mask
+    return mask, mask_cnt
 
 def gen_mask_wise(model, img):
     _, h, w, _ = model.layers[0].input_shape
