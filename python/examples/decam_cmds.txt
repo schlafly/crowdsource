@@ -1,0 +1,63 @@
+python /n/holystore01/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --resume --wcutoff 2e-4 --parallel 15  --outmodelfn c4d_170420_040428_ooi_g_v1.mod.fits /n/fink2/decaps/c4d_170420_040428_ooi_g_v1.fits.fz /n/fink2/decaps/c4d_170420_040428_oow_g_v1.fits.fz /n/fink2/decaps/c4d_170420_040428_ood_g_v1.fits.fz
+
+python /n/holystore01/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --resume --wcutoff 2e-4 --parallel 15  --outmodelfn c4d_170119_085651_ooi_r_v1.mod.fits /n/fink2/decaps/c4d_170119_085651_ooi_r_v1.fits.fz /n/fink2/decaps/c4d_170119_085651_oow_r_v1.fits.fz /n/fink2/decaps/c4d_170119_085651_ood_r_v1.fits.fz
+
+python /n/holystore01/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --resume --wcutoff 2e-4 --parallel 15  --outmodelfn c4d_170429_043824_ooi_g_v1.mod.fits /n/fink2/decaps/c4d_170429_043824_ooi_g_v1.fits.fz /n/fink2/decaps/c4d_170429_043824_oow_g_v1.fits.fz /n/fink2/decaps/c4d_170429_043824_ood_g_v1.fits.fz
+
+python /n/holystore01/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --resume --wcutoff 2e-4 --parallel 15  --outmodelfn c4d_170420_040428_ooi_g_v1.mod.fits /n/fink2/decaps/c4d_170420_040428_ooi_g_v1.fits.fz /n/fink2/decaps/c4d_170420_040428_oow_g_v1.fits.fz /n/fink2/decaps/c4d_170420_040428_ood_g_v1.fits.fz
+
+python /n/holystore01/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --resume --wcutoff 2e-4 --parallel 15  --outmodelfn c4d_170420_015633_ooi_g_v1.mod.fits /n/fink2/decaps/c4d_170420_015633_ooi_g_v1.fits.fz /n/fink2/decaps/c4d_170420_015633_oow_g_v1.fits.fz /n/fink2/decaps/c4d_170420_015633_ood_g_v1.fits.fz
+
+---
+
+python /n/holystore01/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --resume --wcutoff 2e-4 --parallel 15  --outmodelfn 160314_051404.mod.fits /n/fink2/decaps/c4d_160314_051404_ooi_g_v1.fits.fz /n/fink2/decaps/c4d_160314_051404_oow_g_v1.fits.fz /n/fink2/decaps/c4d_160314_051404_ood_g_v1.fits.fz
+
+python /n/holystore01/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --resume --wcutoff 2e-4 --parallel 15  --outmodelfn 170430_064519.mod.fits /n/fink2/decaps/c4d_170430_064519_ooi_g_v1.fits.fz /n/fink2/decaps/c4d_170430_064519_oow_g_v1.fits.fz /n/fink2/decaps/c4d_170430_064519_ood_g_v1.fits.fz
+
+--
+
+python /n/holystore01/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --resume --wcutoff 2e-4 --parallel 15  --outmodelfn 170429_052519.mod.fits /n/fink2/decaps/c4d_170429_052519_ooi_g_v1.fits.fz /n/fink2/decaps/c4d_170429_052519_oow_g_v1.fits.fz /n/fink2/decaps/c4d_170429_052519_ood_g_v1.fits.fz
+
+
+--
+
+python /n/holystore01/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --contmask --resume --ccd_num 0 --outmodelfn c4d_170420_040428_ooi_g_v1.mod.fits /n/fink2/decaps/c4d_170420_040428_ooi_g_v1.fits.fz /n/fink2/decaps/c4d_170420_040428_oow_g_v1.fits.fz /n/fink2/decaps/c4d_170420_040428_ood_g_v1.fits.fz
+
+python /n/holystore01/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --contmask --resume --ccd_num 0 --outmodelfn c4d_160314_023235_ooi_r_v1.mod.fits /n/fink2/decaps/c4d_160314_023235_ooi_r_v1.fits.fz /n/fink2/decaps/c4d_160314_023235_oow_r_v1.fits.fz /n/fink2/decaps/c4d_160314_023235_ood_r_v1.fits.fz
+
+___
+
+cat decaps1_1per_run.txt | parallel --eta --delay 2 -j 32 --colsep ' ' --joblog log/runtask.log --resume "python /n/holystore01/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --contmask --resume --outdir cat --outmodelfn mod/{4} {1} {2} {3} >>log/{1/.}.log 2>&1"
+
+___
+
+python /n/holystore01/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --profile --contmask --resume --ccd_num 0 --outmodelfn c4d_170428_012649_ooi_g_v1.mod.fits /n/fink2/decaps/c4d_170428_012649_ooi_g_v1.fits.fz /n/fink2/decaps/c4d_170428_012649_oow_g_v1.fits.fz /n/fink2/decaps/c4d_170428_012649_ood_g_v1.fits.fz
+
+python /n/holystore01/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --contmask --resume --ccd_num 0 --outmodelfn c4d_170428_012649_ooi_g_v1.mod.fits /n/fink2/decaps/c4d_170428_012649_ooi_g_v1.fits.fz /n/fink2/decaps/c4d_170428_012649_oow_g_v1.fits.fz /n/fink2/decaps/c4d_170428_012649_ood_g_v1.fits.fz
+
+____
+
+python /n/holystore01/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --contmask --resume --outmodelfn c4d_170501_062350_ooi_i_v1.mod.fits /n/fink2/decaps/c4d_170501_062350_ooi_i_v1.fits.fz /n/fink2/decaps/c4d_170501_062350_oow_i_v1.fits.fz /n/fink2/decaps/c4d_170501_062350_ood_i_v1.fits.fz
+
+python /n/holystore01/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --resume --outmodelfn c4d_170501_062350_ooi_i_v1.mod.fits /n/fink2/decaps/c4d_170501_062350_ooi_i_v1.fits.fz /n/fink2/decaps/c4d_170501_062350_oow_i_v1.fits.fz /n/fink2/decaps/c4d_170501_062350_ood_i_v1.fits.fz
+
+python /n/holystore01/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --contmask --bmask_off --resume --outmodelfn c4d_170501_062350_ooi_i_v1.mod.fits /n/fink2/decaps/c4d_170501_062350_ooi_i_v1.fits.fz /n/fink2/decaps/c4d_170501_062350_oow_i_v1.fits.fz /n/fink2/decaps/c4d_170501_062350_ood_i_v1.fits.fz
+
+____
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --contmask --bmask_off --maskgal --resume --outmodelfn c4d_180511_080858_ooi_z_v1.mod.fits /n/fink2/decaps2/c4d_180511_080858_ooi_z_v1.fits.fz /n/fink2/decaps2/c4d_180511_080858_oow_z_v1.fits.fz /n/fink2/decaps2/c4d_180511_080858_ood_z_v1.fits.fz
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --contmask --bmask_off --resume --outmodelfn c4d_180511_080858_ooi_z_v1.mod.fits /n/fink2/decaps2/c4d_180511_080858_ooi_z_v1.fits.fz /n/fink2/decaps2/c4d_180511_080858_oow_z_v1.fits.fz /n/fink2/decaps2/c4d_180511_080858_ood_z_v1.fits.fz
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --verbose --contmask --bmask_off --resume --outmodelfn c4d_180511_080858_ooi_z_v1.mod.fits /n/fink2/decaps2/c4d_180511_080858_ooi_z_v1.fits.fz /n/fink2/decaps2/c4d_180511_080858_oow_z_v1.fits.fz /n/fink2/decaps2/c4d_180511_080858_ood_z_v1.fits.fz
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -b -g -m decaps2 180511_080858 z v1
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -b -g -m decaps2 180511_080858 z v1 --ccdlist S2
+___
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -b -g -m decaps2 180511_080858 z v1 --parallel 32
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -m --ccd_num 1 --outdirc cat --outdirm mod decaps2 180511_080858 z v1
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r --ccd_num 1 --outdirc cat --outdirm mod decaps2 180511_080858 z v1
