@@ -30,7 +30,7 @@ def read(imfn, extname, **kw):
 
 #wrapper to make file reading easier using the decam pattern
 def decaps_filenames(survey,date,filtf,vers):
-    imfn = "/n/fink2/"+survey+"/c4d_"+date+"_ooi_"+filt+"_"+vers+".fits.fz"
+    imfn = "/n/fink2/"+survey+"/c4d_"+date+"_ooi_"+filtf+"_"+vers+".fits.fz"
     ivarfn = "/n/fink2/"+survey+"/c4d_"+date+"_oow_"+filtf+"_"+vers+".fits.fz"
     dqfn = "/n/fink2/"+survey+"/c4d_"+date+"_ood_"+filtf+"_"+vers+".fits.fz"
     return imfn, ivarfn, dqfn
