@@ -118,11 +118,11 @@ def gen_prob(model, img):
                 mask[x0:x1, y0:y1,3] += pred[3]*(pred[0]+eps)
                 mask_cnt[x0:x1, y0:y1] += (pred[0]+eps)
     np.divide(mask,mask_cnt, out=mask)
-    # filters.gaussian(mask[:,:,0], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,0])
-    # filters.gaussian(mask[:,:,1], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,1])
-    # filters.gaussian(mask[:,:,2], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,2])
-    # filters.gaussian(mask[:,:,3], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,3])
-    return mask, mask_cnt
+    filters.gaussian(mask[:,:,0], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,0])
+    filters.gaussian(mask[:,:,1], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,1])
+    filters.gaussian(mask[:,:,2], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,2])
+    filters.gaussian(mask[:,:,3], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,3])
+    return mask
 
 def gen_mask_wise(model, img):
     _, h, w, _ = model.layers[0].input_shape
