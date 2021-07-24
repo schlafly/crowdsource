@@ -212,9 +212,8 @@ def process_image(survey, date, filtf, vers, outfn=None, overwrite=False,
         if outmodelfn[-5:] == '.fits':
             outmodelfn = outmodelfn[:-5]
         outmodelfn = outmodelfn + '.mod.fits'
-    if outdirm is not None:
-        outmodelfn = os.path.join(outdirm, outmodelfn)
-    if outmodel:
+        if outdirm is not None:
+            outmodelfn = os.path.join(outdirm, outmodelfn)
         if (not resume or not os.path.exists(outmodelfn)):
             fits.writeto(outmodelfn, None, prihdr, overwrite=overwrite)
     # fwhm scrape all the ccds
@@ -471,9 +470,8 @@ def process_image_p(survey, date, filtf, vers, outfn=None, overwrite=False,
         if outmodelfn[-5:] == '.fits':
             outmodelfn = outmodelfn[:-5]
         outmodelfn = outmodelfn + '.mod.fits'
-    if outdirm is not None:
-        outmodelfn = os.path.join(outdirm, outmodelfn)
-    if outmodel:
+        if outdirm is not None:
+            outmodelfn = os.path.join(outdirm, outmodelfn)
         if (not resume or not os.path.exists(outmodelfn)):
             fits.writeto(outmodelfn, None, prihdr, overwrite=overwrite)
     # fwhm scrape all the ccds
