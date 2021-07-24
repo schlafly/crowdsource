@@ -120,7 +120,7 @@ def tan_unit_vectors(rain,decin,l0,p0):
     ue = np.array([dx_dlambda/norm_lambda, dy_dlambda/norm_lambda])
     return un, ue
 
-def read_leda_decaps(fname = "/n/home12/saydjari/finksagescratch/Working/2021_07_15/leda_decaps.fits"):
+def read_leda_decaps(fname = "/n/home12/saydjari/finksage/Working/2021_07_15/leda_decaps.fits"):
     leda = fits.getdata(fname,1)
     ra = leda["ra"]
     dec = leda["dec"]
@@ -147,7 +147,7 @@ def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
     import csv
 
     ## hand removed galaxy list
-    frm = '/n/home12/saydjari/finksagescratch/Working/2021_07_15/hyperleda_to_remove.csv'
+    frm = '/n/home12/saydjari/finksage/Working/2021_07_15/hyperleda_to_remove.csv'
     with open(frm, newline='') as csvfile:
         data_rm = np.array(list(csv.reader(csvfile,quoting=csv.QUOTE_NONNUMERIC)))
 

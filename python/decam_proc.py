@@ -134,10 +134,11 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
     return imdei, imdew, imded, None, None
 
 def process_image(survey, date, filtf, vers, outfn=None, overwrite=False,
-                  outdir=None, verbose=False, nproc=numpy.inf, resume=False,
-                  outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0,
-                  bin_weights_on=False, plot=False, miniter=4, maxiter=10,titer_thresh=2,
-                  pixsz=9,contmask=False,bmask_off=False,maskgal=False,extnamelist=None):
+                  outmodel=False, outdirc=None, outdirm=None, verbose=False,
+                  resume=False, bmask_off=False,maskgal=False,maskdiffuse=True,
+                  contmask=False, nproc=numpy.inf,extnamelist=None,plot=False,
+                  profile=False, miniter=4, maxiter=10,titer_thresh=2,pixsz=9,
+                  wcutoff=0.0,bin_weights_on=False):
     if profile:
         import cProfile
         import pstats
@@ -332,7 +333,6 @@ def process_image(survey, date, filtf, vers, outfn=None, overwrite=False,
         hdulist.append(hducat) #append the cat field for the ccd
         hdulist.close(closed=True)
         if outmodel:
-            modhdulist = fits.open(outmodelfn, mode='append')
             hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MOD'
             # RICE should be significantly better here and supported in
             # mrdfits?, but compression_type=RICE_1 seems to cause
@@ -340,6 +340,7 @@ def process_image(survey, date, filtf, vers, outfn=None, overwrite=False,
             compkw = {'compression_type': 'GZIP_1',
                       'quantize_method': 1, 'quantize_level': -4,
                       'tile_size': modelim.shape}
+            modhdulist = fits.open(outmodelfn, mode='append')
             modhdulist.append(fits.CompImageHDU(modelim, hdr, **compkw))
             hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_SKY'
             modhdulist.append(fits.CompImageHDU(skyim, hdr, **compkw))
@@ -389,49 +390,66 @@ def process_image(survey, date, filtf, vers, outfn=None, overwrite=False,
         leftover = after - before
         print(leftover)
 
-def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
-                  outdir=None, verbose=False, nproc=numpy.inf, resume=False,
-                  outmodelfn=None, profile=False, maskdiffuse=True, wcutoff=0.0,
-                  bin_weights_on=False, plot=False, miniter=4, maxiter=10,titer_thresh=2, num_procs=1,pixsz=9):
+def process_image_p(survey, date, filtf, vers, outfn=None, overwrite=False,
+                  outmodel=False, outdirc=None, outdirm=None, verbose=False,
+                  resume=False, bmask_off=False,maskgal=False,maskdiffuse=True,
+                  contmask=False, nproc=numpy.inf,extnamelist=None,plot=False,
+                  profile=False, miniter=4, maxiter=10,titer_thresh=2,pixsz=9,
+                  wcutoff=0.0,bin_weights_on=False,num_procs=1):
+
     if profile:
         import cProfile
         import pstats
+        from guppy import hpy
+        hp = hpy()
+        before = hp.heap()
         pr = cProfile.Profile()
         pr.enable()
     if bin_weights_on == True:
-        print("caution, weights are binarized")
+        if verbose:
+            print("Caution, weights are binarized")
+
+    imfn, ivarfn, dqfn = decaps_filenames(survey,date,filtf,vers)
     with fits.open(imfn) as hdulist:
         extnames = [hdu.name for hdu in hdulist]
     if 'PRIMARY' not in extnames:
         raise ValueError('No PRIMARY header in file')
     prihdr = fits.getheader(imfn, extname='PRIMARY')
-    if 'CENTRA' in prihdr:
-        bstarfn = os.path.join(os.environ['DECAM_DIR'], 'data',
-                               'tyc2brighttrim.fits')
-        brightstars = fits.getdata(bstarfn)
-        from astropy.coordinates.angle_utilities import angular_separation
-        sep = angular_separation(numpy.radians(brightstars['ra']),
-                                 numpy.radians(brightstars['dec']),
-                                 numpy.radians(prihdr['CENTRA']),
-                                 numpy.radians(prihdr['CENTDEC']))
-        sep = numpy.degrees(sep)
-        m = sep < 3
-        brightstars = brightstars[m]
-        dmjd = prihdr['MJD-OBS'] - 51544.5  # J2000 MJD.
-        cosd = numpy.cos(numpy.radians(numpy.clip(brightstars['dec'],
-                                                  -89.9999, 89.9999)))
-        brightstars['ra'] += dmjd*brightstars['pmra']/365.25/cosd/1000/60/60
-        brightstars['dec'] += dmjd*brightstars['pmde']/365.25/1000/60/60
+    if not bmask_off:
+        if 'CENTRA' in prihdr:
+            bstarfn = os.path.join(os.environ['DECAM_DIR'], 'data',
+                                   'tyc2brighttrim.fits')
+            brightstars = fits.getdata(bstarfn)
+            from astropy.coordinates.angle_utilities import angular_separation
+            sep = angular_separation(numpy.radians(brightstars['ra']),
+                                     numpy.radians(brightstars['dec']),
+                                     numpy.radians(prihdr['CENTRA']),
+                                     numpy.radians(prihdr['CENTDEC']))
+            sep = numpy.degrees(sep)
+            m = sep < 3
+            brightstars = brightstars[m]
+            dmjd = prihdr['MJD-OBS'] - 51544.5  # J2000 MJD.
+            cosd = numpy.cos(numpy.radians(numpy.clip(brightstars['dec'],
+                                                      -89.9999, 89.9999)))
+            brightstars['ra'] += dmjd*brightstars['pmra']/365.25/cosd/1000/60/60
+            brightstars['dec'] += dmjd*brightstars['pmde']/365.25/1000/60/60
+        else:
+            if verbose:
+                print("WCSCAL Unsucessful, Skipping bright star masking...")
+            brightstars = None
     else:
+        if verbose:
+            print("No bright star masking check was performed!")
         brightstars = None
     filt = prihdr['filter']
+    # cat filename handling
     if outfn is None or len(outfn) == 0:
         outfn = os.path.splitext(os.path.basename(imfn))[0]
         if outfn[-5:] == '.fits':
             outfn = outfn[:-5]
         outfn = outfn + '.cat.fits'
-    if outdir is not None:
-        outfn = os.path.join(outdir, outfn)
+    if outdirc is not None:
+        outfn = os.path.join(outdirc, outfn)
     if not resume or not os.path.exists(outfn):
         fits.writeto(outfn, None, prihdr, overwrite=overwrite)
         extnamesdone = None
@@ -446,8 +464,17 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
                 continue
             extnamesdone.append(ext)
         hdulist.close()
-    if outmodelfn and (not resume or not os.path.exists(outmodelfn)):
+    # model filename handling
+    if outmodel:
+        outmodelfn = os.path.splitext(os.path.basename(imfn))[0]
+        if outmodelfn[-5:] == '.fits':
+            outmodelfn = outmodelfn[:-5]
+        outmodelfn = outmodelfn + '.mod.fits'
+    if outdirm is not None:
+        outmodelfn = os.path.join(outdirm, outmodelfn)
+    if outmodel and (not resume or not os.path.exists(outmodelfn)):
         fits.writeto(outmodelfn, None, prihdr, overwrite=overwrite)
+    # fwhm scrape all the ccds
     fwhms = []
     for name in extnames:
         if name == 'PRIMARY':
@@ -458,13 +485,13 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
     fwhms = numpy.array(fwhms)
     fwhms = fwhms[fwhms > 0]
 
-    newexts = numpy.setdiff1d(numpy.setdiff1d(extnames,extnamesdone),['PRIMARY'])
+    newexts = numpy.intersect1d(numpy.setdiff1d(numpy.setdiff1d(extnames,extnamesdone),['PRIMARY']),extnamelist)
 
     if nproc != numpy.inf:
         max_nproc = numpy.min([nproc, len(newexts)])
-        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh,pixsz) for n in newexts[0:max_nproc]]
+        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodel, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh,pixsz,maskgal,contmask) for n in newexts[0:max_nproc]]
     else:
-        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh,pixsz) for n in newexts]
+        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodel, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh,pixsz,maskgal,contmask) for n in newexts]
 
     result = pqdm(nargs, sub_process, n_jobs=num_procs)
 
@@ -483,7 +510,7 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
         hdulist.append(hducat) #append the cat field for the ccd
         hdulist.close(closed=True)
 
-        if outmodelfn:
+        if outmodel:
             hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MOD'
             compkw = {'compression_type': 'GZIP_1',
                       'quantize_method': 1, 'quantize_level': -4,
@@ -495,19 +522,31 @@ def process_image_p(imfn, ivarfn, dqfn, outfn=None, overwrite=False,
             modhdulist = fits.open(outmodelfn, mode='append')
             modhdulist.append(model)
             modhdulist.append(sky)
+            if s[5] is not None:
+                hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MSK'
+                modhdulist.append(s[5], hdr, **compkw))
+            if contmask == True:
+                c1 = fits.Column(name='NLRE_keys0', array=np.array(s[6])[:,0], format='I')
+                c2 = fits.Column(name='NLRE_keys1', array=np.array(s[6])[:,1], format='I')
+                c3 = fits.Column(name='NLRE_vals', array=s[7], format='E')
+                modhdulist.append(fits.BinTableHDU.from_columns([c1, c2, c3],name=extname))
             modhdulist.close(closed=True)
 
     if profile:
         pr.disable()
         pstats.Stats(pr).sort_stats('cumulative').print_stats(60)
+        after = hp.heap()
+        leftover = after - before
+        print(leftover)
 
 def sub_process(args):
-    name, outfn, imfn, ivarfn, dqfn, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh,pixsz = args
+    name, outfn, imfn, ivarfn, dqfn, outmodel, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh,pixsz,maskgal,contmask = args
     if verbose:
         print('Fitting %s, extension %s.' % (imfn, name))
         sys.stdout.flush()
-    im, wt, dq = read_data(imfn, ivarfn, dqfn, name,
-                           maskdiffuse=maskdiffuse,wcutoff=wcutoff)
+        im, wt, dq, msk, prb = read_data(imfn, ivarfn, dqfn, name,
+                               maskdiffuse=maskdiffuse,wcutoff=wcutoff,
+                               contmask=contmask,maskgal=maskgal)
     hdr = fits.getheader(imfn, extname=name)
     fwhm = hdr.get('FWHM', numpy.median(fwhms))
     if fwhm <= 0.:
@@ -518,43 +557,42 @@ def sub_process(args):
     psf = decam_psf(filt[0], fwhm, pixsz)
     wcs0 = wcs.WCS(hdr)
     from astropy.coordinates.angle_utilities import angular_separation
-    if brightstars is not None:
-        sep = angular_separation(numpy.radians(brightstars['ra']),
-                                 numpy.radians(brightstars['dec']),
-                                 numpy.radians(hdr['CENRA1']),
-                                 numpy.radians(hdr['CENDEC1']))
-        sep = numpy.degrees(sep)
-        m = sep < 0.2
-        # CCD is 4094 pix wide => everything is at most 0.15 deg
-        # from center
-        if numpy.any(m):
-            yb, xb = wcs0.all_world2pix(brightstars['ra'][m],
-                                        brightstars['dec'][m], 0)
-            vmag = brightstars['vtmag'][m]
-            # WCS module and I order x and y differently...
-            m = ((xb > 0) & (xb < im.shape[0]) &
-                 (yb > 0) & (yb < im.shape[1]))
+        if brightstars is not None:
+            sep = angular_separation(numpy.radians(brightstars['ra']),
+                                     numpy.radians(brightstars['dec']),
+                                     numpy.radians(hdr['CENRA1']),
+                                     numpy.radians(hdr['CENDEC1']))
+            sep = numpy.degrees(sep)
+            m = sep < 0.2
+            # CCD is 4094 pix wide => everything is at most 0.15 deg
+            # from center
             if numpy.any(m):
-                xb, yb = xb[m], yb[m]
-                vmag = vmag[m]
-                blist = [xb, yb, vmag]
+                yb, xb = wcs0.all_world2pix(brightstars['ra'][m],
+                                            brightstars['dec'][m], 0)
+                vmag = brightstars['vtmag'][m]
+                # WCS module and I order x and y differently...
+                m = ((xb > 0) & (xb < im.shape[0]) &
+                     (yb > 0) & (yb < im.shape[1]))
+                if numpy.any(m):
+                    xb, yb = xb[m], yb[m]
+                    vmag = vmag[m]
+                    blist = [xb, yb, vmag]
+                    dq = mask_very_bright_stars(dq, blist)
+                else:
+                    blist = None
             else:
                 blist = None
         else:
             blist = None
-    else:
-        blist = None
 
-    if blist is not None:
-        dq = mask_very_bright_stars(dq, blist)
-
-    # the actual fit
+    # the actual fit (which has a nested iterative fit)
     res = crowdsource.fit_im(im, psf, ntilex=4, ntiley=2,
                              weight=wt, dq=dq,
                              psfderiv=True, refit_psf=True,
                              verbose=verbose, blist=blist,
                              maxstars=320000,bin_weights_on=bin_weights_on,
-                             ccd=name, plot=plot,miniter=miniter, maxiter=maxiter,titer_thresh=titer_thresh)
+                             ccd=name, plot=plot, miniter=miniter, maxiter=maxiter,
+                             titer_thresh=titer_thresh,msk=msk,prb=prb)
 
     cat, modelim, skyim, psf = res
     if len(cat) > 0:
@@ -584,11 +622,44 @@ def sub_process(args):
     gain = hdr['GAINCRWD']*numpy.ones(len(cat), dtype='f4')
     cat = rec_append_fields(cat, ['ra', 'dec', 'decapsid', 'gain'],
                             [ra, dec, decapsid, gain])
+    if contmask == True:
+        ## here we grossly reuse the arrays previously allocated
+        ## in order to save memory and allocation times
+        dq.fill(-1)
+        im.fill(0)
+        scale=8
+        from ternary.helpers import simplex_iterator
+        d = []
+        dkey = []
+        for (i,j,k) in simplex_iterator(scale):
+            d.append([i/scale,j/scale,k/scale])
+            dkey.append((i,j))
+        darr = np.array(d)
 
-    if outmodelfn:
-        return [hdr.tostring(), psf.serialize(), cat, modelim, skyim]
+        prb[:,:,2] += prb[:,:,3]
+        prb[:,:,3] = 3
 
-    return [hdr.tostring(), psf.serialize(), cat]
+        for i in range(len(d)):
+            np.sum((prb[:,:,0:3]-darr[np.newaxis,np.newaxis,i,:])**2,axis=2,out=im)
+            np.less(im,prb[:,:,3],out=msk)
+            prb[:,:,3][msk] = im[msk]
+            np.copyto(dq,i,where=msk)
+
+        cnts = np.zeros(len(d))
+        for i in range(len(d)):
+            cnts[i] = np.sum(np.equal(dq,i))
+        cnts *= len(d)/(prb.shape[0]*prb.shape[1])
+
+    output = [hdr.tostring(), psf.serialize(), cat]
+    if outmodel:
+        output.append(modelim)
+        output.append(skyim)
+        output.append(msk)
+        if contmask:
+            output.append(dkey)
+            output.append(cnts)
+        return output
+    return output
 
 def decam_psf(filt, fwhm, pixsz = 9, nlinperpar = 3):
     if filt not in 'ugrizY':
@@ -723,26 +794,30 @@ if __name__ == "__main__":
     #handle possible ccd level parallelization
     args = parser.parse_args()
     if args.parallel > 1:
-        process_image_p(args.survey, args.date, args.filtf, args.vers, outfn=args.outfn,
-                      outmodelfn=args.outmodelfn,
-                      verbose=args.verbose, outdir=args.outdir,
-                      resume=args.resume, profile=args.profile,
-                      maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,
-                      bin_weights_on=args.bin_weights_on, num_procs=args.parallel,
-                      nproc=args.ccd_num,plot=args.plot_on, miniter=args.miniter,
-                      maxiter=args.maxiter, titer_thresh=args.titer_thresh,pixsz=args.pixsz,
-                      contmask=args.contmask,bmask_off=args.bmask_off,maskgal=args.maskgal
-                      extnamelist=args.ccdlist
+        process_image_p(args.survey, args.date, args.filtf, args.vers,
+                      outfn=args.outfn,outmodel=args.outmodel,
+                      outdirc=args.outdirc,outdirm=args.outdirm,
+                      verbose=args.verbose,resume=args.resume,
+                      bmask_off=args.bmask_off,maskgal=args.maskgal,
+                      maskdiffuse=(not args.no_mask_diffuse),
+                      contmask=args.contmask,num_procs=args.parallel,
+                      nproc=args.ccd_num,extnamelist=args.ccdlist,
+                      plot=args.plot_on,profile=args.profile,
+                      miniter=args.miniter,maxiter=args.maxiter,
+                      titer_thresh=args.titer_thresh,pixsz=args.pixsz,
+                      wcutoff=args.wcutoff,bin_weights_on=args.bin_weights_on
         )
     else:
-        process_image(args.survey, args.date, args.filtf, args.vers, outfn=args.outfn,
-                      outmodelfn=args.outmodelfn,
-                      verbose=args.verbose, outdir=args.outdir,
-                      resume=args.resume, profile=args.profile,
-                      maskdiffuse=(not args.no_mask_diffuse),wcutoff=args.wcutoff,
-                      bin_weights_on=args.bin_weights_on,nproc=args.ccd_num,
-                      plot=args.plot_on,miniter=args.miniter,maxiter=args.maxiter,
+        process_image(args.survey, args.date, args.filtf, args.vers,
+                      outfn=args.outfn,outmodel=args.outmodel,
+                      outdirc=args.outdirc,outdirm=args.outdirm,
+                      verbose=args.verbose,resume=args.resume,
+                      bmask_off=args.bmask_off,maskgal=args.maskgal,
+                      maskdiffuse=(not args.no_mask_diffuse),
+                      contmask=args.contmask,
+                      nproc=args.ccd_num,extnamelist=args.ccdlist,
+                      plot=args.plot_on,profile=args.profile,
+                      miniter=args.miniter,maxiter=args.maxiter,
                       titer_thresh=args.titer_thresh,pixsz=args.pixsz,
-                      contmask=args.contmask,bmask_off=args.bmask_off,maskgal=args.maskgal,
-                      extnamelist=args.ccdlist
+                      wcutoff=args.wcutoff,bin_weights_on=args.bin_weights_on
         )
