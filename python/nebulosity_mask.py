@@ -33,7 +33,6 @@ def equalize_histogram(img, n_bins=256, asinh_stretch=False):
 
     return img_equalized.reshape(img.shape), cdf
 
-
 def equalize_histogram_wise(img, n_bins=256, asinh_stretch=False):
     # tweaked version for WISE
     import numpy as np
@@ -54,7 +53,6 @@ def equalize_histogram_wise(img, n_bins=256, asinh_stretch=False):
     img_equalized = np.interp(img.flatten(), bins[:-1], cdf)
 
     return img_equalized.reshape(img.shape), cdf
-
 
 def load_model(fname_base):
     with open(fname_base + '.json', 'r') as f:
@@ -114,11 +112,11 @@ def gen_prob(model, img):
                 x0,x1=np.clip([j0-1,j0+h-1],0,img.shape[0]-1)
                 y0,y1=np.clip([k0-1,k0+w-1],0,img.shape[1]-1)
 
-                mask[x0:x1, y0:y1,0] += (pred[0]+eps)*pred[0]
-                mask[x0:x1, y0:y1,1] += (pred[0]+eps)*pred[1]
-                mask[x0:x1, y0:y1,2] += (pred[0]+eps)*pred[2]
-                mask[x0:x1, y0:y1,3] += (pred[0]+eps)*pred[3]
-                mask_cnt[j0:j0+h, k0:k0+w] += (pred[0]+eps)
+                mask[x0:x1, y0:y1,0] += pred[0]#*(pred[0]+eps)
+                mask[x0:x1, y0:y1,1] += pred[1]#*(pred[0]+eps)
+                mask[x0:x1, y0:y1,2] += pred[2]#*(pred[0]+eps)
+                mask[x0:x1, y0:y1,3] += pred[3]#*(pred[0]+eps)
+                mask_cnt[j0:j0+h, k0:k0+w] += 1 #(pred[0]+eps)
     np.divide(mask,mask_cnt, out=mask)
     filters.gaussian(mask[:,:,0], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,0])
     filters.gaussian(mask[:,:,1], sigma=(128),truncate=1,multichannel=False,output=mask[:,:,1])
