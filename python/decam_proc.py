@@ -502,6 +502,7 @@ def process_image_p(survey, date, filtf, vers, outfn=None, overwrite=False,
     result = pqdm(nargs, sub_process, n_jobs=num_procs)
 
     for s in result:
+        print(s[0])
         hdr = fits.Header.fromstring(s[0])
         fits.append(outfn, numpy.zeros(0), hdr) # append some header
 
