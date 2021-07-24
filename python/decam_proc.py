@@ -214,8 +214,9 @@ def process_image(survey, date, filtf, vers, outfn=None, overwrite=False,
         outmodelfn = outmodelfn + '.mod.fits'
     if outdirm is not None:
         outmodelfn = os.path.join(outdirm, outmodelfn)
-    if outmodel and (not resume or not os.path.exists(outmodelfn)):
-        fits.writeto(outmodelfn, None, prihdr, overwrite=overwrite)
+    if outmodel:
+        if (not resume or not os.path.exists(outmodelfn)):
+            fits.writeto(outmodelfn, None, prihdr, overwrite=overwrite)
     # fwhm scrape all the ccds
     fwhms = []
     for name in extnames:
@@ -472,8 +473,9 @@ def process_image_p(survey, date, filtf, vers, outfn=None, overwrite=False,
         outmodelfn = outmodelfn + '.mod.fits'
     if outdirm is not None:
         outmodelfn = os.path.join(outdirm, outmodelfn)
-    if outmodel and (not resume or not os.path.exists(outmodelfn)):
-        fits.writeto(outmodelfn, None, prihdr, overwrite=overwrite)
+    if outmodel:
+        if (not resume or not os.path.exists(outmodelfn)):
+            fits.writeto(outmodelfn, None, prihdr, overwrite=overwrite)
     # fwhm scrape all the ccds
     fwhms = []
     for name in extnames:
