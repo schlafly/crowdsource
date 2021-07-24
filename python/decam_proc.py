@@ -657,7 +657,7 @@ def sub_process(args):
         for i in range(len(d)):
             cnts[i] = np.sum(np.equal(dq,i))
         cnts *= len(d)/(prb.shape[0]*prb.shape[1])
-
+    print(verbose)
     output = [hdr.tostring(), psf.serialize(), cat]
     if outmodel:
         output.append(modelim)
