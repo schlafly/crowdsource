@@ -249,7 +249,7 @@ def process_image(survey, date, filtf, vers, outfn=None, overwrite=False,
             sys.stdout.flush()
         im, wt, dq, msk, prb = read_data(imfn, ivarfn, dqfn, name,
                                maskdiffuse=maskdiffuse,wcutoff=wcutoff,
-                               contmask=contmask,maskgal=maskgal)
+                               contmask=contmask,maskgal=maskgal,verbose=verbose)
         hdr = fits.getheader(imfn, extname=name)
         fwhm = hdr.get('FWHM', numpy.median(fwhms))
         if fwhm <= 0.:
@@ -552,9 +552,9 @@ def sub_process(args):
     if verbose:
         print('Fitting %s, extension %s.' % (imfn, name))
         sys.stdout.flush()
-        im, wt, dq, msk, prb = read_data(imfn, ivarfn, dqfn, name,
-                               maskdiffuse=maskdiffuse,wcutoff=wcutoff,
-                               contmask=contmask,maskgal=maskgal,verbose=verbose)
+    im, wt, dq, msk, prb = read_data(imfn, ivarfn, dqfn, name,
+                           maskdiffuse=maskdiffuse,wcutoff=wcutoff,
+                           contmask=contmask,maskgal=maskgal,verbose=verbose)
     hdr = fits.getheader(imfn, extname=name)
     fwhm = hdr.get('FWHM', numpy.median(fwhms))
     if fwhm <= 0.:
