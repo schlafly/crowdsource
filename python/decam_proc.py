@@ -524,7 +524,7 @@ def process_image_p(survey, date, filtf, vers, outfn=None, overwrite=False,
             modhdulist.append(sky)
             if s[5] is not None:
                 hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MSK'
-                modhdulist.append(s[5], hdr, **compkw))
+                modhdulist.append(s[5], hdr, **compkw)
             if contmask == True:
                 c1 = fits.Column(name='NLRE_keys0', array=np.array(s[6])[:,0], format='I')
                 c2 = fits.Column(name='NLRE_keys1', array=np.array(s[6])[:,1], format='I')
