@@ -488,9 +488,9 @@ def process_image_p(survey, date, filtf, vers, outfn=None, overwrite=False,
     fwhms = fwhms[fwhms > 0]
 
     newexts = numpy.setdiff1d(extnames,['PRIMARY'])
-    if extnamesdone not None:
+    if extnamesdone != None:
         newexts = numpy.setdiff1d(newexts,extnamesdone)
-    if extnamelist not None:
+    if extnamelist != None:
         newexts = numpy.intersect1d(newexts,extnamelist)
 
     if nproc != numpy.inf:
