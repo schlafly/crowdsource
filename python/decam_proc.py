@@ -557,33 +557,33 @@ def sub_process(args):
     psf = decam_psf(filt[0], fwhm, pixsz)
     wcs0 = wcs.WCS(hdr)
     from astropy.coordinates.angle_utilities import angular_separation
-        if brightstars is not None:
-            sep = angular_separation(numpy.radians(brightstars['ra']),
-                                     numpy.radians(brightstars['dec']),
-                                     numpy.radians(hdr['CENRA1']),
-                                     numpy.radians(hdr['CENDEC1']))
-            sep = numpy.degrees(sep)
-            m = sep < 0.2
-            # CCD is 4094 pix wide => everything is at most 0.15 deg
-            # from center
+    if brightstars is not None:
+        sep = angular_separation(numpy.radians(brightstars['ra']),
+                                 numpy.radians(brightstars['dec']),
+                                 numpy.radians(hdr['CENRA1']),
+                                 numpy.radians(hdr['CENDEC1']))
+        sep = numpy.degrees(sep)
+        m = sep < 0.2
+        # CCD is 4094 pix wide => everything is at most 0.15 deg
+        # from center
+        if numpy.any(m):
+            yb, xb = wcs0.all_world2pix(brightstars['ra'][m],
+                                        brightstars['dec'][m], 0)
+            vmag = brightstars['vtmag'][m]
+            # WCS module and I order x and y differently...
+            m = ((xb > 0) & (xb < im.shape[0]) &
+                 (yb > 0) & (yb < im.shape[1]))
             if numpy.any(m):
-                yb, xb = wcs0.all_world2pix(brightstars['ra'][m],
-                                            brightstars['dec'][m], 0)
-                vmag = brightstars['vtmag'][m]
-                # WCS module and I order x and y differently...
-                m = ((xb > 0) & (xb < im.shape[0]) &
-                     (yb > 0) & (yb < im.shape[1]))
-                if numpy.any(m):
-                    xb, yb = xb[m], yb[m]
-                    vmag = vmag[m]
-                    blist = [xb, yb, vmag]
-                    dq = mask_very_bright_stars(dq, blist)
-                else:
-                    blist = None
+                xb, yb = xb[m], yb[m]
+                vmag = vmag[m]
+                blist = [xb, yb, vmag]
+                dq = mask_very_bright_stars(dq, blist)
             else:
                 blist = None
         else:
             blist = None
+    else:
+        blist = None
 
     # the actual fit (which has a nested iterative fit)
     res = crowdsource.fit_im(im, psf, ntilex=4, ntiley=2,
