@@ -738,10 +738,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Fit DECam frame')
 
     #Required file name information
-    parser.add_argument('survey', type=str, help='File name survey (decaps1/2)',required=True)
-    parser.add_argument('date', type=str, help='File name date',required=True)
-    parser.add_argument('filtf', type=str, help='File name filter',required=True)
-    parser.add_argument('vers', type=str, help='File name version',required=True)
+    parser.add_argument('survey', type=str, help='File name survey (decaps1/2)')
+    parser.add_argument('date', type=str, help='File name date')
+    parser.add_argument('filtf', type=str, help='File name filter')
+    parser.add_argument('vers', type=str, help='File name version')
     #Optional file naming directions
     parser.add_argument('--outfn', '-o', type=str,
                         default=None, help='output file name')
