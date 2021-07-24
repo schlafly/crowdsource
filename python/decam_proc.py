@@ -381,7 +381,7 @@ def process_image(survey, date, filtf, vers, outfn=None, overwrite=False,
                 modhdulist.append(fits.BinTableHDU.from_columns([c1, c2, c3],name=extname))
             modhdulist.close(closed=True)
         count += 1
-        if count > nproc:
+        if count >= nproc:
             break
     if profile:
         pr.disable()
