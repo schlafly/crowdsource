@@ -11,7 +11,7 @@ import os, sys
 import tensorflow as tf
 from skimage import filters
 import resource
-
+# quiet all of the annoying tensorflow compile model warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 def equalize_histogram(img, n_bins=256, asinh_stretch=False):
@@ -144,7 +144,6 @@ def gen_mask_wise(model, img):
     mask[mask == 0] = 1  # nebulosity_light -> normal
     return mask
 
-
 def test_plots(model, imfns, extname='N26'):
     from matplotlib import pyplot as p
     from astropy.io import fits
@@ -165,7 +164,6 @@ def test_plots(model, imfns, extname='N26'):
             p.draw()
             p.savefig(os.path.basename(timfn)+'.mask.png')
 
-
 def main():
     from PIL import Image
 
@@ -179,7 +177,6 @@ def main():
     mask.save('toy_data/test_image_mask.png')
 
     return 0
-
 
 if __name__ == '__main__':
     main()

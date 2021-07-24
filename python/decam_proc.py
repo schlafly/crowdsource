@@ -35,6 +35,7 @@ def decaps_filenames(survey,date,filtf,vers):
     dqfn = "/n/fink2/"+survey+"/c4d_"+date+"_ood_"+filtf+"_"+vers+".fits.fz"
     return imfn, ivarfn, dqfn
 
+#actual read function
 def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
               maskdiffuse=True, corrects7=True,wcutoff=0.0,contmask=False,
               maskgal=False):
@@ -133,6 +134,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
         return imdei, imdew, imded, nebmask, None
     return imdei, imdew, imded, None, None
 
+#main serial processing function for all decam handling
 def process_image(survey, date, filtf, vers, outfn=None, overwrite=False,
                   outmodel=False, outdirc=None, outdirm=None, verbose=False,
                   resume=False, bmask_off=False,maskgal=False,maskdiffuse=True,
@@ -485,7 +487,11 @@ def process_image_p(survey, date, filtf, vers, outfn=None, overwrite=False,
     fwhms = numpy.array(fwhms)
     fwhms = fwhms[fwhms > 0]
 
-    newexts = numpy.intersect1d(numpy.setdiff1d(numpy.setdiff1d(extnames,extnamesdone),['PRIMARY']),extnamelist)
+    newexts = numpy.setdiff1d(extnames,['PRIMARY'])
+    if extnamesdone not None:
+        newexts = numpy.setdiff1d(newexts,extnamesdone)
+    if extnamelist not None:
+        newexts = numpy.intersect1d(newexts,extnamelist)
 
     if nproc != numpy.inf:
         max_nproc = numpy.min([nproc, len(newexts)])
