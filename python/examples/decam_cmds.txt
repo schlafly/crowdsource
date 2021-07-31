@@ -59,6 +59,8 @@ python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new
 
 python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -b -g -m decaps2 180511_080858 z v1 --parallel 32
 
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -b -g -m decaps2 180511_080858 z v1 --parallel 2 --miniter 1 --maxiter 1 --ccd_num 2
+
 python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -m --ccd_num 1 --outdirc cat --outdirm mod decaps2 180511_080858 z v1
 
 python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r --ccd_num 1 --outdirc cat --outdirm mod decaps2 180511_080858 z v1

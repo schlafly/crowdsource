@@ -29,10 +29,10 @@ def read(imfn, extname, **kw):
     return read_data(imfn, ivarfn, dqfn, extname, **kw)
 
 #wrapper to make file reading easier using the decam pattern
-def decaps_filenames(survey,date,filtf,vers):
-    imfn = "/n/fink2/"+survey+"/c4d_"+date+"_ooi_"+filtf+"_"+vers+".fits.fz"
-    ivarfn = "/n/fink2/"+survey+"/c4d_"+date+"_oow_"+filtf+"_"+vers+".fits.fz"
-    dqfn = "/n/fink2/"+survey+"/c4d_"+date+"_ood_"+filtf+"_"+vers+".fits.fz"
+def decaps_filenames(base,date,filtf,vers):
+    imfn = base+date+"_ooi_"+filtf+"_"+vers+".fits.fz"
+    ivarfn = base+date+"_oow_"+filtf+"_"+vers+".fits.fz"
+    dqfn = base+date+"_ood_"+filtf+"_"+vers+".fits.fz"
     return imfn, ivarfn, dqfn
 
 #actual read function
@@ -135,12 +135,12 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
     return imdei, imdew, imded, None, None
 
 #main serial processing function for all decam handling
-def process_image(survey, date, filtf, vers, outfn=None, overwrite=False,
+def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                   outmodel=False, outdirc=None, outdirm=None, verbose=False,
-                  resume=False, bmask_off=False,maskgal=False,maskdiffuse=True,
-                  contmask=False, nproc=numpy.inf,extnamelist=None,plot=False,
-                  profile=False, miniter=4, maxiter=10,titer_thresh=2,pixsz=9,
-                  wcutoff=0.0,bin_weights_on=False):
+                  resume=False, bmask_off=False, bmask_deblend=False,
+                  maskgal=False, maskdiffuse=True, contmask=False, nproc=numpy.inf,
+                  extnamelist=None, plot=False, profile=False, miniter=4,
+                  maxiter=10, titer_thresh=2, pixsz=9, wcutoff=0.0, bin_weights_on=False):
     if profile:
         import cProfile
         import pstats
@@ -153,7 +153,7 @@ def process_image(survey, date, filtf, vers, outfn=None, overwrite=False,
         if verbose:
             print("Caution, weights are binarized")
 
-    imfn, ivarfn, dqfn = decaps_filenames(survey,date,filtf,vers)
+    imfn, ivarfn, dqfn = decaps_filenames(base,date,filtf,vers)
     with fits.open(imfn) as hdulist:
         extnames = [hdu.name for hdu in hdulist]
     if 'PRIMARY' not in extnames:
@@ -279,7 +279,8 @@ def process_image(survey, date, filtf, vers, outfn=None, overwrite=False,
                     xb, yb = xb[m], yb[m]
                     vmag = vmag[m]
                     blist = [xb, yb, vmag]
-                    dq = mask_very_bright_stars(dq, blist)
+                    if not bmask_deblend:
+                        dq = mask_very_bright_stars(dq, blist)
                 else:
                     blist = None
             else:
@@ -392,12 +393,13 @@ def process_image(survey, date, filtf, vers, outfn=None, overwrite=False,
         leftover = after - before
         print(leftover)
 
-def process_image_p(survey, date, filtf, vers, outfn=None, overwrite=False,
+def process_image_p(base, date, filtf, vers, outfn=None, overwrite=False,
                   outmodel=False, outdirc=None, outdirm=None, verbose=False,
-                  resume=False, bmask_off=False,maskgal=False,maskdiffuse=True,
-                  contmask=False, nproc=numpy.inf,extnamelist=None,plot=False,
-                  profile=False, miniter=4, maxiter=10,titer_thresh=2,pixsz=9,
-                  wcutoff=0.0,bin_weights_on=False,num_procs=1):
+                  resume=False, bmask_off=False, bmask_deblend=False,
+                  maskgal=False, maskdiffuse=True, contmask=False, nproc=numpy.inf,
+                  extnamelist=None, plot=False, profile=False, miniter=4,
+                  maxiter=10,titer_thresh=2,pixsz=9, wcutoff=0.0,bin_weights_on=False,
+                  num_procs=1):
 
     if profile:
         import cProfile
@@ -411,7 +413,7 @@ def process_image_p(survey, date, filtf, vers, outfn=None, overwrite=False,
         if verbose:
             print("Caution, weights are binarized")
 
-    imfn, ivarfn, dqfn = decaps_filenames(survey,date,filtf,vers)
+    imfn, ivarfn, dqfn = decaps_filenames(base,date,filtf,vers)
     with fits.open(imfn) as hdulist:
         extnames = [hdu.name for hdu in hdulist]
     if 'PRIMARY' not in extnames:
@@ -495,9 +497,9 @@ def process_image_p(survey, date, filtf, vers, outfn=None, overwrite=False,
 
     if nproc != numpy.inf:
         max_nproc = numpy.min([nproc, len(newexts)])
-        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodel, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh,pixsz,maskgal,contmask) for n in newexts[0:max_nproc]]
+        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodel, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars,bmask_deblend, prihdr, plot, miniter, maxiter,titer_thresh,pixsz,maskgal,contmask) for n in newexts[0:max_nproc]]
     else:
-        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodel, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh,pixsz,maskgal,contmask) for n in newexts]
+        nargs = [(n, outfn, imfn, ivarfn, dqfn, outmodel, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars,bmask_deblend, prihdr, plot, miniter, maxiter,titer_thresh,pixsz,maskgal,contmask) for n in newexts]
 
     result = pqdm(nargs, sub_process, n_jobs=num_procs)
 
@@ -548,7 +550,7 @@ def process_image_p(survey, date, filtf, vers, outfn=None, overwrite=False,
         print(leftover)
 
 def sub_process(args):
-    name, outfn, imfn, ivarfn, dqfn, outmodel, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, prihdr, plot, miniter, maxiter,titer_thresh,pixsz,maskgal,contmask = args
+    name, outfn, imfn, ivarfn, dqfn, outmodel, outmodelfn, maskdiffuse, wcutoff, fwhms, bin_weights_on, verbose, filt, brightstars, bmask_deblend,prihdr, plot, miniter, maxiter,titer_thresh,pixsz,maskgal,contmask = args
     if verbose:
         print('Fitting %s, extension %s.' % (imfn, name))
         sys.stdout.flush()
@@ -585,7 +587,8 @@ def sub_process(args):
                 xb, yb = xb[m], yb[m]
                 vmag = vmag[m]
                 blist = [xb, yb, vmag]
-                dq = mask_very_bright_stars(dq, blist)
+                if not bmask_deblend:
+                    dq = mask_very_bright_stars(dq, blist)
             else:
                 blist = None
         else:
@@ -746,7 +749,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Fit DECam frame')
 
     #Required file name information
-    parser.add_argument('survey', type=str, help='File name survey (decaps1/2)')
+    parser.add_argument('base', type=str, help='Base names for files')
     parser.add_argument('date', type=str, help='File name date')
     parser.add_argument('filtf', type=str, help='File name filter')
     parser.add_argument('vers', type=str, help='File name version')
@@ -767,6 +770,8 @@ if __name__ == "__main__":
                         help='resume if file already exists')
     parser.add_argument('--bmask_off', '-b', action='store_true',
                         help='turn bright star masking off')
+    parser.add_argument('--bmask_deblend', '-q', action='store_true',
+                        help='turn deblending around bright stars back on')
     parser.add_argument('--maskgal', '-g', action='store_true',
                         help='turn on galaxy masking from leda catalogue')
     parser.add_argument('--no-mask-diffuse', action='store_true',
@@ -802,11 +807,12 @@ if __name__ == "__main__":
     #handle possible ccd level parallelization
     args = parser.parse_args()
     if args.parallel > 1:
-        process_image_p(args.survey, args.date, args.filtf, args.vers,
+        process_image_p(args.base, args.date, args.filtf, args.vers,
                       outfn=args.outfn,outmodel=args.outmodel,
                       outdirc=args.outdirc,outdirm=args.outdirm,
                       verbose=args.verbose,resume=args.resume,
-                      bmask_off=args.bmask_off,maskgal=args.maskgal,
+                      bmask_off=args.bmask_off,bmask_deblend=args.bmask_deblend,
+                      maskgal=args.maskgal,
                       maskdiffuse=(not args.no_mask_diffuse),
                       contmask=args.contmask,num_procs=args.parallel,
                       nproc=args.ccd_num,extnamelist=args.ccdlist,
@@ -816,11 +822,12 @@ if __name__ == "__main__":
                       wcutoff=args.wcutoff,bin_weights_on=args.bin_weights_on
         )
     else:
-        process_image(args.survey, args.date, args.filtf, args.vers,
+        process_image(args.base, args.date, args.filtf, args.vers,
                       outfn=args.outfn,outmodel=args.outmodel,
                       outdirc=args.outdirc,outdirm=args.outdirm,
                       verbose=args.verbose,resume=args.resume,
-                      bmask_off=args.bmask_off,maskgal=args.maskgal,
+                      bmask_off=args.bmask_off,bmask_deblend=args.bmask_deblend,
+                      maskgal=args.maskgal,
                       maskdiffuse=(not args.no_mask_diffuse),
                       contmask=args.contmask,
                       nproc=args.ccd_num,extnamelist=args.ccdlist,

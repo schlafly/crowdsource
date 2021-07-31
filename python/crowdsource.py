@@ -922,6 +922,8 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         # which is used for peak finding.  But the faint stars should
         # make little difference?
 
+    ### This is the end of the internal iteration loops
+    ### Prepares found sources for export
     stars = OrderedDict([('x', xa), ('y', ya), ('flux', flux), ('passno', passno)] +
                         [(f, stats[f]) for f in stats])
     dtypenames = list(stars.keys())
