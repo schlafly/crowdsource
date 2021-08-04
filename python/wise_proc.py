@@ -35,7 +35,7 @@ def wise_filename(basedir, coadd_id, band, _type, uncompressed=False,
     # -msk is special because the info for both W1/W2 is in same file
 
     fname = 'unwise-' + coadd_id
-    if _type is not 'msk':
+    if _type != 'msk':
         fname += '-w' + str(band)
 
     fname += ('-' + _type + '.fits')
@@ -44,7 +44,7 @@ def wise_filename(basedir, coadd_id, band, _type, uncompressed=False,
     if drop_first_dir:
         del path[1]
     if epoch >= 0:
-        epochstr = 'e%03d' % epoch if _type is not 'msk' else 'fulldepth'
+        epochstr = 'e%03d' % epoch if _type != 'msk' else 'fulldepth'
         path = path[0:1] + [epochstr] + path[1:]
     fname = os.path.join(*path)
 
@@ -321,7 +321,6 @@ def collapse_extraflags(bitmask, band):
 
 
 if __name__ == "__main__":
-
     try:
         print('Running on host: ' + str(os.environ.get('HOSTNAME')))
     except:
