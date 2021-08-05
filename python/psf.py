@@ -621,7 +621,8 @@ def select_stamps(psfstack, imstack, weightstack, shiftx, shifty):
     return okpsf
 
 
-def shift_and_normalize_stamps(psfstack, modstack, weightstack, shiftx, shifty):
+def shift_and_normalize_stamps(psfstack, modstack, weightstack,
+                               shiftx, shifty):
     xr = numpy.round(shiftx)
     yr = numpy.round(shifty)
     psfstack = psfstack.copy()
@@ -666,12 +667,8 @@ def extract_params_moffat(param, order):
              param[nperpar*2:nperpar*3])]
 
 
-def plot_psf_fits(stamp, x, y, model, isig, name=None):
+def plot_psf_fits(stamp, x, y, model, isig, name=None, save=False):
     from matplotlib import pyplot as p
-    import matplotlib
-    matplotlib.use('Agg')
-    p.style.use('dark_background')
-    import colorcet
 
     datim = numpy.zeros((stamp.shape[1]*10, stamp.shape[1]*10), dtype='f4')
     modim = numpy.zeros((stamp.shape[1]*10, stamp.shape[1]*10), dtype='f4')
@@ -690,19 +687,21 @@ def plot_psf_fits(stamp, x, y, model, isig, name=None):
             modim0 = model[ind, :, :]
             datim[i*sz:(i+1)*sz, j*sz:(j+1)*sz] = datim0-medmodel
             modim[i*sz:(i+1)*sz, j*sz:(j+1)*sz] = modim0-medmodel
-    p.figure(figsize=(24,8), dpi=150)
-    p.subplot(1,3,1)
-    p.imshow(datim, aspect='equal', vmin=-0.005, vmax=0.005, cmap='cet_bkr')
+    p.figure(figsize=(24, 8), dpi=150)
+    p.subplot(1, 3, 1)
+    p.imshow(datim, aspect='equal', vmin=-0.005, vmax=0.005, cmap='binary')
     p.title('Stamps')
-    p.subplot(1,3,2)
-    p.imshow(modim, aspect='equal', vmin=-0.005, vmax=0.005, cmap='cet_bkr')
+    p.subplot(1, 3, 2)
+    p.imshow(modim, aspect='equal', vmin=-0.005, vmax=0.005, cmap='binary')
     p.title('Model')
-    p.subplot(1,3,3)
-    p.imshow(datim-modim, aspect='equal', vmin=-0.001, vmax=0.001, cmap='cet_bkr')
+    p.subplot(1, 3, 3)
+    p.imshow(datim-modim, aspect='equal', vmin=-0.001, vmax=0.001,
+             cmap='binary')
     p.title('Residuals')
-    p.savefig('psf_'+name[1]+'_'+str(name[0])+'.png', dpi=150, bbox_inches='tight', pad_inches=0.1)
+    if save:
+        p.savefig('psf_'+name[1]+'_'+str(name[0])+'.png', dpi=150,
+                  bbox_inches='tight', pad_inches=0.1)
 
-    #numpy.savez('psf_loc',x=x,y=y)
 
 def plot_psf_fits_brightness(stamp, x, y, model, isig):
     from matplotlib import pyplot as p
@@ -998,7 +997,7 @@ def stamp2model(corn, normalize=-1):
 
 def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
                            isig, pixsz=9, nkeep=200, plot=False,
-                           filter='g', name=None, nlinperpar = 3):
+                           filter='g', name=None):
     # clean and shift the PSFs first.
     shiftx = xcen + x - numpy.round(x)
     shifty = ycen + y - numpy.round(y)
@@ -1090,6 +1089,7 @@ def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
     cornresid = modresid.render_model(xx, yy, deriv=False,
                                       stampsz=outstampsz)
     modtotal = stamp2model(cornwing+cornresid, normalize=normalizesz)
+    nlinperpar = 3
     extraparam = numpy.zeros(
         1, dtype=[('convparam', 'f4', 4*nlinperpar+1),
                   ('resparam', 'f4', (nlinperpar, pixsz, pixsz))])
