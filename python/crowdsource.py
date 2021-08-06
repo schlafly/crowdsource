@@ -704,8 +704,8 @@ def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
     return res
 
 
-
-def refit_psf_from_stamps(psf, x, y, xcen, ycen, stamps, name=None, plot=False):
+def refit_psf_from_stamps(psf, x, y, xcen, ycen, stamps, name=None,
+                          plot=False):
     # how far the centroids of the model PSFs would
     # be from (0, 0) if instantiated there
     # this initial definition includes the known offset (since
@@ -881,8 +881,8 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
             break
         guessflux = flux[:len(xa)*repeat:repeat]
         if refit_psf and len(xa) > 0:
-            psf, xa, ya = refit_psf_from_stamps(psf, xa, ya, xcen, ycen,
-                                                stamps, name=(titer, ccd), plot=plot)
+            psf, xa, ya = refit_psf_from_stamps(
+                psf, xa, ya, xcen, ycen, stamps, name=(titer, ccd), plot=plot)
         # enforce maximum step
         if derivcentroids:
             maxstep = 1
