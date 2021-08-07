@@ -581,7 +581,7 @@ def get_sizes(x, y, imbs, weight=None, blist=None):
     # but if there are too many of these, don't bother.
     cutoff2 = 20000
     if ((numpy.sum(peakbright > cutoff2) < numpy.sum(peakbright > cutoff)/2)
-        and (numpy.sum(peakbright > cutoff) > 100)):
+        or (numpy.sum(peakbright > cutoff) < 100)):
         sz[peakbright > cutoff2] = 149
     else:
         print('Too many bright sources, using smaller PSF stamp size...')
@@ -602,7 +602,7 @@ def get_sizes(x, y, imbs, weight=None, blist=None):
 def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
                  nskyx=0, nskyy=0, refit_psf=False,
                  niter=4, blist=None, derivcentroids=False, refit_sky=True,
-                 startsky=numpy.nan, msk=None, prb=None):
+                 startsky=numpy.nan):
     repeat = 3 if psfderiv else 1
     guessflux = None
     msky = 0
@@ -683,13 +683,6 @@ def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
                           stamps[0], stamps[2], stamps[3], stamps[1], flux)
     if dq is not None:
         stats['flags'] = extract_im(x, y, dq).astype('i4')
-    if msk is not None:
-        stats['neb_mask'] = extract_im(x, y, msk).astype('i4')
-    if prb is not None:
-        stats['pN'] = extract_im(x, y, prb[:, :, 0]).astype('f4')
-        stats['pL'] = extract_im(x, y, prb[:, :, 1]).astype('f4')
-        stats['pR'] = extract_im(x, y, prb[:, :, 2]).astype('f4')
-        stats['pE'] = extract_im(x, y, prb[:, :, 3]).astype('f4')
     stats['sky'] = extract_im(x, y, sky+msky).astype('f4')
 
     stars = OrderedDict([('x', x), ('y', y), ('flux', flux),
@@ -745,7 +738,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
            maxstars=40000, derivcentroids=False,
            ntilex=1, ntiley=1, fewstars=100, threshold=5,
            ccd=None, plot=False, titer_thresh=2, blendthreshu=2,
-           psfvalsharpcutfac=0.7, psfsharpsat=0.7, msk=None, prb=None):
+           psfvalsharpcutfac=0.7, psfsharpsat=0.7):
     if isinstance(weight, int):
         weight = numpy.ones_like(im)*weight
 
@@ -870,13 +863,6 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
                                   flux)
             if dq is not None:
                 stats['flags'] = extract_im(xa, ya, dq).astype('i4')
-            if msk is not None:
-                stats['neb_mask'] = extract_im(xa, ya, msk).astype('i4')
-            if prb is not None:
-                stats['pN'] = extract_im(xa, ya, prb[:, :, 0]).astype('f4')
-                stats['pL'] = extract_im(xa, ya, prb[:, :, 1]).astype('f4')
-                stats['pR'] = extract_im(xa, ya, prb[:, :, 2]).astype('f4')
-                stats['pE'] = extract_im(xa, ya, prb[:, :, 3]).astype('f4')
             stats['sky'] = extract_im(xa, ya, sky+msky).astype('f4')
             break
         guessflux = flux[:len(xa)*repeat:repeat]

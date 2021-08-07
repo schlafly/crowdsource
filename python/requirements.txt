@@ -6,7 +6,6 @@ guppy3
 keras
 matplotlib
 numpy
-pqdm
 scipy
 scikit-image
 python-ternary

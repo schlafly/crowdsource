@@ -11,11 +11,6 @@ from astropy.io import fits
 from astropy import wcs
 from functools import partial
 import crowdsource
-from pqdm.threads import pqdm
-# threads rather than processes seems to share memory better so that I don't
-# need to make a function with a million arguments.  This is probably worse
-# from a GIL perspective?  But we really shouldn't be spending much time in
-# pure python routines?
 
 badpixmaskfn = '/n/fink2/www/eschlafly/decam/badpixmasksefs_comp.fits'
 
@@ -102,6 +97,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
         else:
             if verbose:
                 print("WCSCAL Unsucessful, Skipping galaxy masking...")
+
     if maskdiffuse:
         import nebulosity_mask
         nebmod = getattr(read_data, 'nebmod', None)
@@ -112,18 +108,10 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
             read_data.nebmod = nebmod
         if not contmask:
             nebmask = nebulosity_mask.gen_mask(nebmod, imdei) == 0
+            nebprob = None
         else:
-            nebprob = nebulosity_mask.gen_prob(nebmod, imdei)
-            # hard code decision boundary for now
-            alpha = 2.0
-            gam = 0.5
-            eps = 1e-4
-            decnum = np.zeros((imdei.shape[0], imdei.shape[1]),
-                              dtype=numpy.float32)
-            numpy.divide(nebprob[:, :, 0] + gam*nebprob[:, :, 1],
-                         eps + nebprob[:, :, 1] + nebprob[:, :, 2] +
-                         nebprob[:, :, 3], out=decnum)
-            nebmask = (decnum > alpha)
+            nebmask, nebprob = nebulosity_mask.gen_prob(
+                nebmod, imdei, return_prob=True)
 
         if numpy.any(nebmask):
             imded |= (nebmask * extrabits['diffuse'])
@@ -132,11 +120,8 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
             if verbose:
                 print('Masking nebulosity fraction, %5.2f' % (
                     numpy.sum(nebmask)/1./numpy.sum(numpy.isfinite(nebmask))))
-    if maskdiffuse:
-        if contmask:
-            return imdei, imdew, imded, nebmask, nebprob
-        return imdei, imdew, imded, nebmask, None
-    return imdei, imdew, imded, None, None
+
+    return imdei, imdew, imded, nebprob
 
 
 # main processing function for all decam handling
@@ -229,27 +214,29 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
     fwhms = numpy.array(fwhms)
     fwhms = fwhms[fwhms > 0]
     # Prepare main CCD for loop
-    count = 0
     if extnamelist is not None:
         if verbose:
-            s = ("Only running CCD subset: [" +
-                 ', '.join(['%s']*len(extnamelist))+"]") % tuple(extnamelist)
+            s = ("Only running CCD subset: [%s]" %
+                 ', '.join(extnamelist))
             print(s)
 
+    if extnamesdone is not None:
+        alreadydone = [n for n in extnames if n in extnamesdone]
+        extnames = [n for n in extnames if n not in extnamesdone]
+        if verbose:
+            print('Skipping %s, extension %s; already done.' %
+                  (imfn, ' '.join(alreadydone)))
+    if extnamelist is not None:
+        extnames = [n for n in extnames if n in extnamelist]
+    extnames = [n for n in extnames if n != 'PRIMARY']
+    if np.isfinite(nproc):
+        extnames = extnames[:nproc]
+
     def process_one_ccd(name):
-        if name == 'PRIMARY':
-            return None
-        if extnamesdone is not None and name in extnamesdone:
-            if verbose:
-                print('Skipping %s, extension %s; already done.' %
-                      (imfn, name))
-            return None
-        if extnamelist is not None and name not in extnamelist:
-            return None
         if verbose:
             print('Fitting %s, extension %s.' % (imfn, name))
             sys.stdout.flush()
-        im, wt, dq, msk, prb = read_data(
+        im, wt, dq, prb = read_data(
             imfn, ivarfn, dqfn, name, maskdiffuse=maskdiffuse,
             wcutoff=wcutoff, contmask=contmask, maskgal=maskgal,
             verbose=verbose)
@@ -298,7 +285,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
             im, psf, ntilex=4, ntiley=2, weight=wt, dq=dq, psfderiv=True,
             refit_psf=True, verbose=verbose, blist=blist, maxstars=320000,
             ccd=name, plot=plot, miniter=miniter, maxiter=maxiter,
-            titer_thresh=titer_thresh, msk=msk, prb=prb)
+            titer_thresh=titer_thresh)
         cat, modelim, skyim, psf = res
         if len(cat) > 0:
             ra, dec = wcs0.all_pix2world(cat['y'], cat['x'], 0.)
@@ -322,20 +309,41 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
         else:
             hdr['FWHMCRWD'] = 0.0
         gain = hdr['GAINCRWD']*numpy.ones(len(cat), dtype='f4')
-        cat = rec_append_fields(cat, ['ra', 'dec', 'decapsid', 'gain'],
-                                [ra, dec, decapsid, gain])
-        return cat, modelim, skyim, psf, hdr, msk
+        if prb is not None:
+            for i in range(prb.shape[1]):
+                prnebdat = [
+                    crowdsource.extract_im(cat['x'], cat['y'], prb[:, i])
+                    for i in range(prb.shape[1])]
+                prnebnames = ['pN', 'pR', 'pL', 'pE']
+            else:
+                prnebdat = []
+                prnebnames = []
+        cat = rec_append_fields(
+            cat,
+            ['ra', 'dec', 'decapsid', 'gain'] + prnebnames,
+            [ra, dec, decapsid, gain] + prnebdat)
+        msk = (dq & extrabits['diffuse']) != 0
+        return cat, modelim, skyim, psf, hdr, msk, name
 
     # Main CCD for loop
     if nthreads > 1:
-        iterator = pqdm(extnames, process_one_ccd, n_jobs=nthreads)
+        import concurrent.futures
+        pool = concurrent.futures.ThreadPoolExecutor(max_workers=nthreads)
+        iterator = concurrent.futures.as_completed(
+            (pool.submit(process_one_ccd, x) for x in extnames))
     else:
         iterator = (process_one_ccd(x) for x in extnames)
 
     for res in iterator:
+        if nthreads > 1:
+            try:
+                res = res.result()
+            except Exception as e:
+                print('Exception running ccd', e)
+                continue
         if res is None:  # no need to process this extension.
             continue
-        cat, modelim, skyim, psf, hdr, msk = res
+        cat, modelim, skyim, psf, hdr, msk, name = res
         # Data Saving
         if verbose:
             print('Writing %s %s, found %d sources.' % (outfn, name, len(cat)))
@@ -399,9 +407,6 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
             #     c3 = fits.Column(name='NLRE_vals', array=cnts, format='E')
             #     modhdulist.append(fits.BinTableHDU.from_columns([c1, c2, c3],name=extname))
             modhdulist.close(closed=True)
-        count += 1
-        if count >= nproc:
-            break
     if profile:
         pr.disable()
         pstats.Stats(pr).sort_stats('cumulative').print_stats(60)
