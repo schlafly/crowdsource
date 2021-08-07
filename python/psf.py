@@ -1132,7 +1132,7 @@ def linear_static_wing_from_record(record, filter='g'):
 
 def wise_psf_fit(x, y, xcen, ycen, stamp, imstamp, modstamp,
                  isig, pixsz=9, nkeep=200, plot=False,
-                 psfstamp=None, grid=False):
+                 psfstamp=None, grid=False, name=None):
     if psfstamp is None:
         raise ValueError('psfstamp must be set')
     # clean and shift the PSFs first.

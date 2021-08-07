@@ -310,10 +310,10 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
             hdr['FWHMCRWD'] = 0.0
         gain = hdr['GAINCRWD']*numpy.ones(len(cat), dtype='f4')
         if prb is not None:
-            for i in range(prb.shape[1]):
+            for i in range(prb.shape[2]):
                 prnebdat = [
-                    crowdsource.extract_im(cat['x'], cat['y'], prb[:, i])
-                    for i in range(prb.shape[1])]
+                    crowdsource.extract_im(cat['x'], cat['y'], prb[:, :, i])
+                    for i in range(prb.shape[2])]
                 prnebnames = ['pN', 'pR', 'pL', 'pE']
             else:
                 prnebdat = []
