@@ -818,10 +818,13 @@ def fit_variable_moffat_psf(x, y, xcen, ycen, stamp, imstamp, modstamp,
     fullparam[3*nperpar:(3+pixsz**2)*nperpar] = resparam.reshape(-1)
 
     psf = make_full_psf_model(fullparam[:-1], order, pixsz)
-    if plot:
+    if plot != 0:
         norm = fullparam[-1]
         modstamps = norm*psf.render_model(x, y, stampsz=stamp.shape[-1])
-        plot_psf_fits(stamp, x, y, modstamps, isig, name=name)
+        if plot == 1:
+            plot_psf_fits(stamp, x, y, modstamps, isig, name=name)
+        else:
+            plot_psf_fits(stamp, x, y, modstamps, isig, name=name, save=True)
     return psf
 
 
@@ -1097,10 +1100,13 @@ def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
     extraparam['resparam'][0, 0:resparam.shape[0], :, :] = resparam
     modtotal.extraparam = extraparam
 
-    if plot:
+    if plot != 0:
         modstamps = modtotal.render_model(x, y, deriv=False,
                                           stampsz=stamp.shape[-1])
-        plot_psf_fits(stamp, x, y, modstamps, isig, name=name)
+        if plot == 1:
+            plot_psf_fits(stamp, x, y, modstamps, isig, name=name)
+        else:
+            plot_psf_fits(stamp, x, y, modstamps, isig, name=name, save=True)
     return modtotal
 
 
