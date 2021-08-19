@@ -310,20 +310,21 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
             hdr['FWHMCRWD'] = 0.0
         gain = hdr['GAINCRWD']*numpy.ones(len(cat), dtype='f4')
         if prb is not None:
-            for i in range(prb.shape[2]):
-                prnebdat = [
-                    crowdsource.extract_im(cat['x'], cat['y'], prb[:, :, i])
-                    for i in range(prb.shape[2])]
-                prnebnames = ['pN', 'pR', 'pL', 'pE']
-            else:
-                prnebdat = []
-                prnebnames = []
+            prnebdat = [
+                crowdsource.extract_im(cat['x'], cat['y'], prb[:, :, i])
+                for i in range(prb.shape[2])]
+            prnebnames = ['pN', 'pR', 'pL', 'pE']
+            prbexport = zoom(prb,(1/4,1/4,1),order=3)
+        else:
+            prnebdat = []
+            prnebnames = []
+            prbexport = None
         cat = rec_append_fields(
             cat,
             ['ra', 'dec', 'decapsid', 'gain'] + prnebnames,
             [ra, dec, decapsid, gain] + prnebdat)
         msk = (dq & extrabits['diffuse']) != 0
-        return cat, modelim, skyim, psf, hdr, msk, name
+        return cat, modelim, skyim, psf, hdr, msk, prbexport, name
 
     # Main CCD for loop
     if nthreads > 1:
@@ -343,7 +344,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                 continue
         if res is None:  # no need to process this extension.
             continue
-        cat, modelim, skyim, psf, hdr, msk, name = res
+        cat, modelim, skyim, psf, hdr, msk, prbexport, name = res
         # Data Saving
         if verbose:
             print('Writing %s %s, found %d sources.' % (outfn, name, len(cat)))
@@ -374,38 +375,11 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                 hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MSK'
                 modhdulist.append(fits.CompImageHDU(msk.astype('i4'), hdr,
                                                     **compkw))
-            # if contmask == True:
-            #     ## here we grossly reuse the arrays previously allocated
-            #     ## in order to save memory and allocation times
-            #     dq.fill(-1)
-            #     im.fill(0)
-            #     scale=8
-            #     from ternary.helpers import simplex_iterator
-            #     d = []
-            #     dkey = []
-            #     for (i,j,k) in simplex_iterator(scale):
-            #         d.append([i/scale,j/scale,k/scale])
-            #         dkey.append((i,j))
-            #     darr = np.array(d)
-
-            #     prb[:,:,2] += prb[:,:,3]
-            #     prb[:,:,3] = 3
-
-            #     for i in range(len(d)):
-            #         np.sum((prb[:,:,0:3]-darr[np.newaxis,np.newaxis,i,:])**2,axis=2,out=im)
-            #         np.less(im,prb[:,:,3],out=msk)
-            #         prb[:,:,3][msk] = im[msk]
-            #         np.copyto(dq,i,where=msk)
-
-            #     cnts = np.zeros(len(d))
-            #     for i in range(len(d)):
-            #         cnts[i] = np.sum(np.equal(dq,i))
-            #     cnts *= len(d)/(prb.shape[0]*prb.shape[1])
-            #     extname = hdr['EXTNAME'][:-4] + '_NLRE'
-            #     c1 = fits.Column(name='NLRE_keys0', array=np.array(dkey)[:,0], format='I')
-            #     c2 = fits.Column(name='NLRE_keys1', array=np.array(dkey)[:,1], format='I')
-            #     c3 = fits.Column(name='NLRE_vals', array=cnts, format='E')
-            #     modhdulist.append(fits.BinTableHDU.from_columns([c1, c2, c3],name=extname))
+            if contmask == True:
+                prnebnames = ['pN', 'pR', 'pL', 'pE']
+                for i in range(prbexport.shape[2]):
+                    hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_' + prnebnames[i]
+                    modhdulist.append(fits.CompImageHDU(prbexport[:,:,i], hdr, **compkw))
             modhdulist.close(closed=True)
     if profile:
         pr.disable()
