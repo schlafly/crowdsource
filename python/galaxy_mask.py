@@ -144,6 +144,7 @@ def read_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
 def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
     ra, dec, theta, diam, ba = read_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz")
     import csv
+    from astropy import units as u
 
     ## hand removed galaxy list
     frm = '/n/home12/saydjari/finksage/Working/2021_07_15/hyperleda_to_remove.csv'
