@@ -699,6 +699,9 @@ def plot_psf_fits(stamp, x, y, model, isig, name=None, save=False):
              cmap='binary')
     p.title('Residuals')
     if save:
+        import matplotlib
+        matplotlib.use('Agg')
+        p.style.use('dark_background')
         p.savefig('psf_'+name[1]+'_'+str(name[0])+'.png', dpi=150,
                   bbox_inches='tight', pad_inches=0.1)
 
