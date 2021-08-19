@@ -4,7 +4,6 @@ from astropy.utils.exceptions import AstropyWarning
 from astropy.modeling.models import Ellipse2D
 from astropy.wcs import Wcsprm, WCS
 from astropy.coordinates import SkyCoord
-from pydl.pydlutils import spheregroup
 import numpy as np
 
 def galaxy_mask(header,leda):
@@ -153,13 +152,15 @@ def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
 
     ra_bad = data_rm[:,0]
     dec_bad = data_rm[:,1]
-    sphout = spheregroup.spherematch(ra_bad,dec_bad,ra,dec,1.0/3600.0)
+    c_bad = SkyCoord(ra=ra_bad*u.deg, dec=dec_bad*u.deg)
+    c = SkyCoord(ra=ra*u.deg, dec=dec*u.deg)
+    idx_bad, idx, d2d, d3d = c_bad.search_around_sky(c, 1*u.arcsec)
 
-    assert ra_bad.shape[0] == sphout[0].shape[0]
-    assert np.max(sphout[2]) <= 1e-7
+    assert ra_bad.shape[0] == idx_bad.shape[0]
+    assert np.max(d2d.to(u.deg).value) <= 1e-7
 
     mask1d = np.ones(ra.shape,dtype=bool)
-    mask1d[sphout[1]] = False
+    mask1d[idx] = False
 
     #drop all the hand removed galaxies
     ra = ra[mask1d]
@@ -177,12 +178,13 @@ def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
     dec_mod = data_mod[:,1]
     diam_mod = data_mod[:,2]
 
-    sphout = spheregroup.spherematch(ra_mod,dec_mod,ra,dec,1.0/3600.0)
+    c_mod = SkyCoord(ra=ra_mod*u.deg, dec=dec_mod*u.deg)
+    idx_mod, idx, d2d, d3d = c_mod.search_around_sky(c, 1*u.arcsec)
 
-    assert ra_bad1.shape[0] == sphout1[2].shape[0]
-    assert np.max(sphout1[2]) <= 1e-7
+    assert ra_mod.shape[0] == idx_mod.shape[0]
+    assert np.max(d2d.to(u.deg).value)) <= 1e-7
 
-    diam[sphout1[1]] = diam_mod[sphout1[0]]/3600
+    diam[idx] = diam_mod[idx_mod]/3600
 
 
     return

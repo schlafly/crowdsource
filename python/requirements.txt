@@ -2,14 +2,11 @@
 ####### requirements.txt #######
 #
 astropy
-colorcet
 guppy3
 keras
 matplotlib
 numpy
-pqdm
 scipy
-pydl
 scikit-image
 python-ternary
 tensorflow >= 2
