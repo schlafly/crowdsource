@@ -532,8 +532,9 @@ if __name__ == "__main__":
     parser.add_argument('--ccdlist', nargs='+', default=None,
                         help='limit run to subset of ccds listed')
     # Diagnostic options
-    parser.add_argument('--plot_on', action='store_true',
-                        help='plot psf diagonsitic plots at each titer')
+    parser.add_argument('--plot_on', type=int,
+                        default=0, help='plot psf diagonsitic plots at each titer; \
+                        0 off, 1 interactive, 2 save')
     parser.add_argument('--profile', '-p', action='store_true',
                         help='print profiling statistics')
     parser.add_argument('--miniter', type=int,
