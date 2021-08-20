@@ -125,6 +125,120 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
     return imdei, imdew, imded, nebprob
 
 
+def process_one_ccd(name, bigdict):
+    imfn = bigdict['imfn']
+    ivarfn = bigdict['ivarfn']
+    dqfn = bigdict['dqfn']
+    maskdiffuse = bigdict['maskdiffuse']
+    maskgal = bigdict['maskgal']
+    verbose = bigdict['verbose']
+    wcutoff = bigdict['wcutoff']
+    contmask = bigdict['contmask']
+    fwhms = bigdict['fwhms']
+    filt = bigdict['filt']
+    pixsz = bigdict['pixsz']
+    brightstars = bigdict['brightstars']
+    bmask_deblend = bigdict['bmask_deblend']
+    plot = bigdict['plot']
+    miniter = bigdict['miniter']
+    maxiter = bigdict['maxiter']
+    titer_thresh = bigdict['titer_thresh']
+    expnum = bigdict['expnum']
+    if verbose:
+        print('Fitting %s, extension %s.' % (imfn, name))
+        sys.stdout.flush()
+    im, wt, dq, prb = read_data(
+        imfn, ivarfn, dqfn, name, maskdiffuse=maskdiffuse,
+        wcutoff=wcutoff, contmask=contmask, maskgal=maskgal,
+        verbose=verbose)
+    hdr = fits.getheader(imfn, extname=name)
+    fwhm = hdr.get('FWHM', numpy.median(fwhms))
+    if fwhm <= 0.:
+        fwhm = 4.
+    fwhmmn, fwhmsd = numpy.mean(fwhms), numpy.std(fwhms)
+    if fwhmsd > 0.4:
+        fwhm = fwhmmn
+    psf = decam_psf(filt[0], fwhm, pixsz=pixsz)
+    wcs0 = wcs.WCS(hdr)
+    from astropy.coordinates.angle_utilities import angular_separation
+    if brightstars is not None:
+        raccdcen, decccdcen = wcs0.all_pix2world(
+            im.shape[1]//2, im.shape[0]//2, 0)
+        sep = angular_separation(numpy.radians(brightstars['ra']),
+                                 numpy.radians(brightstars['dec']),
+                                 numpy.radians(raccdcen),
+                                 numpy.radians(decccdcen))
+        sep = numpy.degrees(sep)
+        m = sep < 0.2
+        # CCD is 4094 pix wide => everything is at most 0.15 deg
+        # from center
+        if numpy.any(m):
+            yb, xb = wcs0.all_world2pix(brightstars['ra'][m],
+                                        brightstars['dec'][m], 0)
+            vmag = brightstars['vtmag'][m]
+            # WCS module and I order x and y differently...
+            m = ((xb > 0) & (xb < im.shape[0]) &
+                 (yb > 0) & (yb < im.shape[1]))
+            if numpy.any(m):
+                xb, yb = xb[m], yb[m]
+                vmag = vmag[m]
+                blist = [xb, yb, vmag]
+                if not bmask_deblend:
+                    dq = mask_very_bright_stars(dq, blist)
+            else:
+                blist = None
+        else:
+            blist = None
+    else:
+        blist = None
+
+    # the actual fit (which has a nested iterative fit)
+    res = crowdsource.fit_im(
+        im, psf, ntilex=4, ntiley=2, weight=wt, dq=dq, psfderiv=True,
+        refit_psf=True, verbose=verbose, blist=blist, maxstars=320000,
+        ccd=name, plot=plot, miniter=miniter, maxiter=maxiter,
+        titer_thresh=titer_thresh)
+    cat, modelim, skyim, psf = res
+    if len(cat) > 0:
+        ra, dec = wcs0.all_pix2world(cat['y'], cat['x'], 0.)
+    else:
+        ra = numpy.zeros(0, dtype='f8')
+        dec = numpy.zeros(0, dtype='f8')
+    from numpy.lib.recfunctions import rec_append_fields
+    decapsid = numpy.zeros(len(cat), dtype='i8')
+    decapsid[:] = (expnum*2**32*2**7 +
+                   hdr['CCDNUM']*2**32 +
+                   numpy.arange(len(cat), dtype='i8'))
+    hdr['EXTNAME'] = hdr['EXTNAME']+'_HDR'
+    if numpy.any(wt > 0):
+        hdr['GAINCRWD'] = numpy.nanmedian((im*wt**2.)[wt > 0])
+        hdr['SKYCRWD'] = numpy.nanmedian(skyim[wt > 0])
+    else:
+        hdr['GAINCRWD'] = 4
+        hdr['SKYCRWD'] = 0
+    if len(cat) > 0:
+        hdr['FWHMCRWD'] = numpy.nanmedian(cat['fwhm'])
+    else:
+        hdr['FWHMCRWD'] = 0.0
+    gain = hdr['GAINCRWD']*numpy.ones(len(cat), dtype='f4')
+    if prb is not None:
+        prnebdat = [
+            crowdsource.extract_im(cat['x'], cat['y'], prb[:, :, i])
+            for i in range(prb.shape[2])]
+        prnebnames = ['pN', 'pR', 'pL', 'pE']
+        prbexport = zoom(prb, (1/4, 1/4, 1), order=3)
+    else:
+        prnebdat = []
+        prnebnames = []
+        prbexport = None
+    cat = rec_append_fields(
+        cat,
+        ['ra', 'dec', 'decapsid', 'gain'] + prnebnames,
+        [ra, dec, decapsid, gain] + prnebdat)
+    msk = (dq & extrabits['diffuse']) != 0
+    return cat, modelim, skyim, psf, hdr, msk, prbexport, name
+
+
 # main processing function for all decam handling
 def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                   outmodel=False, outdirc=None, outdirm=None, verbose=False,
@@ -233,108 +347,22 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
     if np.isfinite(nproc):
         extnames = extnames[:nproc]
 
-    def process_one_ccd(name):
-        if verbose:
-            print('Fitting %s, extension %s.' % (imfn, name))
-            sys.stdout.flush()
-        im, wt, dq, prb = read_data(
-            imfn, ivarfn, dqfn, name, maskdiffuse=maskdiffuse,
-            wcutoff=wcutoff, contmask=contmask, maskgal=maskgal,
-            verbose=verbose)
-        hdr = fits.getheader(imfn, extname=name)
-        fwhm = hdr.get('FWHM', numpy.median(fwhms))
-        if fwhm <= 0.:
-            fwhm = 4.
-        fwhmmn, fwhmsd = numpy.mean(fwhms), numpy.std(fwhms)
-        if fwhmsd > 0.4:
-            fwhm = fwhmmn
-        psf = decam_psf(filt[0], fwhm, pixsz=pixsz)
-        wcs0 = wcs.WCS(hdr)
-        if brightstars is not None:
-            raccdcen, decccdcen = wcs0.all_pix2world(
-                im.shape[1]//2, im.shape[0]//2, 0)
-            sep = angular_separation(numpy.radians(brightstars['ra']),
-                                     numpy.radians(brightstars['dec']),
-                                     numpy.radians(raccdcen),
-                                     numpy.radians(decccdcen))
-            sep = numpy.degrees(sep)
-            m = sep < 0.2
-            # CCD is 4094 pix wide => everything is at most 0.15 deg
-            # from center
-            if numpy.any(m):
-                yb, xb = wcs0.all_world2pix(brightstars['ra'][m],
-                                            brightstars['dec'][m], 0)
-                vmag = brightstars['vtmag'][m]
-                # WCS module and I order x and y differently...
-                m = ((xb > 0) & (xb < im.shape[0]) &
-                     (yb > 0) & (yb < im.shape[1]))
-                if numpy.any(m):
-                    xb, yb = xb[m], yb[m]
-                    vmag = vmag[m]
-                    blist = [xb, yb, vmag]
-                    if not bmask_deblend:
-                        dq = mask_very_bright_stars(dq, blist)
-                else:
-                    blist = None
-            else:
-                blist = None
-        else:
-            blist = None
-
-        # the actual fit (which has a nested iterative fit)
-        res = crowdsource.fit_im(
-            im, psf, ntilex=4, ntiley=2, weight=wt, dq=dq, psfderiv=True,
-            refit_psf=True, verbose=verbose, blist=blist, maxstars=320000,
-            ccd=name, plot=plot, miniter=miniter, maxiter=maxiter,
-            titer_thresh=titer_thresh)
-        cat, modelim, skyim, psf = res
-        if len(cat) > 0:
-            ra, dec = wcs0.all_pix2world(cat['y'], cat['x'], 0.)
-        else:
-            ra = numpy.zeros(0, dtype='f8')
-            dec = numpy.zeros(0, dtype='f8')
-        from numpy.lib.recfunctions import rec_append_fields
-        decapsid = numpy.zeros(len(cat), dtype='i8')
-        decapsid[:] = (prihdr['EXPNUM']*2**32*2**7 +
-                       hdr['CCDNUM']*2**32 +
-                       numpy.arange(len(cat), dtype='i8'))
-        hdr['EXTNAME'] = hdr['EXTNAME']+'_HDR'
-        if numpy.any(wt > 0):
-            hdr['GAINCRWD'] = numpy.nanmedian((im*wt**2.)[wt > 0])
-            hdr['SKYCRWD'] = numpy.nanmedian(skyim[wt > 0])
-        else:
-            hdr['GAINCRWD'] = 4
-            hdr['SKYCRWD'] = 0
-        if len(cat) > 0:
-            hdr['FWHMCRWD'] = numpy.nanmedian(cat['fwhm'])
-        else:
-            hdr['FWHMCRWD'] = 0.0
-        gain = hdr['GAINCRWD']*numpy.ones(len(cat), dtype='f4')
-        if prb is not None:
-            prnebdat = [
-                crowdsource.extract_im(cat['x'], cat['y'], prb[:, :, i])
-                for i in range(prb.shape[2])]
-            prnebnames = ['pN', 'pR', 'pL', 'pE']
-            prbexport = zoom(prb,(1/4,1/4,1),order=3)
-        else:
-            prnebdat = []
-            prnebnames = []
-            prbexport = None
-        cat = rec_append_fields(
-            cat,
-            ['ra', 'dec', 'decapsid', 'gain'] + prnebnames,
-            [ra, dec, decapsid, gain] + prnebdat)
-        msk = (dq & extrabits['diffuse']) != 0
-        return cat, modelim, skyim, psf, hdr, msk, prbexport, name
+    bigdict = dict(imfn=imfn, ivarfn=ivarfn, dqfn=dqfn,
+                   maskdiffuse=maskdiffuse, maskgal=maskgal, verbose=verbose,
+                   wcutoff=wcutoff, contmask=contmask, fwhms=fwhms, filt=filt,
+                   pixsz=pixsz, brightstars=brightstars,
+                   bmask_deblend=bmask_deblend, plot=plot, miniter=miniter,
+                   maxiter=maxiter, titer_thresh=titer_thresh,
+                   expnum=prihdr['EXPNUM'])
 
     # Main CCD for loop
     if nthreads > 1:
         import concurrent.futures
-        pool = concurrent.futures.ThreadPoolExecutor(max_workers=nthreads)
+        pool = concurrent.futures.ProcessPoolExecutor(max_workers=nthreads)
         iterator = concurrent.futures.as_completed(
-            (pool.submit(process_one_ccd, x) for x in extnames))
+            (pool.submit(process_one_ccd, x, bigdict) for x in extnames))
     else:
-        iterator = (process_one_ccd(x) for x in extnames)
+        iterator = (process_one_ccd(x, bigdict) for x in extnames)
 
     for res in iterator:
         if nthreads > 1:
