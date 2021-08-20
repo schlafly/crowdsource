@@ -32,7 +32,6 @@ def equalize_histogram(img, n_bins=256, asinh_stretch=False):
 
 def equalize_histogram_wise(img, n_bins=256, asinh_stretch=False):
     # tweaked version for WISE
-    import numpy as np
 
     # Stretch the image with asinh in order to get more even histogram
     if asinh_stretch:
@@ -129,8 +128,8 @@ def gen_prob(model, img, return_prob=False):
     alpha = 2.0
     gam = 0.5
     eps = 1e-4
-    decnum = np.zeros((mask.shape[0],mask.shape[1]),dtype=numpy.float32)
-    numpy.divide(mask[:,:,0] + gam*mask[:,:,1],
+    decnum = np.zeros((mask.shape[0],mask.shape[1]),dtype=np.float32)
+    np.divide(mask[:,:,0] + gam*mask[:,:,1],
         eps + mask[:,:,1] + mask[:,:,2] + mask[:,:,3],out=decnum)
     nebmask = decnum > alpha
 
