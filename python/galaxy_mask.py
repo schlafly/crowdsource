@@ -183,7 +183,7 @@ def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
     idx_mod, idx, d2d, d3d = c_mod.search_around_sky(c, 1*u.arcsec)
 
     assert ra_mod.shape[0] == idx_mod.shape[0]
-    assert np.max(d2d.to(u.deg).value)) <= 1e-7
+    assert np.max(d2d.to(u.deg).value) <= 1e-7
 
     diam[idx] = diam_mod[idx_mod]/3600
 
