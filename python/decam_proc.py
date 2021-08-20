@@ -367,9 +367,10 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
     for res in iterator:
         if nthreads > 1:
             try:
+                print(res.result())
                 res = res.result()
             except Exception as e:
-                print('Exception running ccd', e)
+                print('Exception running ccd.', e)
                 continue
         if res is None:  # no need to process this extension.
             continue
