@@ -5,10 +5,10 @@ from __future__ import print_function, division
 import os
 import numpy as np
 from scipy.ndimage import gaussian_filter
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 # quiet all of the annoying tensorflow compile model warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 from keras import models as kmodels
-
+# import resource
 
 def equalize_histogram(img, n_bins=256, asinh_stretch=False):
     # from http://www.janeriksolem.net/2009/06/histogram-equalization-with-python-and.html
@@ -129,13 +129,15 @@ def gen_prob(model, img, return_prob=False):
     alpha = 2.0
     gam = 0.5
     eps = 1e-4
-    nebprob = mask
-    mask = (nebprob[:, :, 0] + gam*nebprob[:, :, 1])/(
-        eps + nebprob[:, :, 1] + nebprob[:, :, 2] + nebprob[:, :, 3])
-    mask = mask > alpha
-    res = mask
+    decnum = np.zeros((mask.shape[0],mask.shape[1]),dtype=numpy.float32)
+    numpy.divide(mask[:,:,0] + gam*mask[:,:,1],
+        eps + mask[:,:,1] + mask[:,:,2] + mask[:,:,3],out=decnum)
+    nebmask = decnum > alpha
+
     if return_prob:
-        res = (res, nebprob)
+        res = (nebmask, mask)
+    else:
+        res = nebmask
     return res
 
 
@@ -166,12 +168,14 @@ def gen_mask_wise(model, img, return_prob=False):
     for i in range(mask.shape[2]):
         gaussian_filter(mask[:, :, i], sigma=64, truncate=1,
                         output=mask[:, :, i])
-    prob = mask
-    mask = np.argmax(prob, axis=2)
-    mask[mask == 0] = 1  # nebulosity_light -> normal
-    res = mask
+
+    nebmask = np.argmax(mask, axis=2)
+    nebmask[nebmask == 0] = 1  # nebulosity_light -> normal
+
     if return_prob:
-        res = (mask, prob)
+        res = (nebmask, mask)
+    else:
+        res = nebmask
     return res
 
 
