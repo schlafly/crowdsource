@@ -366,7 +366,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
 
     for res in iterator:
         if nthreads > 1:
-            print(res.result())
+            # print(res.result())
             try:
                 res = res.result()
             except Exception as e:
