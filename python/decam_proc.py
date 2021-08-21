@@ -236,7 +236,7 @@ def process_one_ccd(name, bigdict):
         ['ra', 'dec', 'decapsid', 'gain'] + prnebnames,
         [ra, dec, decapsid, gain] + prnebdat)
     msk = (dq & extrabits['diffuse']) != 0
-    return cat, modelim, skyim, psf, hdr, msk, prbexport, name
+    return cat, modelim, skyim, psf, hdr.tostring(), msk, prbexport, name
 
 
 # main processing function for all decam handling
@@ -375,6 +375,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
         if res is None:  # no need to process this extension.
             continue
         cat, modelim, skyim, psf, hdr, msk, prbexport, name = res
+        hdr = fits.Header.fromstring(hdr)
         # Data Saving
         if verbose:
             print('Writing %s %s, found %d sources.' % (outfn, name, len(cat)))
