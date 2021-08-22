@@ -121,6 +121,8 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
             if verbose:
                 print('Masking nebulosity fraction, %5.2f' % (
                     numpy.sum(nebmask)/1./numpy.sum(numpy.isfinite(nebmask))))
+    else:
+        nebprob = None
 
     return imdei, imdew, imded, nebprob
 
