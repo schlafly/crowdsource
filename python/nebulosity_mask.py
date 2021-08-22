@@ -123,11 +123,10 @@ def gen_prob(model, img, return_prob=False):
     np.divide(mask, mask_cnt, out=mask)
     for i in range(mask.shape[2]):
         gaussian_filter(mask[:, :, i], sigma=128, truncate=1,
-                        output=mask[:, :, i])
+                        mode='nearest', output=mask[:, :, i])
     # hard code decision boundary for now
     alpha = 2.0
     gam = 0.5
-    eps = 1e-4
     decnum = np.zeros((mask.shape[0],mask.shape[1]),dtype=np.float32)
     np.divide(mask[:,:,0] + gam*mask[:,:,1],
         eps + mask[:,:,1] + mask[:,:,2] + mask[:,:,3],out=decnum)
