@@ -225,7 +225,7 @@ def process_one_ccd(name, bigdict):
         prnebdat = [
             crowdsource.extract_im(cat['x'], cat['y'], prb[:, :, i])
             for i in range(prb.shape[2])]
-        prnebnames = ['pN', 'pR', 'pL', 'pE']
+        prnebnames = ['prN', 'prL', 'prR', 'prE']
         prbexport = zoom(prb, (1/4, 1/4, 1), order=3)
     else:
         prnebdat = []
@@ -407,7 +407,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                 modhdulist.append(fits.CompImageHDU(msk.astype('i4'), hdr,
                                                     **compkw))
             if contmask == True:
-                prnebnames = ['prN', 'prR', 'prL', 'prE']
+                prnebnames = ['prN', 'prL', 'prR', 'prE']
                 for i in range(prbexport.shape[2]):
                     hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_' + prnebnames[i]
                     modhdulist.append(fits.CompImageHDU(prbexport[:,:,i], hdr, **compkw))
