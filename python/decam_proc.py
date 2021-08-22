@@ -226,7 +226,7 @@ def process_one_ccd(name, bigdict):
             crowdsource.extract_im(cat['x'], cat['y'], prb[:, :, i])
             for i in range(prb.shape[2])]
         prnebnames = ['prN', 'prL', 'prR', 'prE']
-        prbexport = zoom(prb, (1/4, 1/4, 1), order=3)
+        prbexport = zoom(prb, (1/4, 1/4, 1), order=1)
     else:
         prnebdat = []
         prnebnames = []
