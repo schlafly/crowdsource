@@ -531,7 +531,7 @@ if __name__ == "__main__":
                         help='use continuous nebulosity masking model')
     # Fast short run options
     parser.add_argument('--nthreads', type=int,
-                        default=1, help='num of parallel threads')
+                        default=1, help='num of parallel processes (not threads)')
     parser.add_argument('--nccds', type=int,
                         default=numpy.inf, help='run only first nccds ccds')
     parser.add_argument('--ccdlist', nargs='+', default=None,
