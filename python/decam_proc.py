@@ -229,7 +229,6 @@ def process_one_ccd(name, bigdict):
             for i in range(prb.shape[2])]
         prnebnames = ['prN', 'prL', 'prR', 'prE']
         prbexport = prb # zoom(prb, (1/4, 1/4, 1), order=1)
-        print(np.max(prbexport))
     else:
         prnebdat = []
         prnebnames = []
@@ -410,10 +409,9 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                 modhdulist.append(fits.CompImageHDU(msk.astype('i4'), hdr,
                                                     **compkw))
             if contmask == True:
-                print(np.max(prbexport))
                 prnebnames = ['prN', 'prL', 'prR', 'prE']
                 compkw = {'compression_type': 'GZIP_1',
-                          'quantize_method': 1, 'quantize_level': -4,
+                          'quantize_method': 1, 'quantize_level': 16,
                           'tile_size': (prbexport.shape[0],prbexport.shape[1])}
                 for i in range(prbexport.shape[2]):
                     hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_' + prnebnames[i]
