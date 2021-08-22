@@ -407,7 +407,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                 modhdulist.append(fits.CompImageHDU(msk.astype('i4'), hdr,
                                                     **compkw))
             if contmask == True:
-                prnebnames = ['pN', 'pR', 'pL', 'pE']
+                prnebnames = ['prN', 'prR', 'prL', 'prE']
                 for i in range(prbexport.shape[2]):
                     hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_' + prnebnames[i]
                     modhdulist.append(fits.CompImageHDU(prbexport[:,:,i], hdr, **compkw))
