@@ -408,6 +408,9 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                                                     **compkw))
             if contmask == True:
                 prnebnames = ['prN', 'prL', 'prR', 'prE']
+                compkw = {'compression_type': 'GZIP_1',
+                          'quantize_method': 1, 'quantize_level': -4,
+                          'tile_size': (prbexport.shape[0],prbexport.shape[1])}
                 for i in range(prbexport.shape[2]):
                     hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_' + prnebnames[i]
                     modhdulist.append(fits.CompImageHDU(prbexport[:,:,i], hdr, **compkw))
