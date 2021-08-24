@@ -19,6 +19,7 @@ import pdb
 import psf as psfmod
 import scipy.ndimage.filters as filters
 from collections import OrderedDict
+import sys
 
 nodeblend_maskbit = 2**30
 sharp_maskbit = 2**31
@@ -117,7 +118,7 @@ def significance_image_lbs(im, model, isig, psf, sz=19):
 
 
 def peakfind(im, model, isig, dq, psf, keepsat=False, threshold=5,
-             blendthreshold=0.3):
+             blendthreshold=0.3, psfvalsharpcutfac=0.7, psfsharpsat=0.7):
     psfstamp = psf(int(im.shape[0]/2.), int(im.shape[1]/2.), deriv=False,
                    stampsz=59)
     sigim, modelsigim = significance_image(im, model, isig, psfstamp,
@@ -137,7 +138,9 @@ def peakfind(im, model, isig, dq, psf, keepsat=False, threshold=5,
         blendthreshold[nodeblend] = 100
     if dq is not None and numpy.any(dq[x, y] & sharp_maskbit):
         sharp = (dq[x, y] & sharp_maskbit) != 0
-        msharp = ~sharp | psfvalsharpcut(x, y, sigim, isig, psfstamp)
+        msharp = ~sharp | psfvalsharpcut(
+            x, y, sigim, isig, psfstamp, psfvalsharpcutfac=psfvalsharpcutfac,
+            psfsharpsat=psfsharpsat)
         # keep if not nebulous region or sharp peak.
         m = m & msharp
 
@@ -148,7 +151,8 @@ def peakfind(im, model, isig, dq, psf, keepsat=False, threshold=5,
     return x[m], y[m]
 
 
-def psfvalsharpcut(x, y, sigim, isig, psf):
+def psfvalsharpcut(x, y, sigim, isig, psf, psfvalsharpcutfac=0.7,
+                   psfsharpsat=0.7):
     xl = numpy.clip(x-1, 0, sigim.shape[0]-1)
     xr = numpy.clip(x+1, 0, sigim.shape[0]-1)
     yl = numpy.clip(y-1, 0, sigim.shape[1]-1)
@@ -168,12 +172,11 @@ def psfvalsharpcut(x, y, sigim, isig, psf):
     psfval2pp = 1-(pp[half, half-1]+pp[half, half+1])/(2*ppcen)
     psfval3pp = 1-(pp[half-1, half-1]+pp[half+1, half+1])/(2*ppcen)
     psfval4pp = 1-(pp[half-1, half+1]+pp[half+1, half-1])/(2*ppcen)
-    fac = psfvalsharpcut.fac*(1-0.7*(isig[x, y] == 0))
+    fac = psfvalsharpcutfac*(1-psfsharpsat*(isig[x, y] == 0))
     # more forgiving if center is masked.
     res = ((psfval1 > psfval1pp*fac) & (psfval2 > psfval2pp*fac) &
            (psfval3 > psfval3pp*fac) & (psfval4 > psfval4pp*fac))
     return res
-psfvalsharpcut.fac = 0.7
 
 
 def build_model(x, y, flux, nx, ny, psf=None, psflist=None, psfderiv=False):
@@ -578,7 +581,7 @@ def get_sizes(x, y, imbs, weight=None, blist=None):
     # but if there are too many of these, don't bother.
     cutoff2 = 20000
     if ((numpy.sum(peakbright > cutoff2) < numpy.sum(peakbright > cutoff)/2)
-        and (numpy.sum(peakbright > cutoff) > 100)):
+            or (numpy.sum(peakbright > cutoff) < 100)):
         sz[peakbright > cutoff2] = 149
     else:
         print('Too many bright sources, using smaller PSF stamp size...')
@@ -616,11 +619,11 @@ def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
         for c, s in zip((x, y), im.shape):
             if numpy.any((c < -0.499) | (c > s-0.501)):
                 c[:] = numpy.clip(c, -0.499, s-0.501)
-                print('Some positions within 0.01 pix of edge of image clipped '
-                      'back to 0.01 pix inside image.')
+                print('Some positions within 0.01 pix of edge of image '
+                      'clipped back to 0.01 pix inside image.')
 
         if (refit_sky and
-            ((titer > 0) or numpy.any(~numpy.isfinite(startsky)))):
+                ((titer > 0) or numpy.any(~numpy.isfinite(startsky)))):
             sky = sky_im(im-model, weight=weight, npix=100)
         else:
             sky = startsky
@@ -676,12 +679,12 @@ def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
         print('Iteration %d, median sky %6.2f' %
               (titer+1, numpy.median(sky+msky)))
 
-
     stats = compute_stats(x-numpy.round(x), y-numpy.round(y),
                           stamps[0], stamps[2], stamps[3], stamps[1], flux)
-    stats['sky'] = extract_im(x, y, sky+msky).astype('f4')
     if dq is not None:
         stats['flags'] = extract_im(x, y, dq).astype('i4')
+    stats['sky'] = extract_im(x, y, sky+msky).astype('f4')
+
     stars = OrderedDict([('x', x), ('y', y), ('flux', flux),
                          ('deltx', xcen), ('delty', ycen)] +
                         [(f, stats[f]) for f in stats])
@@ -694,8 +697,8 @@ def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
     return res
 
 
-
-def refit_psf_from_stamps(psf, x, y, xcen, ycen, stamps):
+def refit_psf_from_stamps(psf, x, y, xcen, ycen, stamps, name=None,
+                          plot=False):
     # how far the centroids of the model PSFs would
     # be from (0, 0) if instantiated there
     # this initial definition includes the known offset (since
@@ -708,7 +711,8 @@ def refit_psf_from_stamps(psf, x, y, xcen, ycen, stamps):
     if hasattr(psf, 'fitfun'):
         psffitfun = psf.fitfun
         npsf = psffitfun(x, y, xcen+xe, ycen+ye, stamps[0],
-                         stamps[1], stamps[2], stamps[3], nkeep=200)
+                         stamps[1], stamps[2], stamps[3], nkeep=200,
+                         name=name, plot=plot)
         if npsf is not None:
             npsf.fitfun = psffitfun
     else:
@@ -732,8 +736,9 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
            nskyx=0, nskyy=0, refit_psf=False,
            verbose=False, miniter=4, maxiter=10, blist=None,
            maxstars=40000, derivcentroids=False,
-           ntilex=1, ntiley=1, fewstars=100, threshold=5):
-
+           ntilex=1, ntiley=1, fewstars=100, threshold=5,
+           ccd=None, plot=False, titer_thresh=2, blendthreshu=2,
+           psfvalsharpcutfac=0.7, psfsharpsat=0.7):
     if isinstance(weight, int):
         weight = numpy.ones_like(im)*weight
 
@@ -758,12 +763,14 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         lsky = sky_im(im-model, weight=weight, npix=50*roughfwhm)
         if titer != lastiter:
             # in first passes, do not split sources!
-            blendthresh = 2 if titer < 2 else 0.2
+            blendthresh = blendthreshu if titer < titer_thresh else 0.2
             xn, yn = peakfind(im-model-hsky,
                               model-msky, weight, dq, psf,
                               keepsat=(titer == 0),
                               blendthreshold=blendthresh,
-                              threshold=threshold)
+                              threshold=threshold,
+                              psfvalsharpcutfac=psfvalsharpcutfac,
+                              psfsharpsat=psfsharpsat)
             if len(xa) > 0 and len(xn) > 0:
                 keep = neighbor_dist(xn, yn, xa, ya) > 1.5
                 xn, yn = (c[keep] for c in (xn, yn))
@@ -860,8 +867,8 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
             break
         guessflux = flux[:len(xa)*repeat:repeat]
         if refit_psf and len(xa) > 0:
-            psf, xa, ya = refit_psf_from_stamps(psf, xa, ya, xcen, ycen,
-                                                stamps)
+            psf, xa, ya = refit_psf_from_stamps(
+                psf, xa, ya, xcen, ycen, stamps, name=(titer, ccd), plot=plot)
         # enforce maximum step
         if derivcentroids:
             maxstep = 1
@@ -888,9 +895,9 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         passno = passno[keep]
         guessflux = guessflux[keep]
         if verbose:
-            print('Iteration %2d, found %6d sources; %4d close and '
+            print('Extension %s, iteration %2d, found %6d sources; %4d close and '
                   '%4d faint sources removed.' %
-                  (titer+1, len(xn),
+                  (ccd, titer+1, len(xn),
                    numpy.sum(~isolatedenough),
                    numpy.sum(~brightenough & isolatedenough)))
 
@@ -898,7 +905,10 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         # which is used for peak finding.  But the faint stars should
         # make little difference?
 
-    stars = OrderedDict([('x', xa), ('y', ya), ('flux', flux)] +
+    # This is the end of the internal iteration loops
+    # Prepares found sources for export
+    stars = OrderedDict([('x', xa), ('y', ya), ('flux', flux),
+                         ('passno', passno)] +
                         [(f, stats[f]) for f in stats])
     dtypenames = list(stars.keys())
     dtypeformats = [stars[n].dtype for n in dtypenames]
@@ -1127,6 +1137,7 @@ def add_bright_stars(xa, ya, blist, im):
     return (numpy.array(xout, dtype='f4'), numpy.array(yout, dtype='f4'))
 
 
+# This is almost entirely deprecated for the psf.py module... go look there.
 def find_psf(xcen, shiftx, ycen, shifty, psfstack, weightstack,
              imstack, stampsz=59, nkeep=100):
     """Find PSF from stamps."""

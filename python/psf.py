@@ -667,9 +667,9 @@ def extract_params_moffat(param, order):
              param[nperpar*2:nperpar*3])]
 
 
-def plot_psf_fits(stamp, x, y, model, isig):
+def plot_psf_fits(stamp, x, y, model, isig, name=None, save=False):
     from matplotlib import pyplot as p
-    import util_efs
+
     datim = numpy.zeros((stamp.shape[1]*10, stamp.shape[1]*10), dtype='f4')
     modim = numpy.zeros((stamp.shape[1]*10, stamp.shape[1]*10), dtype='f4')
     xbd = numpy.linspace(numpy.min(x)-0.01, numpy.max(x)+0.01, 11)
@@ -687,17 +687,23 @@ def plot_psf_fits(stamp, x, y, model, isig):
             modim0 = model[ind, :, :]
             datim[i*sz:(i+1)*sz, j*sz:(j+1)*sz] = datim0-medmodel
             modim[i*sz:(i+1)*sz, j*sz:(j+1)*sz] = modim0-medmodel
-    p.figure('psfs')
+    p.figure(figsize=(24, 8), dpi=150)
     p.subplot(1, 3, 1)
-    util_efs.imshow(datim, aspect='equal', vmin=-0.005, vmax=0.005)
+    p.imshow(datim, aspect='equal', vmin=-0.005, vmax=0.005, cmap='binary')
     p.title('Stamps')
     p.subplot(1, 3, 2)
-    util_efs.imshow(modim, aspect='equal', vmin=-0.005, vmax=0.005)
+    p.imshow(modim, aspect='equal', vmin=-0.005, vmax=0.005, cmap='binary')
     p.title('Model')
     p.subplot(1, 3, 3)
-    util_efs.imshow(datim-modim, aspect='equal', vmin=-0.001, vmax=0.001)
+    p.imshow(datim-modim, aspect='equal', vmin=-0.001, vmax=0.001,
+             cmap='binary')
     p.title('Residuals')
-    p.draw()
+    if save:
+        import matplotlib
+        matplotlib.use('Agg')
+        p.style.use('dark_background')
+        p.savefig('psf_'+name[1]+'_'+str(name[0])+'.png', dpi=150,
+                  bbox_inches='tight', pad_inches=0.1)
 
 
 def plot_psf_fits_brightness(stamp, x, y, model, isig):
@@ -736,7 +742,7 @@ def damper(chi, damp):
 
 
 def fit_variable_moffat_psf(x, y, xcen, ycen, stamp, imstamp, modstamp,
-                            isig, order=1, pixsz=9, nkeep=200, plot=False):
+                            isig, order=1, pixsz=9, nkeep=200, plot=False, name=None):
     # clean and shift the PSFs first.
     shiftx = xcen + x - numpy.round(x)
     shifty = ycen + y - numpy.round(y)
@@ -815,10 +821,13 @@ def fit_variable_moffat_psf(x, y, xcen, ycen, stamp, imstamp, modstamp,
     fullparam[3*nperpar:(3+pixsz**2)*nperpar] = resparam.reshape(-1)
 
     psf = make_full_psf_model(fullparam[:-1], order, pixsz)
-    if plot:
+    if plot != 0:
         norm = fullparam[-1]
         modstamps = norm*psf.render_model(x, y, stampsz=stamp.shape[-1])
-        plot_psf_fits(stamp, x, y, modstamps, isig)
+        if plot == 1:
+            plot_psf_fits(stamp, x, y, modstamps, isig, name=name)
+        else:
+            plot_psf_fits(stamp, x, y, modstamps, isig, name=name, save=True)
     return psf
 
 
@@ -994,7 +1003,7 @@ def stamp2model(corn, normalize=-1):
 
 def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
                            isig, pixsz=9, nkeep=200, plot=False,
-                           filter='g'):
+                           filter='g', name=None):
     # clean and shift the PSFs first.
     shiftx = xcen + x - numpy.round(x)
     shifty = ycen + y - numpy.round(y)
@@ -1094,10 +1103,13 @@ def fit_linear_static_wing(x, y, xcen, ycen, stamp, imstamp, modstamp,
     extraparam['resparam'][0, 0:resparam.shape[0], :, :] = resparam
     modtotal.extraparam = extraparam
 
-    if plot:
+    if plot != 0:
         modstamps = modtotal.render_model(x, y, deriv=False,
                                           stampsz=stamp.shape[-1])
-        plot_psf_fits(stamp, x, y, modstamps, isig)
+        if plot == 1:
+            plot_psf_fits(stamp, x, y, modstamps, isig, name=name)
+        else:
+            plot_psf_fits(stamp, x, y, modstamps, isig, name=name, save=True)
     return modtotal
 
 
@@ -1111,7 +1123,7 @@ def linear_static_wing_from_record(record, filter='g'):
     normalizesz = 59
     staticstamp /= numpy.sum(central_stamp(staticstamp, normalizesz))
     order = 1 if numpy.any(record['resparam'][1:, ...]) else 0
-    nperpar = (order+1)*(order+2)/2
+    nperpar = int((order+1)*(order+2)/2)
     modresid = VariablePixelizedPSF(
         fill_param_matrix(record['resparam'][:nperpar], order), normalize=-1)
     modwing = stamp2model(modelstampcorn(record['convparam'], staticstamp,
@@ -1129,7 +1141,7 @@ def linear_static_wing_from_record(record, filter='g'):
 
 def wise_psf_fit(x, y, xcen, ycen, stamp, imstamp, modstamp,
                  isig, pixsz=9, nkeep=200, plot=False,
-                 psfstamp=None, grid=False):
+                 psfstamp=None, grid=False, name=None):
     if psfstamp is None:
         raise ValueError('psfstamp must be set')
     # clean and shift the PSFs first.
