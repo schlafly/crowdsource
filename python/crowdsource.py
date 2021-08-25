@@ -783,6 +783,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
             passno = numpy.concatenate([passno, numpy.zeros(len(xn))+titer])
         else:
             xn, yn = numpy.zeros(0, dtype='f4'), numpy.zeros(0, dtype='f4')
+
         if titer != lastiter:
             if (titer == maxiter-1) or (
                     (titer >= miniter-1) and (len(xn) < fewstars)) or (

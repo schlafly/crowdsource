@@ -158,7 +158,7 @@ def gen_mask_wise(model, img, return_prob=False):
                 pred = model.predict(subimg, batch_size=1)[0]
                 x0, x1 = np.clip([j0, j0+h], 0, img.shape[0])
                 y0, y1 = np.clip([k0, k0+w], 0, img.shape[1])
-                mask[x0:x1, y0:y1, :] = pred
+                mask[x0:x1, y0:y1, :] += pred
                 nn[x0:x1, y0:y1] += 1
                 # light, normal, nebulosity
     mask /= nn[:, :, None]

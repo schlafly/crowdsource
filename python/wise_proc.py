@@ -126,7 +126,7 @@ def massage_isig_and_dim(isig, im, flag, band, nm, nu, fac=None):
     return (1./sigma).astype('f4'), flag
 
 
-def wise_psf_stamp(band):
+def wise_psf_stamp(band, nosmooth=False):
     # psf noise: ~roughly 0.1 count in outskirts of W1 and W2
     if band >= 3:
         raise ValueError('Need to stare at W3+ PSF more!')
@@ -143,7 +143,14 @@ def wise_psf_stamp(band):
     stamp[stamp < 0] = 0.
     # suppress spurious warnings in signal.wiener
     olderr = numpy.seterr(invalid='ignore', divide='ignore')
-    stamp = signal.wiener(stamp,  11, psfnoise)
+    # update to scipy.signal means that Wiener filter uses an FFT
+    # to perform the various convolutions, which causes bad errors
+    # here unless we cast to f8.  It's not that hard to do something
+    # a bit better than scipy.signal.wiener---morally we really want to do
+    # something like smooth in log space on radial lines---but I don't
+    # want to go further down that rabbit hole today.
+    stamp = signal.wiener(stamp.astype('f8'),  11, psfnoise)
+    stamp = stamp.astype('f4')
     numpy.seterr(**olderr)
     # taper linearly over outer 60 pixels?
     stampszo2 = stamp.shape[0] // 2
@@ -323,7 +330,7 @@ def collapse_extraflags(bitmask, band):
 if __name__ == "__main__":
     try:
         print('Running on host: ' + str(os.environ.get('HOSTNAME')))
-    except:
+    except Exception:
         print("Couldn't retrieve hostname!")
 
     parser = argparse.ArgumentParser(description='Run crowdsource on unWISE coadd image')
@@ -369,7 +376,6 @@ if __name__ == "__main__":
                                            uncompressed=args.uncompressed,
                                            epoch=args.epoch))
 
-    crowdsource.psfvalsharpcut.fac = 0.5
     if args.masknebulosity:
         import nebulosity_mask
         nebfn = os.path.join(os.environ['WISE_DIR'], 'dat', 'nebnet',
@@ -414,14 +420,16 @@ if __name__ == "__main__":
             im, psf, weight=sqivar, dq=flag, refit_psf=args.refit_psf,
             verbose=args.verbose, ntilex=4, ntiley=4, derivcentroids=True,
             maxstars=30000*16, fewstars=50*16, blist=blist,
-            threshold=args.threshold)
+            threshold=args.threshold, psfvalsharpcutfac=0.5,
+            psfsharpsat=0.5)
     else:
         forcecat = fits.getdata(args.forcecat, 1)
         x, y = forcecat['x'], forcecat['y']
         res = crowdsource.fit_im_force(
             im, x, y, psf, weight=sqivar, dq=flag, refit_psf=args.refit_psf,
             blist=blist, refit_sky=(not args.noskyfit),
-            startsky=startsky, psfderiv=False)
+            startsky=startsky, psfderiv=False, psfvalsharpcutfac=0.5,
+            psfsharpsat=0.5)
     cat, model, sky, psf = res
     print('Finishing %s, band %d; %d sec elapsed.' %
           (coadd_id, band, time.time()-t0))
