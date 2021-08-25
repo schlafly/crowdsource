@@ -5,6 +5,7 @@ from astropy.io import fits
 from astropy import wcs
 from pkg_resources import resource_filename
 
+
 def get_overlaps(coadd_id):
     overlaps = getattr(get_overlaps, 'overlaps', None)
     if overlaps is None:
@@ -37,7 +38,7 @@ def get_astr(coadd_id):
 def min_edge_dist(x, y):
     if len(x) != len(y):
         raise ValueError('len(x) must equal len(y)')
-    return numpy.min(numpy.array([x + 0.5, y + 0.5, 2047.5-x, 2047.5-y]), 
+    return numpy.min(numpy.array([x + 0.5, y + 0.5, 2047.5-x, 2047.5-y]),
                      axis=0)
 
 
@@ -47,12 +48,12 @@ def make_wcs(astr):
     twcs.wcs.cdelt = astr['cdelt']
     twcs.wcs.crval = astr['crval']
     twcs.wcs.cd = astr['cd']
-    twcs.wcs.ctype = (str(astr['ctype'][0]), 
+    twcs.wcs.ctype = (str(astr['ctype'][0]),
                       str(astr['ctype'][1]))
     twcs.wcs.lonpole = astr['longpole']
     twcs.wcs.latpole = astr['latpole']
     return twcs
-    
+
 
 def is_primary(coadd_id, ra, dec):
     if not numpy.isscalar(coadd_id):

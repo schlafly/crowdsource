@@ -621,7 +621,6 @@ def fit_im_force(im, x, y, psf, weight=None, dq=None, psfderiv=True,
                 c[:] = numpy.clip(c, -0.499, s-0.501)
                 print('Some positions within 0.01 pix of edge of image '
                       'clipped back to 0.01 pix inside image.')
-
         if (refit_sky and
                 ((titer > 0) or numpy.any(~numpy.isfinite(startsky)))):
             sky = sky_im(im-model, weight=weight, npix=100)
