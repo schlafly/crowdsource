@@ -421,7 +421,7 @@ if __name__ == "__main__":
             verbose=args.verbose, ntilex=4, ntiley=4, derivcentroids=True,
             maxstars=30000*16, fewstars=50*16, blist=blist,
             threshold=args.threshold, psfvalsharpcutfac=0.5,
-            psfsharpsat=0.5)
+            psfsharpsat=0.8)
     else:
         forcecat = fits.getdata(args.forcecat, 1)
         x, y = forcecat['x'], forcecat['y']
@@ -429,7 +429,7 @@ if __name__ == "__main__":
             im, x, y, psf, weight=sqivar, dq=flag, refit_psf=args.refit_psf,
             blist=blist, refit_sky=(not args.noskyfit),
             startsky=startsky, psfderiv=False, psfvalsharpcutfac=0.5,
-            psfsharpsat=0.5)
+            psfsharpsat=0.8)
     cat, model, sky, psf = res
     print('Finishing %s, band %d; %d sec elapsed.' %
           (coadd_id, band, time.time()-t0))
