@@ -250,7 +250,8 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                   nproc=numpy.inf,
                   extnamelist=None, plot=False, profile=False, miniter=4,
                   maxiter=10, titer_thresh=2, pixsz=9, wcutoff=0.0,
-                  nthreads=1):
+                  nthreads=1,
+                  inject = 0, injextnamelist = None, injectfrac = 0.1):
     if profile:
         import cProfile
         import pstats
@@ -362,6 +363,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
 
     ### This is the (optional) synthetic injection pipeline ###
     if inject > 0:
+        import decam_inject as inj
         # Updated the completed ccds
         hdulist = fits.open(outfn)
         extnamesdone = []
@@ -391,8 +393,35 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
         if np.isfinite(nproc):
             injextnames = injextnames[:nproc]
 
-        ## I am ignoring the for loop for now
-        #save
+        # create files with injected sources in the decapsi directory
+        ## this might need to be more robust if we port to a different cluster/user
+        imfnI = inj.injectRename(imfn)
+        ivarfnI = inj.injectRename(ivarfn)
+        dqfnI = inj.injectRename(dqfn)
+
+        # intialize the injected images
+        prihdr = fits.getheader(imfn, extname='PRIMARY')
+        if not resume or not os.path.exists(imfnI):
+            fits.writeto(imfnI, None, prihdr, overwrite=overwrite)
+
+        prihdr = fits.getheader(ivarfn, extname='PRIMARY')
+        if not resume or not os.path.exists(ivarfnI):
+            fits.writeto(ivarfnI, None, prihdr, overwrite=overwrite)
+
+        prihdr = fits.getheader(dqfn, extname='PRIMARY')
+        if not resume or not os.path.exists(dqfnI):
+            fits.writeto(dqfnI, None, prihdr, overwrite=overwrite)
+
+        for key in injextnames:
+            inj.scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, frac=injectfrac, seed=2021)
+
+        bigdict = dict(imfn=imfnI, ivarfn=ivarfnI, dqfn=dqfnI,
+                       maskdiffuse=maskdiffuse, maskgal=maskgal, verbose=verbose,
+                       wcutoff=wcutoff, contmask=contmask, fwhms=fwhms, filt=filt,
+                       pixsz=pixsz, brightstars=brightstars,
+                       bmask_deblend=bmask_deblend, plot=plot, miniter=miniter,
+                       maxiter=maxiter, titer_thresh=titer_thresh,
+                       expnum=prihdr['EXPNUM'])
 
         run_fxn(bigdict, injextnames, nthreads)
 
@@ -404,13 +433,6 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
         print(leftover)
 ## END of main processing wrapper
 
-
-def load_psfmodel(outfn, key, filter, pixsz=9):
-    f = fits.open(outfn)
-    psfmodel = psfmod.linear_static_wing_from_record(f[key+"_PSF"].data[0],filter=filter)
-    f.close()
-    psfmodel.fitfun = partial(psfmod.fit_linear_static_wing, filter=filter, pixsz=pixsz)
-    return psfmodel
 
 def run_fxn(bigdict, extnames, nthreads):
     # Main CCD for loop
@@ -433,6 +455,7 @@ def run_fxn(bigdict, extnames, nthreads):
             continue
         save_fxn(res)
     return
+
 
 def save_fxn(res):
     cat, modelim, skyim, psf, hdr, msk, prbexport, name = res
@@ -477,6 +500,7 @@ def save_fxn(res):
                 modhdulist.append(fits.CompImageHDU(prbexport[:,:,i], hdr, **compkw))
         modhdulist.close(closed=True)
     return
+
 
 def decam_psf(filt, fwhm, pixsz=9):
     if filt not in 'ugrizY':
@@ -611,6 +635,13 @@ if __name__ == "__main__":
     # Experimental options
     parser.add_argument('--wcutoff', type=float,
                         default=0.0, help='cutoff for inverse variances')
+    # Calibration run options
+    parser.add_argument('--inject', type=int,
+                        default=0, help='number of ccd to synthetic inject and rerun')
+    parser.add_argument('--injccdlist', nargs='+', default=None,
+                        help='limit injection run to subset of ccds listed')
+    parser.add_argument('--injectfrac', type=float,
+                        default=0.1, help='fraction of sources to reinject')
 
     args = parser.parse_args()
     process_image(args.base, args.date, args.filtf, args.vers,
@@ -626,4 +657,7 @@ if __name__ == "__main__":
                   miniter=args.miniter, maxiter=args.maxiter,
                   titer_thresh=args.titer_thresh, pixsz=args.pixsz,
                   wcutoff=args.wcutoff,
-                  nthreads=args.nthreads)
+                  nthreads=args.nthreads,
+                  inject=args.inject, injectextnamelist=args.injccdlist,
+                  injectfrac=args.injectfrac
+                  )
