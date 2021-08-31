@@ -127,6 +127,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
     return imdei, imdew, imded, nebprob
 
 
+# work function to process each ccd
 def process_one_ccd(name, bigdict):
     imfn = bigdict['imfn']
     ivarfn = bigdict['ivarfn']
@@ -357,6 +358,61 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                    maxiter=maxiter, titer_thresh=titer_thresh,
                    expnum=prihdr['EXPNUM'])
 
+    run_fxn(bigdict, extnames, nthreads)
+
+    ### This is the (optional) synthetic injection pipeline ###
+    if inject > 0:
+        # Updated the completed ccds
+        hdulist = fits.open(outfn)
+        extnamesdone = []
+        for hdu in hdulist:
+            if hdu.name == 'PRIMARY':
+                continue
+            ext, exttype = hdu.name.split('_')
+            if exttype != 'CAT':
+                continue
+            extnamesdone.append(ext)
+        hdulist.close()
+
+        # Prepare injection CCD for loop ext list
+        if injextnamelist is not None:
+            if verbose:
+                s = ("Only injecting CCD subset: [%s]" %
+                     ', '.join(injextnamelist))
+                print(s)
+
+        if extnamesdone is not None:
+            injextnames = [n for n in extnames if n in extnamesdone]
+        else:
+            raise ValueError('No CCDs are done. Please fit at least one CCD before injection test.')
+        if injextnamelist is not None:
+            injextnames = [n for n in injextnames if n in injextnamelist]
+        injextnames = [n for n in injextnames if n != 'PRIMARY']
+        if np.isfinite(nproc):
+            injextnames = injextnames[:nproc]
+
+        ## I am ignoring the for loop for now
+        #save
+
+        run_fxn(bigdict, injextnames, nthreads)
+
+    if profile:
+        pr.disable()
+        pstats.Stats(pr).sort_stats('cumulative').print_stats(60)
+        after = hp.heap()
+        leftover = after - before
+        print(leftover)
+## END of main processing wrapper
+
+
+def load_psfmodel(outfn, key, filter, pixsz=9):
+    f = fits.open(outfn)
+    psfmodel = psfmod.linear_static_wing_from_record(f[key+"_PSF"].data[0],filter=filter)
+    f.close()
+    psfmodel.fitfun = partial(psfmod.fit_linear_static_wing, filter=filter, pixsz=pixsz)
+    return psfmodel
+
+def run_fxn(bigdict, extnames, nthreads):
     # Main CCD for loop
     if nthreads > 1:
         import concurrent.futures
@@ -368,7 +424,6 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
 
     for res in iterator:
         if nthreads > 1:
-            # print(res.result())
             try:
                 res = res.result()
             except Exception as e:
@@ -376,54 +431,52 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                 continue
         if res is None:  # no need to process this extension.
             continue
-        cat, modelim, skyim, psf, hdr, msk, prbexport, name = res
-        hdr = fits.Header.fromstring(hdr)
-        # Data Saving
-        if verbose:
-            print('Writing %s %s, found %d sources.' % (outfn, name, len(cat)))
-            sys.stdout.flush()
-        # primary extension includes only header.
-        fits.append(outfn, numpy.zeros(0), hdr)
-        hdupsf = fits.BinTableHDU(psf.serialize())
-        hdupsf.name = hdr['EXTNAME'][:-4] + '_PSF'
-        hducat = fits.BinTableHDU(cat)
-        hducat.name = hdr['EXTNAME'][:-4] + '_CAT'
-        hdulist = fits.open(outfn, mode='append')
-        hdulist.append(hdupsf)  # append the psf field for the ccd
-        hdulist.append(hducat)  # append the cat field for the ccd
-        hdulist.close(closed=True)
-        if outmodel:
-            hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MOD'
-            # RICE should be significantly better here and supported in
-            # mrdfits?, but compression_type=RICE_1 seems to cause
-            # quantize_level to be ignored.
-            compkw = {'compression_type': 'GZIP_1',
-                      'quantize_method': 1, 'quantize_level': -4,
-                      'tile_size': modelim.shape}
-            modhdulist = fits.open(outmodelfn, mode='append')
-            modhdulist.append(fits.CompImageHDU(modelim, hdr, **compkw))
-            hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_SKY'
-            modhdulist.append(fits.CompImageHDU(skyim, hdr, **compkw))
-            if msk is not None:
-                hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MSK'
-                modhdulist.append(fits.CompImageHDU(msk.astype('i4'), hdr,
-                                                    **compkw))
-            if contmask == True:
-                prnebnames = ['prN', 'prL', 'prR', 'prE']
-                compkw = {'compression_type': 'GZIP_1',
-                          'quantize_method': 1, 'quantize_level': 2,
-                          'tile_size': (prbexport.shape[0],prbexport.shape[1])}
-                for i in range(prbexport.shape[2]):
-                    hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_' + prnebnames[i]
-                    modhdulist.append(fits.CompImageHDU(prbexport[:,:,i], hdr, **compkw))
-            modhdulist.close(closed=True)
-    if profile:
-        pr.disable()
-        pstats.Stats(pr).sort_stats('cumulative').print_stats(60)
-        after = hp.heap()
-        leftover = after - before
-        print(leftover)
+        save_fxn(res)
+    return
 
+def save_fxn(res):
+    cat, modelim, skyim, psf, hdr, msk, prbexport, name = res
+    hdr = fits.Header.fromstring(hdr)
+    # Data Saving
+    if verbose:
+        print('Writing %s %s, found %d sources.' % (outfn, name, len(cat)))
+        sys.stdout.flush()
+    # primary extension includes only header.
+    fits.append(outfn, numpy.zeros(0), hdr)
+    hdupsf = fits.BinTableHDU(psf.serialize())
+    hdupsf.name = hdr['EXTNAME'][:-4] + '_PSF'
+    hducat = fits.BinTableHDU(cat)
+    hducat.name = hdr['EXTNAME'][:-4] + '_CAT'
+    hdulist = fits.open(outfn, mode='append')
+    hdulist.append(hdupsf)  # append the psf field for the ccd
+    hdulist.append(hducat)  # append the cat field for the ccd
+    hdulist.close(closed=True)
+    if outmodel:
+        hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MOD'
+        # RICE should be significantly better here and supported in
+        # mrdfits?, but compression_type=RICE_1 seems to cause
+        # quantize_level to be ignored.
+        compkw = {'compression_type': 'GZIP_1',
+                  'quantize_method': 1, 'quantize_level': -4,
+                  'tile_size': modelim.shape}
+        modhdulist = fits.open(outmodelfn, mode='append')
+        modhdulist.append(fits.CompImageHDU(modelim, hdr, **compkw))
+        hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_SKY'
+        modhdulist.append(fits.CompImageHDU(skyim, hdr, **compkw))
+        if msk is not None:
+            hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MSK'
+            modhdulist.append(fits.CompImageHDU(msk.astype('i4'), hdr,
+                                                **compkw))
+        if contmask == True:
+            prnebnames = ['prN', 'prL', 'prR', 'prE']
+            compkw = {'compression_type': 'GZIP_1',
+                      'quantize_method': 1, 'quantize_level': 2,
+                      'tile_size': (prbexport.shape[0],prbexport.shape[1])}
+            for i in range(prbexport.shape[2]):
+                hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_' + prnebnames[i]
+                modhdulist.append(fits.CompImageHDU(prbexport[:,:,i], hdr, **compkw))
+        modhdulist.close(closed=True)
+    return
 
 def decam_psf(filt, fwhm, pixsz=9):
     if filt not in 'ugrizY':

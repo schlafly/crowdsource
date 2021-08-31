@@ -64,3 +64,35 @@ python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new
 python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -m --ccd_num 1 --outdirc cat --outdirm mod decaps2 180511_080858 z v1
 
 python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r --ccd_num 1 --outdirc cat --outdirm mod decaps2 180511_080858 z v1
+
+####
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps/c4d_ 170120_080910 z v1 --parallel 32
+
+####
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2 --plot_on 2
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2 --plot_on 1
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -q -g -m /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -q -g -m /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2 --no-mask-diffuse
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -q -m /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2 --no-mask-diffuse
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -r -q /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2 --no-mask-diffuse
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -r /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2 --no-mask-diffuse
+
+#try profiling
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2 -p
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 1 --nccds 1 -p
+
+###
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps2/c4d_ 170420_015633 g v1 --ccdlist N4
