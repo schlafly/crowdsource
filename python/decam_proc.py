@@ -412,7 +412,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
         if not resume or not os.path.exists(dqfnI):
             fits.writeto(dqfnI, None, prihdr, overwrite=overwrite)
 
-        print("Made it too the loop for injection")
+        print(injextnames)
         for key in injextnames:
             inj.scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, frac=injectfrac, seed=2021)
 
