@@ -171,7 +171,7 @@ def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
     ba = ba[mask1d]
 
     ## by eye modified galaxy sizes list
-    fmod = '/n/home12/saydjari/finksagescratch/Working/2021_07_15/hyperleda_custom_sizes.csv'
+    fmod = '/n/home12/saydjari/finksage/Working/2021_07_15/hyperleda_custom_sizes.csv'
     with open(fmod, newline='') as csvfile:
         data_mod = np.array(list(csv.reader(csvfile,quoting=csv.QUOTE_NONNUMERIC)))
 
