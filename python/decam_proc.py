@@ -376,6 +376,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
             extnamesdone.append(ext)
         hdulist.close()
 
+        print(extnamesdone)
         # Prepare injection CCD for loop ext list
         if injextnamelist is not None:
             if verbose:
@@ -385,6 +386,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
 
         if extnamesdone is not None:
             injextnames = [n for n in extnames if n in extnamesdone]
+            print(injextnames)
         else:
             raise ValueError('No CCDs are done. Please fit at least one CCD before injection test.')
         if injextnamelist is not None:
@@ -412,7 +414,6 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
         if not resume or not os.path.exists(dqfnI):
             fits.writeto(dqfnI, None, prihdr, overwrite=overwrite)
 
-        print(injextnames)
         for key in injextnames:
             inj.scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, frac=injectfrac, seed=2021)
 
