@@ -395,6 +395,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
         if injextnamelist is not None:
             injextnames = [n for n in injextnames if n in injextnamelist]
         injextnames = [n for n in injextnames if n != 'PRIMARY']
+        ## FIX ME I need to have random sample the number of inject implemented
         if np.isfinite(nproc):
             injextnames = injextnames[:nproc]
 
