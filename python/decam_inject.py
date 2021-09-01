@@ -74,7 +74,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
         mock_cat[i,:] = [centx, centy, np.sum(draw), np.sum(np.multiply(draw,psf_shift))/np.sum(np.square(psf_shift)), amp]
 
     im += new_flux
-    wt = (wt**(-1) + np.divide(new_flux,gain))**(-1)
+    wt = (1./(wt + (wt == 0) * 1e14) + np.divide(new_flux,gain))**(-1)
 
     # save our injections
     ## Eddie thinks we should compare compressing with the
@@ -118,7 +118,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     dtypenames = list(stars.keys())
     dtypeformats = [stars[n].dtype for n in dtypenames]
     dtype = dict(names=dtypenames, formats=dtypeformats)
-    stars = numpy.fromiter(zip(*stars.values()),
+    stars = np.fromiter(zip(*stars.values()),
                            dtype=dtype, count=len(stars['centx']))
 
     hducat = fits.BinTableHDU(cat)
