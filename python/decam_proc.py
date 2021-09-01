@@ -361,7 +361,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                    pixsz=pixsz, brightstars=brightstars,
                    bmask_deblend=bmask_deblend, plot=plot, miniter=miniter,
                    maxiter=maxiter, titer_thresh=titer_thresh,
-                   expnum=prihdr['EXPNUM'])
+                   expnum=prihdr['EXPNUM'],outmodel=outmodel)
 
     run_fxn(bigdict, extnames, nthreads)
 
@@ -459,11 +459,15 @@ def run_fxn(bigdict, extnames, nthreads):
                 continue
         if res is None:  # no need to process this extension.
             continue
-        save_fxn(res)
+        save_fxn(res, bigdict):
     return
 
 
-def save_fxn(res):
+def save_fxn(res, bigdict):
+    outmodel = bigdict['outmodel']
+    verbose = bigdict['verbose']
+    contmask = bigdict['contmask']
+
     cat, modelim, skyim, psf, hdr, msk, prbexport, name = res
     hdr = fits.Header.fromstring(hdr)
     # Data Saving
