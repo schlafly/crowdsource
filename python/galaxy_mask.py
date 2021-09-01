@@ -180,6 +180,7 @@ def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
     diam_mod = data_mod[:,2]
 
     c_mod = SkyCoord(ra=ra_mod*u.deg, dec=dec_mod*u.deg)
+    c = SkyCoord(ra=ra*u.deg, dec=dec*u.deg)
     idx_mod, idx, d2d, d3d = c_mod.search_around_sky(c, 1*u.arcsec)
 
     assert ra_mod.shape[0] == idx_mod.shape[0]
