@@ -20,7 +20,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     flags_stars = table["flags"]
     f.close()
 
-    psfmodel = load_psfmodel(outfn, key, filt, pixsz=pixsz)
+    psfmodel = load_psfmodel(outfn, key, filt[0], pixsz=pixsz)
 
     im = fits.getdata(imfn, extname=extname).copy()
     wt = fits.getdata(ivarfn, extname=extname).copy()
