@@ -22,10 +22,18 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
 
     psfmodel = load_psfmodel(outfn, key, filt[0], pixsz=pixsz)
 
-    im = fits.getdata(imfn, extname=key).copy()
-    wt = fits.getdata(ivarfn, extname=key).copy()
-    dq = fits.getdata(dqfn, extname=key).copy()
-
+    import warnings
+    with warnings.catch_warnings(record=True) as wlist:
+        im = fits.getdata(imfn, extname=key).copy()
+        wt = fits.getdata(ivarfn, extname=key).copy()
+        dq = fits.getdata(dqfn, extname=key).copy()
+    # suppress endless nonstandard keyword warnings on read
+    for warning in wlist:
+        if 'following header keyword' in str(warning.message):
+            continue
+        else:
+            print(warning)
+            
     ny, nx = im.shape
 
     # this requres stars to be "good" and in a reasonable flux range (0 flux to 17th mag)
@@ -45,7 +53,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
 
     mock_cat = np.zeros((nstars,5))
     new_flux = np.zeros((ny, nx))
-    for i in tqdm(range(nstars)):
+    for i in range(nstars):
         amp = flux_samples[i]
         centy = centyl[i]
         centx = centxl[i]
