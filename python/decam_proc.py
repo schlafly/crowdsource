@@ -415,6 +415,8 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
         for key in injextnames:
             inj.scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, frac=injectfrac, seed=2021)
 
+        injextnames = [i+"I" for i in injextnames]
+
         bigdict = dict(imfn=imfnI, ivarfn=ivarfnI, dqfn=dqfnI,
                        maskdiffuse=maskdiffuse, maskgal=maskgal, verbose=verbose,
                        wcutoff=wcutoff, contmask=contmask, fwhms=fwhms, filt=filt,
