@@ -459,7 +459,7 @@ def run_fxn(bigdict, extnames, nthreads):
                 continue
         if res is None:  # no need to process this extension.
             continue
-        save_fxn(res, bigdict):
+        save_fxn(res, bigdict)
     return
 
 
