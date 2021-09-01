@@ -82,35 +82,40 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     imfnI = injectRename(imfn)
     ivarfnI = injectRename(ivarfn)
     dqfnI = injectRename(dqfn)
+    with warnings.catch_warnings(record=True) as wlist:
+        hdr = fits.getheader(dqfn, extname=key)
+        hdr['EXTNAME'] = hdr['EXTNAME'] + 'I'
+        compkw = {'quantize_method': 1,
+                  'quantize_level': 4,
+                 }
+        f = fits.open(dqfnI, mode='append')
+        f.append(fits.CompImageHDU(dq, hdr, **compkw))
+        f.close(closed=True)
 
-    hdr = fits.getheader(dqfn, extname=key)
-    hdr['EXTNAME'] = hdr['EXTNAME'] + 'I'
-    compkw = {'quantize_method': 1,
-              'quantize_level': 4,
-             }
-    f = fits.open(dqfnI, mode='append')
-    f.append(fits.CompImageHDU(dq, hdr, **compkw))
-    f.close(closed=True)
+        hdr = fits.getheader(ivarfn, extname=key)
+        hdr['EXTNAME'] = hdr['EXTNAME'] + 'I'
+        compkw = {'quantize_method': 1,
+                  'quantize_level': 4,
+                  'dither_seed': hdr["ZDITHER0"],
+                 }
+        f = fits.open(ivarfnI, mode='append')
+        f.append(fits.CompImageHDU(wt, hdr, **compkw))
+        f.close(closed=True)
 
-    hdr = fits.getheader(ivarfn, extname=key)
-    hdr['EXTNAME'] = hdr['EXTNAME'] + 'I'
-    compkw = {'quantize_method': 1,
-              'quantize_level': 4,
-              'dither_seed': hdr["ZDITHER0"],
-             }
-    f = fits.open(ivarfnI, mode='append')
-    f.append(fits.CompImageHDU(wt, hdr, **compkw))
-    f.close(closed=True)
-
-    hdr = fits.getheader(imfn, extname=key)
-    hdr['EXTNAME'] = hdr['EXTNAME'] + 'I'
-    compkw = {'quantize_method': 1,
-              'quantize_level': 4,
-              'dither_seed': hdr["ZDITHER0"],
-             }
-    f = fits.open(imfnI, mode='append')
-    f.append(fits.CompImageHDU(im, hdr, **compkw))
-    f.close(closed=True)
+        hdr = fits.getheader(imfn, extname=key)
+        hdr['EXTNAME'] = hdr['EXTNAME'] + 'I'
+        compkw = {'quantize_method': 1,
+                  'quantize_level': 4,
+                  'dither_seed': hdr["ZDITHER0"],
+                 }
+        f = fits.open(imfnI, mode='append')
+        f.append(fits.CompImageHDU(im, hdr, **compkw))
+        f.close(closed=True)
+    for warning in wlist:
+        if 'following header keyword' in str(warning.message):
+            continue
+        else:
+            print(warning)
 
     #mock catalogue export
     stars = OrderedDict([('centx', mock_cat[:,0]), ('centy', mock_cat[:,1]), ('flux', mock_cat[:,2]),
@@ -118,7 +123,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     dtypenames = list(stars.keys())
     dtypeformats = [stars[n].dtype for n in dtypenames]
     dtype = dict(names=dtypenames, formats=dtypeformats)
-    stars = np.fromiter(zip(*stars.values()),
+    cat = np.fromiter(zip(*stars.values()),
                            dtype=dtype, count=len(stars['centx']))
 
     hducat = fits.BinTableHDU(cat)
