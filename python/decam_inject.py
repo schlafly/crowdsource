@@ -127,7 +127,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
                            dtype=dtype, count=len(stars['centx']))
 
     hducat = fits.BinTableHDU(cat)
-    hducat.name = hdr['EXTNAME'] + '_CAT'
+    hducat.name = hdr['EXTNAME'] + '_MCK'
     hdulist = fits.open(outfn, mode='append')
     hdulist.append(hducat)  # append the cat field for the ccd
     hdulist.close(closed=True)
