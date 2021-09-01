@@ -361,7 +361,8 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                    pixsz=pixsz, brightstars=brightstars,
                    bmask_deblend=bmask_deblend, plot=plot, miniter=miniter,
                    maxiter=maxiter, titer_thresh=titer_thresh,
-                   expnum=prihdr['EXPNUM'],outmodel=outmodel)
+                   expnum=prihdr['EXPNUM'],outmodel=outmodel,
+                   outfn=outfn, outmodelfn=outmodelfn)
 
     run_fxn(bigdict, extnames, nthreads)
 
@@ -463,6 +464,8 @@ def save_fxn(res, bigdict):
     outmodel = bigdict['outmodel']
     verbose = bigdict['verbose']
     contmask = bigdict['contmask']
+    outfn=bigdict['outfn']
+    outmodelfn=bigdict['outmodelfn']
 
     cat, modelim, skyim, psf, hdr, msk, prbexport, name = res
     hdr = fits.Header.fromstring(hdr)
