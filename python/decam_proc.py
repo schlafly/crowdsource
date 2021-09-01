@@ -421,13 +421,9 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
 
         injextnames = [i+"I" for i in injextnames]
 
-        bigdict = dict(imfn=imfnI, ivarfn=ivarfnI, dqfn=dqfnI,
-                       maskdiffuse=maskdiffuse, maskgal=maskgal, verbose=verbose,
-                       wcutoff=wcutoff, contmask=contmask, fwhms=fwhms, filt=filt,
-                       pixsz=pixsz, brightstars=brightstars,
-                       bmask_deblend=bmask_deblend, plot=plot, miniter=miniter,
-                       maxiter=maxiter, titer_thresh=titer_thresh,
-                       expnum=prihdr['EXPNUM'])
+        bigdict['imfn'] = imfnI
+        bigdict['ivarfn'] = ivarfnI
+        bigdict['dqfn'] = dqfnI
 
         run_fxn(bigdict, injextnames, nthreads)
 
