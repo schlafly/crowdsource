@@ -385,7 +385,6 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
 
         if extnamesdone is not None:
             injextnames = [n for n in extnamesdone]
-            print(injextnames)
         else:
             raise ValueError('No CCDs are done. Please fit at least one CCD before injection test.')
         if injextnamelist is not None:

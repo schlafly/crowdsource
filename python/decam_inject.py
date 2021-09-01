@@ -5,7 +5,7 @@ import numpy as np
 from functools import partial
 import psf as psfmod
 import decam_proc
-
+from collections import OrderedDict
 
 def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, frac=0.1, seed=2021):
     rng = np.random.default_rng(seed)
@@ -33,7 +33,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
             continue
         else:
             print(warning)
-            
+
     ny, nx = im.shape
 
     # this requres stars to be "good" and in a reasonable flux range (0 flux to 17th mag)
