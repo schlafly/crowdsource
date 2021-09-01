@@ -34,7 +34,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
         else:
             print(warning)
 
-    ny, nx = im.shape
+    nx, ny = im.shape
 
     # this requres stars to be "good" and in a reasonable flux range (0 flux to 17th mag)
     maskf = ((flags_stars==1) | (flags_stars==2097153)) & (flux_stars>0) & (flux_stars<158489.3192461114);
@@ -42,34 +42,34 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
 
     flux_samples = sample_stars(flux_stars[maskf],nstars,rng)
     # stay 33 pixels away from edge for injections
-    centyl = rng.uniform(33,ny-33,nstars)
     centxl = rng.uniform(33,nx-33,nstars)
-    ycenl = centyl.astype(int)
+    centyl = rng.uniform(33,ny-33,nstars)
     xcenl = centxl.astype(int)
-    diffyl = ycenl - centyl
-    diffxl = xcenl - centxl
+    ycenl = centyl.astype(int)
+    diffxl = centxl - xcenl
+    diffyl = centyl - ycenl
     mhn = 255 # this is the radius of the model stamp
     mszn = 511 # this is the size of the model stamp
 
     mock_cat = np.zeros((nstars,5))
-    new_flux = np.zeros((ny, nx))
+    new_flux = np.zeros((nx, ny))
     for i in range(nstars):
         amp = flux_samples[i]
-        centy = centyl[i]
         centx = centxl[i]
-        ycen = ycenl[i]
+        centy = centyl[i]
         xcen = xcenl[i]
-        diffy = diffyl[i]
+        ycen = ycenl[i]
         diffx = diffxl[i]
+        diffy = diffyl[i]
 
-        psf = psfmodel.render_model(centy,centx,stampsz=511)
-        psf_shift = psfmod.shift(psf,(-diffy,-diffx));
+        psf = psfmodel.render_model(centx,centy,stampsz=511)
+        psf_shift = psfmod.shift(psf,(diffx,diffy));
         draw = rng.poisson(lam=amp*gain*psf_shift)/gain
 
-        new_flux[np.clip(ycen-mhn,a_min=0,a_max=None):np.clip(ycen+mhn+1,a_min=None,a_max=ny),
-           np.clip(xcen-mhn,a_min=0,a_max=None):np.clip(xcen+mhn+1,a_min=None,a_max=nx)] += draw[
-        np.clip(mhn-ycen,a_min=0,a_max=None):np.clip(ny-ycen+mhn,a_min=None,a_max=mszn),
-             np.clip(mhn-xcen,a_min=0,a_max=None):np.clip(nx-xcen+mhn,a_min=None,a_max=mszn)]
+        new_flux[np.clip(xcen-mhn,a_min=0,a_max=None):np.clip(xcen+mhn+1,a_min=None,a_max=nx),
+           np.clip(ycen-mhn,a_min=0,a_max=None):np.clip(ycen+mhn+1,a_min=None,a_max=ny)] += draw[
+        np.clip(mhn-xcen,a_min=0,a_max=None):np.clip(nx-xcen+mhn,a_min=None,a_max=mszn),
+             np.clip(mhn-ycen,a_min=0,a_max=None):np.clip(ny-ycen+mhn,a_min=None,a_max=mszn)]
 
         mock_cat[i,:] = [centx, centy, np.sum(draw), np.sum(np.multiply(draw,psf_shift))/np.sum(np.square(psf_shift)), amp]
 
