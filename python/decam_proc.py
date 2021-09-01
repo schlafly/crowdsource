@@ -658,6 +658,6 @@ if __name__ == "__main__":
                   titer_thresh=args.titer_thresh, pixsz=args.pixsz,
                   wcutoff=args.wcutoff,
                   nthreads=args.nthreads,
-                  inject=args.inject, injectextnamelist=args.injccdlist,
+                  inject=args.inject, injextnamelist=args.injccdlist,
                   injectfrac=args.injectfrac
                   )
