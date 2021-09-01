@@ -96,7 +96,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
         hdr['EXTNAME'] = hdr['EXTNAME'] + 'I'
         compkw = {'quantize_method': 1,
                   'quantize_level': 4,
-                  'dither_seed': hdr["ZDITHER0"],
+                  'dither_seed': hdr["ZDITHER0"]+1,
                  }
         f = fits.open(ivarfnI, mode='append')
         f.append(fits.CompImageHDU(wt, hdr, **compkw))
@@ -106,7 +106,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
         hdr['EXTNAME'] = hdr['EXTNAME'] + 'I'
         compkw = {'quantize_method': 1,
                   'quantize_level': 4,
-                  'dither_seed': hdr["ZDITHER0"],
+                  'dither_seed': hdr["ZDITHER0"]+1,
                  }
         f = fits.open(imfnI, mode='append')
         f.append(fits.CompImageHDU(im, hdr, **compkw))
