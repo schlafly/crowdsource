@@ -75,12 +75,16 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
     if badpixmask is None:
         badpixmask = os.path.join(os.environ['DECAM_DIR'], 'data',
                                   'badpixmasksefs_comp.fits')
-    badmask = fits.getdata(badpixmask, extname=extname)
+    if extname[-1] == 'I':
+        bextname = extname[:-1]
+    else:
+        bextname = extname
+    badmask = fits.getdata(badpixmask, extname=bextname)
     imded |= ((badmask != 0) * extrabits['badpix'])
     mzerowt = mzerowt | (badmask != 0)
     imdew[mzerowt] = 0.
     imdew[:] = numpy.sqrt(imdew)
-    if corrects7 and (extname == 'S7'):
+    if corrects7 and ((extname == 'S7') or (extname == 'S7I')):
         imdei = correct_sky_offset(imdei, weight=imdew)
         half = imded.shape[1] // 2
         imded[:, half:] |= extrabits['s7unstable']
