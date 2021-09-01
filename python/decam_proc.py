@@ -376,7 +376,6 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
             extnamesdone.append(ext)
         hdulist.close()
 
-        print(extnamesdone)
         # Prepare injection CCD for loop ext list
         if injextnamelist is not None:
             if verbose:
@@ -385,7 +384,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                 print(s)
 
         if extnamesdone is not None:
-            injextnames = [n for n in extnames if n in extnamesdone]
+            injextnames = [n for n in extnamesdone]
             print(injextnames)
         else:
             raise ValueError('No CCDs are done. Please fit at least one CCD before injection test.')
