@@ -147,7 +147,7 @@ def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
     from astropy import units as u
 
     ## hand removed galaxy list
-    frm = '/n/home12/saydjari/finksage/Working/2021_07_15/hyperleda_to_remove.csv'
+    frm = '/n/home12/saydjari/finksage/Working/2021_09_01/hyperleda_to_remove.csv'
     with open(frm, newline='') as csvfile:
         data_rm = np.array(list(csv.reader(csvfile,quoting=csv.QUOTE_NONNUMERIC)))
 

@@ -95,4 +95,6 @@ python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new
 
 ###
 
-python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps2/c4d_ 170420_015633 g v1 --ccdlist N4
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps/c4d_ 170420_015633 g v1 --ccdlist N4
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps/c4d_ 170420_015633 g v1 --nthreads 32 --inject 60
