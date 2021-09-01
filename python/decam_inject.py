@@ -22,9 +22,9 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
 
     psfmodel = load_psfmodel(outfn, key, filt[0], pixsz=pixsz)
 
-    im = fits.getdata(imfn, extname=extname).copy()
-    wt = fits.getdata(ivarfn, extname=extname).copy()
-    dq = fits.getdata(dqfn, extname=extname).copy()
+    im = fits.getdata(imfn, extname=key).copy()
+    wt = fits.getdata(ivarfn, extname=key).copy()
+    dq = fits.getdata(dqfn, extname=key).copy()
 
     ny, nx = im.shape
 
@@ -75,7 +75,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     ivarfnI = injectRename(ivarfn)
     dqfnI = injectRename(dqfn)
 
-    hdr = fits.getheader(dqfn, extname=name)
+    hdr = fits.getheader(dqfn, extname=key)
     hdr['EXTNAME'] = hdr['EXTNAME'] + 'I'
     compkw = {'quantize_method': 1,
               'quantize_level': 4,
@@ -84,7 +84,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     f.append(fits.CompImageHDU(dq, hdr, **compkw))
     f.close(closed=True)
 
-    hdr = fits.getheader(ivarfn, extname=name)
+    hdr = fits.getheader(ivarfn, extname=key)
     hdr['EXTNAME'] = hdr['EXTNAME'] + 'I'
     compkw = {'quantize_method': 1,
               'quantize_level': 4,
@@ -94,7 +94,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     f.append(fits.CompImageHDU(wt, hdr, **compkw))
     f.close(closed=True)
 
-    hdr = fits.getheader(imfn, extname=name)
+    hdr = fits.getheader(imfn, extname=key)
     hdr['EXTNAME'] = hdr['EXTNAME'] + 'I'
     compkw = {'quantize_method': 1,
               'quantize_level': 4,
