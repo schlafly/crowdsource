@@ -158,6 +158,7 @@ def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
     idx_bad, idx, d2d, d3d = c_bad.search_around_sky(c, 1*u.arcsec)
 
     assert ra_bad.shape[0] == idx_bad.shape[0]
+    print(np.max(d2d.to(u.deg).value))
     assert np.max(d2d.to(u.deg).value) <= 1e-7
 
     mask1d = np.ones(ra.shape,dtype=bool)
@@ -187,5 +188,4 @@ def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
 
     diam[idx] = diam_mod[idx_mod]/3600
 
-
-    return
+    return ra, dec, theta, diam, ba
