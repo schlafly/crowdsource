@@ -6,6 +6,7 @@ from functools import partial
 import psf as psfmod
 import decam_proc
 from collections import OrderedDict
+import os
 
 def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixsz, wcutoff, verbose, resume, date, frac=0.1):
     # Updated the completed ccds
