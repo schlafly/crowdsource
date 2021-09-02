@@ -372,7 +372,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
         import decam_inject
         imfnI, ivarfnI, dqfnI, injextnames = decam_inject.write_injFiles(imfn, ivarfn,
             dqfn, outfn, inject, injextnamelist, filt, pixsz, wcutoff, verbose, resume,
-            date, overwrite, frac=injectfrac)
+            date, overwrite, injectfrac=injectfrac)
 
         bigdict['imfn'] = imfnI
         bigdict['ivarfn'] = ivarfnI

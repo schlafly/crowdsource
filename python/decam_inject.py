@@ -9,7 +9,7 @@ from collections import OrderedDict
 import os
 
 def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixsz,
-                   wcutoff, verbose, resume, date, overwrite, frac=0.1):
+                   wcutoff, verbose, resume, date, overwrite, injectfrac=0.1):
     # Updated the completed ccds
     hdulist = fits.open(outfn)
     extnamesdone = []
@@ -77,12 +77,12 @@ def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixs
     injextnames = [i for i in injextnames if i not in injnamesdone]
 
     for key in injextnames:
-        scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, frac=injectfrac, seed=2021)
+        scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, injectfrac=injectfrac, seed=2021)
 
     return imfnI, ivarfnI, dqfnI, injextnamesI
 
 
-def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, frac=0.1, seed=2021):
+def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, injectfrac=0.1, seed=2021):
     rng = np.random.default_rng(seed)
 
     ## imports
@@ -113,7 +113,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
 
     # this requres stars to be "good" and in a reasonable flux range (0 flux to 17th mag)
     maskf = ((flags_stars==1) | (flags_stars==2097153)) & (flux_stars>0) & (flux_stars<158489.3192461114);
-    nstars=np.round(0.1*flux_stars[maskf].shape[0]).astype(int)
+    nstars=np.round(injectfrac*flux_stars[maskf].shape[0]).astype(int)
 
     flux_samples = sample_stars(flux_stars[maskf],nstars,rng)
     # stay 33 pixels away from edge for injections
