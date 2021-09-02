@@ -7,7 +7,7 @@ import psf as psfmod
 import decam_proc
 from collections import OrderedDict
 
-def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixsz, wcutoff, verbose, frac=injectfrac):
+def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixsz, wcutoff, verbose, frac=0.1):
     # Updated the completed ccds
     hdulist = fits.open(outfn)
     extnamesdone = []
