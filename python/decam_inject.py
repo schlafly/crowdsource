@@ -119,8 +119,6 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     centyl = rng.uniform(33,ny-33,nstars)
     xcenl = centxl.astype(int)
     ycenl = centyl.astype(int)
-    diffxl = centxl - xcenl
-    diffyl = centyl - ycenl
     mhn = 255 # this is the radius of the model stamp
     mszn = 511 # this is the size of the model stamp
 
@@ -132,11 +130,8 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
         centy = centyl[i]
         xcen = xcenl[i]
         ycen = ycenl[i]
-        diffx = diffxl[i]
-        diffy = diffyl[i]
 
-        psf = psfmodel.render_model(centx,centy,stampsz=511)
-        psf_shift = psfmod.shift(psf,(diffx,diffy));
+        psf_shift = psfmodel(centx,centy,stampsz=511)
         draw = rng.poisson(lam=amp*gain*psf_shift)/gain
 
         new_flux[np.clip(xcen-mhn,a_min=0,a_max=None):np.clip(xcen+mhn+1,a_min=None,a_max=nx),
