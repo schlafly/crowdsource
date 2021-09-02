@@ -7,6 +7,79 @@ import psf as psfmod
 import decam_proc
 from collections import OrderedDict
 
+def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixsz, wcutoff, verbose, frac=injectfrac):
+    # Updated the completed ccds
+    hdulist = fits.open(outfn)
+    extnamesdone = []
+    injnamescat = []
+    for hdu in hdulist:
+        if hdu.name == 'PRIMARY':
+            continue
+        ext, exttype = hdu.name.split('_')
+        if exttype != 'CAT':
+            continue
+        if ext[-1] == 'I':
+            injnamescat.append(ext)
+        else:
+            extnamesdone.append(ext)
+    hdulist.close()
+
+    # Prepare injection CCD for loop ext list
+    if injextnamelist is not None:
+        if verbose:
+            s = ("Only injecting CCD subset: [%s]" %
+                 ', '.join(injextnamelist))
+            print(s)
+
+    if extnamesdone is not None:
+        injextnames = [n for n in extnamesdone]
+    else:
+        raise ValueError('No CCDs are done. Please fit at least one CCD before injection test.')
+    if injextnamelist is not None:
+        injextnames = [n for n in injextnames if n in injextnamelist]
+    injextnames = [n for n in injextnames if n != 'PRIMARY']
+    if inject != -1:
+        rng = np.random.default_rng()
+        injextnames = rng.choice(injextnames, inject, replace=False)
+
+    # create files with injected sources in the decapsi directory
+    ## this might need to be more robust if we port to a different cluster/user
+    imfnI = injectRename(imfn)
+    ivarfnI = injectRename(ivarfn)
+    dqfnI = injectRename(dqfn)
+
+    # intialize the injected images
+    prihdr = fits.getheader(imfn, extname='PRIMARY')
+    if not resume or not os.path.exists(imfnI):
+        fits.writeto(imfnI, None, prihdr, overwrite=overwrite)
+
+    prihdr = fits.getheader(ivarfn, extname='PRIMARY')
+    if not resume or not os.path.exists(ivarfnI):
+        fits.writeto(ivarfnI, None, prihdr, overwrite=overwrite)
+
+    prihdr = fits.getheader(dqfn, extname='PRIMARY')
+    if not resume or not os.path.exists(dqfnI):
+        fits.writeto(dqfnI, None, prihdr, overwrite=overwrite)
+
+    hdulist = fits.open(dqfnI)
+    injnamesdone = []
+    for hdu in hdulist:
+        if hdu.name == 'PRIMARY':
+            continue
+        injnamesdone.append(hdu.name)
+    hdulist.close()
+
+    injextnamesI = [i+"I" for i in injextnames]
+    injextnamesI = [i for i in injextnamesI if i not in injnamescat]
+
+    injextnames = [i for i in injextnames if i not in injnamesdone]
+
+    for key in injextnames:
+        scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, frac=injectfrac, seed=2021)
+
+    return imfnI, ivarfnI, dqfnI, injextnamesI
+
+
 def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, frac=0.1, seed=2021):
     rng = np.random.default_rng(seed)
 

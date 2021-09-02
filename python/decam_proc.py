@@ -336,6 +336,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
             fwhms.append(hdr['FWHM'])
     fwhms = numpy.array(fwhms)
     fwhms = fwhms[fwhms > 0]
+
     # Prepare main CCD for loop
     if extnamelist is not None:
         if verbose:
@@ -367,61 +368,10 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
     run_fxn(bigdict, extnames, nthreads)
 
     ### This is the (optional) synthetic injection pipeline ###
-    if inject > 0:
-        import decam_inject as inj
-        # Updated the completed ccds
-        hdulist = fits.open(outfn)
-        extnamesdone = []
-        for hdu in hdulist:
-            if hdu.name == 'PRIMARY':
-                continue
-            ext, exttype = hdu.name.split('_')
-            if exttype != 'CAT':
-                continue
-            extnamesdone.append(ext)
-        hdulist.close()
-
-        # Prepare injection CCD for loop ext list
-        if injextnamelist is not None:
-            if verbose:
-                s = ("Only injecting CCD subset: [%s]" %
-                     ', '.join(injextnamelist))
-                print(s)
-
-        if extnamesdone is not None:
-            injextnames = [n for n in extnamesdone]
-        else:
-            raise ValueError('No CCDs are done. Please fit at least one CCD before injection test.')
-        if injextnamelist is not None:
-            injextnames = [n for n in injextnames if n in injextnamelist]
-        injextnames = [n for n in injextnames if n != 'PRIMARY']
-        ## FIX ME I need to have random sample the number of inject implemented
-        if np.isfinite(nproc):
-            injextnames = injextnames[:nproc]
-
-        # create files with injected sources in the decapsi directory
-        ## this might need to be more robust if we port to a different cluster/user
-        imfnI = inj.injectRename(imfn)
-        ivarfnI = inj.injectRename(ivarfn)
-        dqfnI = inj.injectRename(dqfn)
-
-        # intialize the injected images
-        prihdr = fits.getheader(imfn, extname='PRIMARY')
-        if not resume or not os.path.exists(imfnI):
-            fits.writeto(imfnI, None, prihdr, overwrite=overwrite)
-
-        prihdr = fits.getheader(ivarfn, extname='PRIMARY')
-        if not resume or not os.path.exists(ivarfnI):
-            fits.writeto(ivarfnI, None, prihdr, overwrite=overwrite)
-
-        prihdr = fits.getheader(dqfn, extname='PRIMARY')
-        if not resume or not os.path.exists(dqfnI):
-            fits.writeto(dqfnI, None, prihdr, overwrite=overwrite)
-
-        for key in injextnames:
-            inj.scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, frac=injectfrac, seed=2021)
-
-        injextnames = [i+"I" for i in injextnames]
+    if inject != 0:
+        import decam_inject
+        imfnI, ivarfnI, dqfnI, injextnames = decam_inject.write_injFiles(imfn, ivarfn, dqfn,
+            outfn, inject, injextnamelist, filt, pixsz, wcutoff, verbose, frac=injectfrac)
 
         bigdict['imfn'] = imfnI
         bigdict['ivarfn'] = ivarfnI
@@ -647,7 +597,9 @@ if __name__ == "__main__":
                         default=0.0, help='cutoff for inverse variances')
     # Calibration run options
     parser.add_argument('--inject', type=int,
-                        default=0, help='number of ccd to synthetic inject and rerun')
+                        default=0, help='number of ccd to synthetic inject and rerun \
+                        chosen at random from completed ccds; -1 runs all completed ccds \
+                        or the full injccdlist')
     parser.add_argument('--injccdlist', nargs='+', default=None,
                         help='limit injection run to subset of ccds listed')
     parser.add_argument('--injectfrac', type=float,
