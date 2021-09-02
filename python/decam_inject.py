@@ -65,13 +65,13 @@ def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixs
 
     import warnings
     with warnings.catch_warnings(record=True) as wlist:
-    hdulist = fits.open(dqfnI)
-        injnamesdone = []
-        for hdu in hdulist:
-            if hdu.name == 'PRIMARY':
-                continue
-            injnamesdone.append(hdu.name)
-        hdulist.close()
+        hdulist = fits.open(dqfnI)
+            injnamesdone = []
+            for hdu in hdulist:
+                if hdu.name == 'PRIMARY':
+                    continue
+                injnamesdone.append(hdu.name)
+            hdulist.close()
     # suppress endless nonstandard keyword warnings on read
     for warning in wlist:
         if 'following header keyword' in str(warning.message):
