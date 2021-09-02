@@ -8,7 +8,8 @@ import decam_proc
 from collections import OrderedDict
 import os
 
-def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixsz, wcutoff, verbose, resume, date, frac=0.1):
+def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixsz,
+                   wcutoff, verbose, resume, date, overwrite, frac=0.1):
     # Updated the completed ccds
     hdulist = fits.open(outfn)
     extnamesdone = []
