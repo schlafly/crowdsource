@@ -170,6 +170,8 @@ def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
     diam = diam[mask1d]
     ba = ba[mask1d]
 
+    print(diam.shape)
+
     ## by eye modified galaxy sizes list
     fmod = '/n/home12/saydjari/finksage/Working/2021_07_15/hyperleda_custom_sizes.csv'
     with open(fmod, newline='') as csvfile:
