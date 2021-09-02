@@ -7,7 +7,7 @@ import psf as psfmod
 import decam_proc
 from collections import OrderedDict
 
-def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixsz, wcutoff, verbose, frac=0.1):
+def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixsz, wcutoff, verbose, resume, date, frac=0.1):
     # Updated the completed ccds
     hdulist = fits.open(outfn)
     extnamesdone = []
@@ -39,7 +39,7 @@ def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixs
         injextnames = [n for n in injextnames if n in injextnamelist]
     injextnames = [n for n in injextnames if n != 'PRIMARY']
     if inject != -1:
-        rng = np.random.default_rng()
+        rng = np.random.default_rng(int(date))
         injextnames = rng.choice(injextnames, inject, replace=False)
 
     # create files with injected sources in the decapsi directory
