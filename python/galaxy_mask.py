@@ -119,7 +119,7 @@ def tan_unit_vectors(rain,decin,l0,p0):
     ue = np.array([dx_dlambda/norm_lambda, dy_dlambda/norm_lambda])
     return un, ue
 
-def read_leda_decaps(fname = "/n/home12/saydjari/finksage/Working/2021_07_15/leda_decaps.fits"):
+def read_leda_decaps(fname = "/n/home12/saydjari/finksage/Working/2021_09_01/leda_decaps.fits"):
     leda = fits.getdata(fname,1)
     ra = leda["ra"]
     dec = leda["dec"]
