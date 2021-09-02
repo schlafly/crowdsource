@@ -63,13 +63,21 @@ def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixs
     if not resume or not os.path.exists(dqfnI):
         fits.writeto(dqfnI, None, prihdr, overwrite=overwrite)
 
+    import warnings
+    with warnings.catch_warnings(record=True) as wlist:
     hdulist = fits.open(dqfnI)
-    injnamesdone = []
-    for hdu in hdulist:
-        if hdu.name == 'PRIMARY':
+        injnamesdone = []
+        for hdu in hdulist:
+            if hdu.name == 'PRIMARY':
+                continue
+            injnamesdone.append(hdu.name)
+        hdulist.close()
+    # suppress endless nonstandard keyword warnings on read
+    for warning in wlist:
+        if 'following header keyword' in str(warning.message):
             continue
-        injnamesdone.append(hdu.name)
-    hdulist.close()
+        else:
+            print(warning)
 
     injextnamesI = [i+"I" for i in injextnames]
     injextnamesI = [i for i in injextnamesI if i not in injnamescat]
