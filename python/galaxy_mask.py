@@ -160,6 +160,9 @@ def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
     assert ra_bad.shape[0] == idx_bad.shape[0]
     assert np.max(d2d.to(u.deg).value) <= 1e-5 #AKS increase from 1e-7 2021_09_01
 
+    print(idx_bad)
+    print(idx)
+
     mask1d = np.ones(ra.shape,dtype=bool)
     mask1d[idx] = False
 
@@ -181,10 +184,7 @@ def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
 
     c_mod = SkyCoord(ra=ra_mod*u.deg, dec=dec_mod*u.deg)
     c = SkyCoord(ra=ra*u.deg, dec=dec*u.deg)
-    idx_mod, idx, d2d, d3d = c_mod.search_around_sky(c, 1*u.arcsec)
-
-    print(idx_mod)
-    print(idx)
+    idx, idx_mod, d2d, d3d = c_mod.search_around_sky(c, 1*u.arcsec)
 
     assert ra_mod.shape[0] == idx_mod.shape[0]
     assert np.max(d2d.to(u.deg).value) <= 1e-7
