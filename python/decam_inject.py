@@ -124,7 +124,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     nstars=np.round(injectfrac*flux_stars[maskf].shape[0]).astype(int)
 
     flux_samples = sample_stars(flux_stars[maskf],nstars,rng)
-    print(np.count_nonzero(np.is_nan(flux_samples)))
+    print(np.count_nonzero(np.isnan(flux_samples)))
     print(np.count_nonzero(flux_samples<0))
     # stay 33 pixels away from edge for injections
     centxl = rng.uniform(33,nx-33,nstars)
