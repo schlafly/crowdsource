@@ -124,6 +124,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     nstars=np.round(injectfrac*flux_stars[maskf].shape[0]).astype(int)
 
     flux_samples = sample_stars(flux_stars[maskf],nstars,rng)
+    nstars = flux_samples.shape[0]
     # stay 33 pixels away from edge for injections
     centxl = rng.uniform(33,nx-33,nstars)
     centyl = rng.uniform(33,ny-33,nstars)
@@ -131,7 +132,6 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     ycenl = centyl.astype(int)
     mhn = 255 # this is the radius of the model stamp
     mszn = 511 # this is the size of the model stamp
-    print(key)
     mock_cat = np.zeros((nstars,5))
     new_flux = np.zeros((nx, ny))
     for i in range(nstars):
