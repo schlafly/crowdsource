@@ -222,7 +222,8 @@ def sample_stars(flux_list, nstars, rng):
     fx, fy = ecdf(flux_list)
     inv_ecdf = interp1d(fy, fx, fill_value="extrapolate")
     sampler = rng.uniform(0,1,nstars)
-    return inv_ecdf(sampler)
+    sflux = inv_ecdf(sampler)
+    return sflux[sflux>0]
 
 
 def load_psfmodel(outfn, key, filter, pixsz=9):
