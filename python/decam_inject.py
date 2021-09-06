@@ -142,8 +142,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
         ycen = ycenl[i]
 
         psf_shift = psfmodel(centx,centy,stampsz=511)
-        print(np.count_nonzero(np.isnan(psf_shift)))
-        print(np.count_nonzero(psf_shift<0))
+        print(np.min(psf_shift))
         draw = rng.poisson(lam=amp*gain*psf_shift)/gain
 
         new_flux[np.clip(xcen-mhn,a_min=0,a_max=None):np.clip(xcen+mhn+1,a_min=None,a_max=nx),
