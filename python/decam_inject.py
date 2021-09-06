@@ -124,7 +124,6 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     nstars=np.round(injectfrac*flux_stars[maskf].shape[0]).astype(int)
 
     flux_samples = sample_stars(flux_stars[maskf],nstars,rng)
-    print(gain)
     # stay 33 pixels away from edge for injections
     centxl = rng.uniform(33,nx-33,nstars)
     centyl = rng.uniform(33,ny-33,nstars)
@@ -143,6 +142,8 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
         ycen = ycenl[i]
 
         psf_shift = psfmodel(centx,centy,stampsz=511)
+        print(np.count_nonzero(np.isnan(psf_shift)))
+        print(np.count_nonzero(psf_shift<0))
         draw = rng.poisson(lam=amp*gain*psf_shift)/gain
 
         new_flux[np.clip(xcen-mhn,a_min=0,a_max=None):np.clip(xcen+mhn+1,a_min=None,a_max=nx),
