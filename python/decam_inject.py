@@ -131,7 +131,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     ycenl = centyl.astype(int)
     mhn = 255 # this is the radius of the model stamp
     mszn = 511 # this is the size of the model stamp
-
+    print(key)
     mock_cat = np.zeros((nstars,5))
     new_flux = np.zeros((nx, ny))
     for i in range(nstars):
@@ -142,10 +142,6 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
         ycen = ycenl[i]
 
         psf_shift = psfmodel(centx,centy,stampsz=511)
-        print(np.min(psf_shift))
-        print(np.median(psf_shift))
-        print(np.mean(psf_shift))
-        print(np.max(psf_shift))
         draw = rng.poisson(lam=amp*gain*psf_shift)/gain
 
         new_flux[np.clip(xcen-mhn,a_min=0,a_max=None):np.clip(xcen+mhn+1,a_min=None,a_max=nx),
