@@ -149,7 +149,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
         np.clip(mhn-xcen,a_min=0,a_max=None):np.clip(nx-xcen+mhn,a_min=None,a_max=mszn),
              np.clip(mhn-ycen,a_min=0,a_max=None):np.clip(ny-ycen+mhn,a_min=None,a_max=mszn)]
 
-        mock_cat[i,:] = [centx, centy, np.sum(draw), np.sum(np.multiply(draw,psf_shift))/np.sum(np.square(psf_shift)), amp]
+        mock_cat[i,:] = [centx, centy, np.sum(central_stamp(draw,censize=59)), np.sum(draw), np.sum(np.multiply(draw,psf_shift))/np.sum(np.square(psf_shift)), amp]
 
     im += new_flux
     wt = (1./(wt + (wt == 0) * 1e14) + np.divide(new_flux,gain))**(-1)
@@ -196,8 +196,8 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
             print(warning)
 
     #mock catalogue export
-    stars = OrderedDict([('centx', mock_cat[:,0]), ('centy', mock_cat[:,1]), ('flux', mock_cat[:,2]),
-                     ('psfwt_flux', mock_cat[:,3]), ('amp', mock_cat[:,4])])
+    stars = OrderedDict([('x', mock_cat[:,0]), ('y', mock_cat[:,1]), ('flux', mock_cat[:,2]),
+                     ('fluxfull', mock_cat[:,3]), ('psfwt_flux', mock_cat[:,4]), ('amp', mock_cat[:,5])])
     dtypenames = list(stars.keys())
     dtypeformats = [stars[n].dtype for n in dtypenames]
     dtype = dict(names=dtypenames, formats=dtypeformats)
