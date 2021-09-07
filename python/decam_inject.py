@@ -202,7 +202,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     dtypeformats = [stars[n].dtype for n in dtypenames]
     dtype = dict(names=dtypenames, formats=dtypeformats)
     cat = np.fromiter(zip(*stars.values()),
-                           dtype=dtype, count=len(stars['centx']))
+                           dtype=dtype, count=len(stars['x']))
 
     hducat = fits.BinTableHDU(cat)
     hducat.name = hdr['EXTNAME'] + '_MCK'
