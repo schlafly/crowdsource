@@ -132,7 +132,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     ycenl = centyl.astype(int)
     mhn = 255 # this is the radius of the model stamp
     mszn = 511 # this is the size of the model stamp
-    mock_cat = np.zeros((nstars,5))
+    mock_cat = np.zeros((nstars,6))
     new_flux = np.zeros((nx, ny))
     for i in range(nstars):
         amp = flux_samples[i]
