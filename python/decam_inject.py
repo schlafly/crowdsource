@@ -84,14 +84,14 @@ def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixs
 
     injextnames = [i for i in injextnames if i not in injnamesdone]
 
+    rng = np.random.default_rng(int(date))
     for key in injextnames:
-        scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, injectfrac=injectfrac, seed=2021)
+        scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, rng, injectfrac=injectfrac)
 
     return imfnI, ivarfnI, dqfnI, injextnamesI
 
-
-def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, injectfrac=0.1, seed=2021):
-    rng = np.random.default_rng(seed)
+#seed on date here too
+def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, rng, injectfrac=0.1):
 
     ## imports
     hdr = fits.getheader(outfn,key+"_HDR")

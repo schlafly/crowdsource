@@ -110,3 +110,14 @@ python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new
 ###
 
 cat decaps_1per_run.txt | parallel --eta --delay 2 -j 36 --colsep ' ' --joblog log/runtask.log --resume "python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m -d cat -e mod --inject 1 {1} {2} {3} {4} >>log/{2/.}.log 2>&1"
+
+
+###
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m -d cat -e mod --inject 1 /n/fink2/decaps2/c4d_ 180228_025151 i v1
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m -d cat -e mod --inject 1 /n/fink2/decaps2/c4d_ 180802_033908 i v1
+
+###
+
+cat decaps_1per_run.txt | parallel --eta --delay 2 -j 45 --colsep ' ' --joblog log/runtask.log --resume "python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --nthreads 15 -v -r -c -q -g -m -d cat -e mod --inject 1 {1} {2} {3} {4} >>log/{2/.}.log 2>&1"
