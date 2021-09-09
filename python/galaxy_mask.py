@@ -119,7 +119,7 @@ def tan_unit_vectors(rain,decin,l0,p0):
     ue = np.array([dx_dlambda/norm_lambda, dy_dlambda/norm_lambda])
     return un, ue
 
-def read_leda_decaps(fname = "/n/home12/saydjari/finksage/Working/2021_07_15/leda_decaps.fits"):
+def read_leda_decaps(fname = "/n/home12/saydjari/finksage/Working/2021_09_01/leda_decaps.fits"):
     leda = fits.getdata(fname,1)
     ra = leda["ra"]
     dec = leda["dec"]
@@ -147,7 +147,7 @@ def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
     from astropy import units as u
 
     ## hand removed galaxy list
-    frm = '/n/home12/saydjari/finksage/Working/2021_07_15/hyperleda_to_remove.csv'
+    frm = '/n/home12/saydjari/finksage/Working/2021_09_01/hyperleda_to_remove.csv'
     with open(frm, newline='') as csvfile:
         data_rm = np.array(list(csv.reader(csvfile,quoting=csv.QUOTE_NONNUMERIC)))
 
@@ -155,10 +155,10 @@ def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
     dec_bad = data_rm[:,1]
     c_bad = SkyCoord(ra=ra_bad*u.deg, dec=dec_bad*u.deg)
     c = SkyCoord(ra=ra*u.deg, dec=dec*u.deg)
-    idx_bad, idx, d2d, d3d = c_bad.search_around_sky(c, 1*u.arcsec)
+    idx, idx_bad, d2d, d3d = c_bad.search_around_sky(c, 1*u.arcsec)
 
     assert ra_bad.shape[0] == idx_bad.shape[0]
-    assert np.max(d2d.to(u.deg).value) <= 1e-7
+    assert np.max(d2d.to(u.deg).value) <= 1e-5 #AKS increase from 1e-7 2021_09_01
 
     mask1d = np.ones(ra.shape,dtype=bool)
     mask1d[idx] = False
@@ -171,7 +171,7 @@ def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
     ba = ba[mask1d]
 
     ## by eye modified galaxy sizes list
-    fmod = '/n/home12/saydjari/finksagescratch/Working/2021_07_15/hyperleda_custom_sizes.csv'
+    fmod = '/n/home12/saydjari/finksage/Working/2021_07_15/hyperleda_custom_sizes.csv'
     with open(fmod, newline='') as csvfile:
         data_mod = np.array(list(csv.reader(csvfile,quoting=csv.QUOTE_NONNUMERIC)))
 
@@ -180,12 +180,12 @@ def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
     diam_mod = data_mod[:,2]
 
     c_mod = SkyCoord(ra=ra_mod*u.deg, dec=dec_mod*u.deg)
-    idx_mod, idx, d2d, d3d = c_mod.search_around_sky(c, 1*u.arcsec)
+    c = SkyCoord(ra=ra*u.deg, dec=dec*u.deg)
+    idx, idx_mod, d2d, d3d = c_mod.search_around_sky(c, 1*u.arcsec)
 
     assert ra_mod.shape[0] == idx_mod.shape[0]
     assert np.max(d2d.to(u.deg).value) <= 1e-7
 
     diam[idx] = diam_mod[idx_mod]/3600
 
-
-    return
+    return ra, dec, theta, diam, ba

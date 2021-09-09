@@ -64,3 +64,60 @@ python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new
 python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -m --ccd_num 1 --outdirc cat --outdirm mod decaps2 180511_080858 z v1
 
 python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r --ccd_num 1 --outdirc cat --outdirm mod decaps2 180511_080858 z v1
+
+####
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps/c4d_ 170120_080910 z v1 --parallel 32
+
+####
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2 --plot_on 2
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2 --plot_on 1
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -q -g -m /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -q -g -m /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2 --no-mask-diffuse
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -q -m /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2 --no-mask-diffuse
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -r -q /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2 --no-mask-diffuse
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -r /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2 --no-mask-diffuse
+
+#try profiling
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 2 --nccds 2 -p
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 1 --nccds 1 -p
+
+###
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps/c4d_ 170420_015633 g v1 --ccdlist N4
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps/c4d_ 170420_015633 g v1 --nthreads 32 --inject 60
+
+###
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps2/c4d_ 180511_080858 z v1 --nthreads 6 --ccdlist N1 N5 S21 S2 S23 S24 --inject 1
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps2/c4d_ 170420_015633 g v1 --nthreads 6 --ccdlist N1 N5 S21 S2 S23 S24 --inject 1
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m /n/fink2/decaps2/c4d_ 190501_043218 r v1 --nthreads 2 --ccdlist S21 S2 S23 S24 --inject 1 --injectfrac 0.05
+
+###
+
+cat decaps_1per_run.txt | parallel --eta --delay 2 -j 36 --colsep ' ' --joblog log/runtask.log --resume "python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m -d cat -e mod --inject 1 {1} {2} {3} {4} >>log/{2/.}.log 2>&1"
+
+
+###
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m -d cat -e mod --inject 1 /n/fink2/decaps2/c4d_ 180228_025151 i v1
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m -d cat -e mod --inject 1 /n/fink2/decaps2/c4d_ 180802_033908 i v1
+
+###
+
+cat decaps_1per_run.txt | parallel --eta --delay 2 -j 45 --colsep ' ' --joblog log/runtask.log --resume "python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --nthreads 15 -v -r -c -q -g -m -d cat -e mod --inject 1 {1} {2} {3} {4} >>log/{2/.}.log 2>&1"
