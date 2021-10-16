@@ -121,3 +121,20 @@ python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new
 ###
 
 cat decaps_1per_run.txt | parallel --eta --delay 2 -j 45 --colsep ' ' --joblog log/runtask.log --resume "python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py --nthreads 15 -v -r -c -q -g -m -d cat -e mod --inject 1 {1} {2} {3} {4} >>log/{2/.}.log 2>&1"
+
+###
+
+python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m -d cat -e mod --ccdlist N12 --injccdlist N12 --inject -1 /n/fink2/decaps/c4d_ 170504_045213 Y v1
+
+srun --exclusive -N1 -n1 --mem-per-cpu=4000 python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/ExtSoftware/crowdsource_new/python/decam_proc.py -v -r -c -q -g -m -d cat -e mod --ccdlist N2 --injccdlist N2 --inject -1 /n/fink2/decaps/c4d_ 170504_045213 Y v1
+
+### 
+
+cgcreate -g memory:holyfink01
+cgset -r memory.limit_in_bytes=7G holyfink01
+
+###
+
+cat decaps_1per_run.txt | parallel --eta --workdir . --sshloginfile nodefile --delay 2 --colsep ' ' --joblog log/runtask.log --resume "python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/Working/2021_09_07/test.py {1} {2} {3} {4} >>log/{2/.}.log 2>&1"
+
+cat decaps_1per_run.txt | parallel --eta --workdir . --filter-hosts --sshloginfile nodefile --delay 2 --colsep ' ' --joblog log/runtask.log --resume "python /n/holylfs05/LABS/finkbeiner_lab/Lab/saydjari/Working/2021_09_07/test.py {1} {2} {3} {4} >>log/{2/.}.log 2>&1"
