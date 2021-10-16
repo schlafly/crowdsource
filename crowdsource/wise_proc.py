@@ -10,7 +10,9 @@ import psf as psfmod
 from astropy.io import fits
 import crowdsource
 from unwise_psf import unwise_psf
-import unwise_primary
+# implicit dependency for WISE runs only
+# https://github.com/legacysurvey/unwise_psf
+import crowdsource.unwise_primary as unwise_primary
 from astropy import wcs
 from collections import OrderedDict
 from pkg_resources import resource_filename
