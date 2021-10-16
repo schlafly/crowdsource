@@ -1,6 +1,10 @@
-crowdsource
+# crowdsource
 
-crowded field photometry pipeline
+A crowded field photometry pipeline
+
+## Installation
+
+## Developer Notes
 
 Strategy:
   * main loop:

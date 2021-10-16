@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(
-    name = 'crowdsource',
+    name = 'crowdsourcephoto',
     packages = ['crowdsource'],
     version = '0.5.1',
     description = 'Crowded field photometry pipeline',
