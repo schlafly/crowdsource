@@ -4,6 +4,12 @@ A crowded field photometry pipeline
 
 ## Installation
 
+This package can be installed using pip as
+
+```python
+pip install crowdsourcephoto
+```
+
 ## Developer Notes
 
 Strategy:
@@ -72,23 +78,23 @@ Strategy:
   * centroids
     - compute residual image
     - for each source:
-      - add back in this source's model (PSF, derivatives)
-      - compute centroid on this other-source-subtracted image
-      - pixels in centroid are weighted according to weight image and
-        the current psf estimate
-      - final centroid multiplied by two to address multiplicative bias
-      - additive bias computed from computed centroid of a true PSF
-      - centroids of true PSFs at each position in the weight image
-        also computed, to address biases due to weight images
-      - possible multiplicative bias due to weight image not addressed
-      - Hogg has recent paper saying finding the peak in the PSF-convolved
-        image is better.  Worries:
-        - current scheme really only cares about center of stamp;
-          psf-convolution would be more likely to chase things in the
-          wings
-        - would need much bigger stamps for PSF convolution
-        - but PSF convolution would be much more straightforward
-          mathematically (I think?)
+     - add back in this source's model (PSF, derivatives)
+     - compute centroid on this other-source-subtracted image
+     - pixels in centroid are weighted according to weight image and
+       the current psf estimate
+     - final centroid multiplied by two to address multiplicative bias
+     - additive bias computed from computed centroid of a true PSF
+     - centroids of true PSFs at each position in the weight image
+       also computed, to address biases due to weight images
+     - possible multiplicative bias due to weight image not addressed
+     - Hogg has recent paper saying finding the peak in the PSF-convolved
+       image is better.  Worries:
+      - current scheme really only cares about center of stamp;
+        psf-convolution would be more likely to chase things in the
+        wings
+      - would need much bigger stamps for PSF convolution
+      - but PSF convolution would be much more straightforward
+        mathematically (I think?)
       - note: in initial iteration, the PSF may be quite bad
         accordingly, we use dumb ~aperture model for PSF in this iteration,
         basically not using the PSF weight and just computing the barycenter
@@ -100,10 +106,10 @@ Strategy:
       median
     - compute total fluxes in the images, without subtracting other sources
     - throw away sources with any of the following
-      - psf_qf different from 1,
-      - large centroid shifts (>0.5 pixels)
-      - less than half the total image flux coming from the model star
-      - median subtraction removes more than 80% of the flux
+     - psf_qf different from 1,
+     - large centroid shifts (>0.5 pixels)
+     - less than half the total image flux coming from the model star
+     - median subtraction removes more than 80% of the flux
     - median of the surviving stamps (after shifting according to centroids)
     - this is for central 19x19 stamp
     - to extend to 59x59 stamp to deal with bright stars, find best fit
@@ -112,23 +118,22 @@ Strategy:
 
 
 TODO:
-    * flags based on flags in central pixel of DQ file
-    * convert matrix construction step to Cython
-        - not clear how big the win is (25%?), have to find a good interpolation package in C/C++ to link to.  Maybe possible to use the numpy one, but sounds like a bad idea?
-    * increase match radius to at least ~0.375"; this is 0.25"* 7.5 / 5, 7.5 pix is roughly our worst seeing.
-    * During average flux computation, when encountering multiple sources within 1 match radius of a single object, do something.  Options:
-        - sum the fluxes
-        - flag both detections; don't use their fluxes in averaging!
+ * flags based on flags in central pixel of DQ file
+ * convert matrix construction step to Cython
+  - not clear how big the win is (25%?), have to find a good interpolation package in C/C++ to link to.  Maybe possible to use the numpy one, but sounds like a bad idea?
+ * increase match radius to at least ~0.375"; this is 0.25"* 7.5 / 5, 7.5 pix is roughly our worst seeing.
+ * During average flux computation, when encountering multiple sources within 1 match radius of a single object, do something.  
+   Options:
+   - sum the fluxes
+   - flag both detections; don't use their fluxes in averaging!
 
 Improvements:
-    * consider multiple images simultaneously (major change)
-    * allow PSF to vary (significant change)
-        - seems necessary to do better photometry (~2% level)
-    - could require:
-        - change the convolution kernel?  significance_image needs
-          to know the PSF, but this is probably deeply second-order
-        - ?
-    * improve sky background estimation
-        - reject regions around stars?
-    - model background as sum of power law & Gaussian distributions?
-      My sense has been that the biggest problem is that we _have_ to do small scale sky corrections to deal with the wings of very bright stars, very bright stars off the focal plane, dust-associated diffuse light, etc.  Looking only in small regions, it's hard to imagine that a more sophisticated fit will actually be a good idea.  In practice, I guess we need to assess how bad our sky subtraction is actually doing by comparison of the photometry with much deeper data.
+* consider multiple images simultaneously (major change)
+* allow PSF to vary (significant change)
+  - seems necessary to do better photometry (~2% level)
+  - could require change the convolution kernel?  significance_image needs to know the PSF, but this is probably deeply second-order
+* improve sky background estimation
+  - reject regions around stars?
+  - model background as sum of power law & Gaussian distributions?
+
+My sense has been that the biggest problem is that we _have_ to do small scale sky corrections to deal with the wings of very bright stars, very bright stars off the focal plane, dust-associated diffuse light, etc.  Looking only in small regions, it's hard to imagine that a more sophisticated fit will actually be a good idea.  In practice, I guess we need to assess how bad our sky subtraction is actually doing by comparison of the photometry with much deeper data.
