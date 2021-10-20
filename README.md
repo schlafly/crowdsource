@@ -4,7 +4,15 @@ A crowded field photometry pipeline
 
 ## Installation
 
-This package can be installed using pip as
+The recommended installation uses conda-forge as
+
+```python
+conda install -c conda-forge crowdsourcephoto
+```
+
+Due to some current version issues with the tensorflow feedstock, a conda-forge version of `crowdsourcephoto` is not available on windows. Windows users should fall back to pip (below).
+
+This package can also be installed using pip as
 
 ```python
 pip install crowdsourcephoto
