@@ -2,6 +2,27 @@
 
 A crowded field photometry pipeline
 
+| PyPi | Conda | Platforms|
+| --- | --- | --- |
+|[![][pypi-img]][pypi-url]|[![][conda-img]][conda-url]|[![][plat-img]][plat-url]
+|[![][pypid-img]][pypid-url]|[![][condad-img]][condad-url]|
+
+<!-- URLS -->
+[pypi-img]: https://img.shields.io/pypi/v/crowdsourcephoto.svg
+[pypi-url]: https://pypi.org/project/crowdsourcephoto
+
+[conda-img]: https://img.shields.io/conda/vn/conda-forge/crowdsourcephoto.svg
+[conda-url]: https://anaconda.org/conda-forge/crowdsourcephoto
+
+[pypid-img]: https://img.shields.io/pypi/dm/crowdsourcephoto.svg?label=Pypi%20downloads
+[pypid-url]: https://pypi.org/project/crowdsourcephoto/
+
+[condad-img]: https://img.shields.io/conda/dn/conda-forge/crowdsourcephoto.svg?label=Conda%20downloads
+[condad-url]: https://anaconda.org/conda-forge/crowdsourcephoto
+
+[plat-img]: https://img.shields.io/conda/pn/conda-forge/crowdsourcephoto.svg
+[plat-url]: https://anaconda.org/conda-forge/crowdsourcephoto
+
 ## Installation
 
 The recommended installation uses conda-forge as
