@@ -38,8 +38,7 @@ def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixs
         rng = np.random.default_rng(int(date))
         injextnames = rng.choice(injextnames, inject, replace=False)
     if verbose:
-        s = "Injecting sources into [%s]" %
-             ', '.join(injextnames))
+        s = 'Injecting sources into [%s]' %', '.join(injextnames)
         print(s)
 
     # create files with injected sources in the decapsi directory
