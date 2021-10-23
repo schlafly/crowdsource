@@ -6,7 +6,7 @@ import pdb
 import argparse
 import numpy
 import numpy as np
-import crowdsource.psf as psfmod
+import psf as psfmod
 from astropy.io import fits
 from astropy import wcs
 from functools import partial

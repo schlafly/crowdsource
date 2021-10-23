@@ -16,7 +16,7 @@ entirely simultaneously.
 
 import numpy
 import pdb
-import crowdsource.psf as psfmod
+import psf as psfmod
 import scipy.ndimage.filters as filters
 from collections import OrderedDict
 import sys
