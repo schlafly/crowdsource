@@ -117,7 +117,8 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     nx, ny = im.shape
 
     # this requres stars to be "good" and in a reasonable flux range (0 flux to 17th mag)
-    maskf = ((flags_stars==1) | (flags_stars==2097153)) & (flux_stars>0) & (flux_stars<158489.3192461114);
+    badflags = 2**1+2**3+2**4+2**5+2**7+2**20+2**23+2**24
+    maskf = ((flags_stars & badflags) == 0) & (flux_stars>0) & (flux_stars<158489.3192461114);
     nstars_tot=flux_stars.shape[0]
     nstarg=flux_stars[maskf].shape[0]
     nstars=np.round(injectfrac*nstarg).astype(int)
