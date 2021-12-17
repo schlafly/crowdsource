@@ -75,8 +75,9 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
     if badpixmask is None:
         badpixmask = os.path.join(os.environ['DECAM_DIR'], 'data',
                                   'badpixmasksefs_comp.fits')
-    if extname[-1] == 'I':
-        bextname = extname[:-1]
+    if "I" in extname:
+        extidx = extname.index("I")
+        bextname = extname[:extidx]
     else:
         bextname = extname
     badmask = fits.getdata(badpixmask, extname=bextname)
@@ -84,7 +85,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
     mzerowt = mzerowt | (badmask != 0)
     imdew[mzerowt] = 0.
     imdew[:] = numpy.sqrt(imdew)
-    if corrects7 and ((extname == 'S7') or (extname == 'S7I')):
+    if corrects7 and (extname[:2] == 'S7'):
         imdei = correct_sky_offset(imdei, weight=imdew)
         half = imded.shape[1] // 2
         imded[:, half:] |= extrabits['s7unstable']
@@ -311,8 +312,9 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
         for hdu in hdulist:
             if hdu.name == 'PRIMARY':
                 continue
-            ext, exttype = hdu.name.split('_')
-            if exttype != 'CAT':
+            extfull = hdu.name.split('_')
+            ext = "_".join(extfull[:-1])
+            if extfull[-1] != 'CAT':
                 continue
             extnamesdone.append(ext)
         hdulist.close()

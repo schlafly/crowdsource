@@ -9,7 +9,7 @@ from collections import OrderedDict
 import os
 
 def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixsz,
-                   wcutoff, verbose, resume, date, overwrite, injectfrac=0.1):
+                   wcutoff, verbose, resume, date, overwrite, injectfrac=0.1,extadd=None):
     # Updated the completed ccds
     hdulist = fits.open(outfn)
     extnamesdone = []
@@ -17,10 +17,11 @@ def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixs
     for hdu in hdulist:
         if hdu.name == 'PRIMARY':
             continue
-        ext, exttype = hdu.name.split('_')
-        if exttype != 'CAT':
+        extfull = hdu.name.split('_')
+        ext = "_".join(extfull[:-1])
+        if extfull[-1] != 'CAT':
             continue
-        if ext[-1] == 'I':
+        if "I" in ext:
             injnamescat.append(ext)
         else:
             extnamesdone.append(ext)
@@ -83,13 +84,15 @@ def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixs
 
     rng = np.random.default_rng(int(date))
     for key in injextnames:
-        scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, rng, injectfrac=injectfrac)
+        scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, rng, injectfrac=injectfrac,extadd=extadd)
 
     return imfnI, ivarfnI, dqfnI, injextnamesI
 
 #seed on date here too
-def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, rng, injectfrac=0.1):
-
+def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, rng, injectfrac=0.1, extadd=None):
+    keyadd = "I"
+    if extadd is not None:
+        keyadd+=("_"+str(extadd).zfill(3))
     ## imports
     hdr = fits.getheader(outfn,key+"_HDR")
     gain = hdr['GAINCRWD']
@@ -172,7 +175,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
 
     with warnings.catch_warnings(record=True) as wlist:
         hdr = fits.getheader(dqfn, extname=key)
-        hdr['EXTNAME'] = hdr['EXTNAME'] + 'I'
+        hdr['EXTNAME'] = hdr['EXTNAME'] + keyadd
         compkw = {'quantize_method': 1,
                   'quantize_level': 4,
                  }
@@ -184,7 +187,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
         new_seed = hdr["ZDITHER0"]+1
         if new_seed > 10000:
             new_seed -= 10000
-        hdr['EXTNAME'] = hdr['EXTNAME'] + 'I'
+        hdr['EXTNAME'] = hdr['EXTNAME'] + keyadd
         compkw = {'quantize_method': 1,
                   'quantize_level': 4,
                   'dither_seed': new_seed,
@@ -197,7 +200,7 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
         new_seed = hdr["ZDITHER0"]+1
         if new_seed > 10000:
             new_seed -= 10000
-        hdr['EXTNAME'] = hdr['EXTNAME'] + 'I'
+        hdr['EXTNAME'] = hdr['EXTNAME'] + keyadd
         compkw = {'quantize_method': 1,
                   'quantize_level': 4,
                   'dither_seed': new_seed,
@@ -252,6 +255,6 @@ def load_psfmodel(outfn, key, filter, pixsz=9):
 
 def injectRename(fname):
     spltname = fname.split("/")
-    spltname[3] = "decapsi"
+    spltname[-2] = "decapsi"
     fname = "/".join(spltname)
     return fname[:-7]+"I.fits.fz"
