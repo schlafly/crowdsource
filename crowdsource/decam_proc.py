@@ -435,7 +435,7 @@ def save_fxn(res, bigdict):
     outfn=bigdict['outfn']
     outmodelfn=bigdict['outmodelfn']
     modsaveonly=bigdict['modsaveonly']
-    noModsave==bigdict['noModsave']
+    noModsave=bigdict['noModsave']
     cat, modelim, skyim, psf, hdr, msk, prbexport, name = res
     hdr = fits.Header.fromstring(hdr)
     # Data Saving
