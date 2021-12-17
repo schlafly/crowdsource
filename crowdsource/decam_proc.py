@@ -257,7 +257,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                   maxiter=10, titer_thresh=2, pixsz=9, wcutoff=0.0,
                   nthreads=1,
                   inject = 0, injextnamelist = None, injectfrac = 0.1,
-                  modsaveonly=False, donefrommod=False):
+                  modsaveonly=False, donefrommod=False,noModsave=False):
     if profile:
         import cProfile
         import pstats
@@ -378,7 +378,8 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                    bmask_deblend=bmask_deblend, plot=plot, miniter=miniter,
                    maxiter=maxiter, titer_thresh=titer_thresh,
                    expnum=prihdr['EXPNUM'],outmodel=outmodel,
-                   outfn=outfn, outmodelfn=outmodelfn, modsaveonly=modsaveonly)
+                   outfn=outfn, outmodelfn=outmodelfn, modsaveonly=modsaveonly,
+                   noModsave=noModsave)
 
     run_fxn(bigdict, extnames, nthreads)
 
@@ -434,7 +435,7 @@ def save_fxn(res, bigdict):
     outfn=bigdict['outfn']
     outmodelfn=bigdict['outmodelfn']
     modsaveonly=bigdict['modsaveonly']
-
+    noModsave==bigdict['noModsave']
     cat, modelim, skyim, psf, hdr, msk, prbexport, name = res
     hdr = fits.Header.fromstring(hdr)
     # Data Saving
@@ -461,7 +462,8 @@ def save_fxn(res, bigdict):
                   'quantize_method': 1, 'quantize_level': -4,
                   'tile_size': modelim.shape}
         modhdulist = fits.open(outmodelfn, mode='append')
-        modhdulist.append(fits.CompImageHDU(modelim, hdr, **compkw))
+        if not noModsave:
+            modhdulist.append(fits.CompImageHDU(modelim, hdr, **compkw))
         hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_SKY'
         modhdulist.append(fits.CompImageHDU(skyim, hdr, **compkw))
         if msk is not None:
@@ -580,6 +582,8 @@ if __name__ == "__main__":
                         help="saves only the model")
     parser.add_argument('--donefrommod', action='store_true',
                         help="reads done extensions from mod, not cat")
+    parser.add_argument('--noModsave', action='store_true',
+                        help="save all model files other than _MOD")
     # Run options
     parser.add_argument('--verbose', '-v', action='store_true',
                         help="prints lots of nice info to cmd line")
@@ -644,4 +648,4 @@ if __name__ == "__main__":
                   nthreads=args.nthreads,
                   inject=args.inject, injextnamelist=args.injccdlist,
                   injectfrac=args.injectfrac,modsaveonly=args.modsaveonly,
-                  donefrommod=args.donefrommod)
+                  donefrommod=args.donefrommod,noModsave=args.noModsave)
