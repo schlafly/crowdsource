@@ -256,7 +256,8 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                   extnamelist=None, plot=False, profile=False, miniter=4,
                   maxiter=10, titer_thresh=2, pixsz=9, wcutoff=0.0,
                   nthreads=1,
-                  inject = 0, injextnamelist = None, injectfrac = 0.1):
+                  inject = 0, injextnamelist = None, injectfrac = 0.1,
+                  modsaveonly=False, donefrommod=False):
     if profile:
         import cProfile
         import pstats
@@ -328,6 +329,18 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
             outmodelfn = os.path.join(outdirm, outmodelfn)
         if (not resume or not os.path.exists(outmodelfn)):
             fits.writeto(outmodelfn, None, prihdr, overwrite=overwrite)
+        else:
+            if donefrommod:
+                hdulist = fits.open(outmodelfn)
+                extnamesdone = []
+                for hdu in hdulist:
+                    if hdu.name == 'PRIMARY':
+                        continue
+                    ext, exttype = hdu.name.split('_')
+                    if exttype != 'MOD':
+                        continue
+                    extnamesdone.append(ext)
+                hdulist.close()
     # fwhm scrape all the ccds
     fwhms = []
     for name in extnames:
@@ -365,7 +378,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                    bmask_deblend=bmask_deblend, plot=plot, miniter=miniter,
                    maxiter=maxiter, titer_thresh=titer_thresh,
                    expnum=prihdr['EXPNUM'],outmodel=outmodel,
-                   outfn=outfn, outmodelfn=outmodelfn)
+                   outfn=outfn, outmodelfn=outmodelfn, modsaveonly=modsaveonly)
 
     run_fxn(bigdict, extnames, nthreads)
 
@@ -420,6 +433,7 @@ def save_fxn(res, bigdict):
     contmask = bigdict['contmask']
     outfn=bigdict['outfn']
     outmodelfn=bigdict['outmodelfn']
+    modsaveonly=bigdict['modsaveonly']
 
     cat, modelim, skyim, psf, hdr, msk, prbexport, name = res
     hdr = fits.Header.fromstring(hdr)
@@ -433,10 +447,11 @@ def save_fxn(res, bigdict):
     hdupsf.name = hdr['EXTNAME'][:-4] + '_PSF'
     hducat = fits.BinTableHDU(cat)
     hducat.name = hdr['EXTNAME'][:-4] + '_CAT'
-    hdulist = fits.open(outfn, mode='append')
-    hdulist.append(hdupsf)  # append the psf field for the ccd
-    hdulist.append(hducat)  # append the cat field for the ccd
-    hdulist.close(closed=True)
+    if not modsaveonly:
+        hdulist = fits.open(outfn, mode='append')
+        hdulist.append(hdupsf)  # append the psf field for the ccd
+        hdulist.append(hducat)  # append the cat field for the ccd
+        hdulist.close(closed=True)
     if outmodel:
         hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MOD'
         # RICE should be significantly better here and supported in
@@ -561,6 +576,10 @@ if __name__ == "__main__":
                         type=str, default=None)
     parser.add_argument('--outdirm', '-e', help='mod output directory',
                         type=str, default=None)
+    parser.add_argument('--modsaveonly', action='store_true',
+                        help="saves only the model")
+    parser.add_argument('--donefrommod', action='store_true',
+                        help="reads done extensions from mod, not cat")
     # Run options
     parser.add_argument('--verbose', '-v', action='store_true',
                         help="prints lots of nice info to cmd line")
@@ -624,5 +643,5 @@ if __name__ == "__main__":
                   wcutoff=args.wcutoff,
                   nthreads=args.nthreads,
                   inject=args.inject, injextnamelist=args.injccdlist,
-                  injectfrac=args.injectfrac
+                  injectfrac=args.injectfrac,modsaveonly=args.modsaveonly
                   )
