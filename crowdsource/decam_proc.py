@@ -643,5 +643,5 @@ if __name__ == "__main__":
                   wcutoff=args.wcutoff,
                   nthreads=args.nthreads,
                   inject=args.inject, injextnamelist=args.injccdlist,
-                  injectfrac=args.injectfrac,modsaveonly=args.modsaveonly
-                  )
+                  injectfrac=args.injectfrac,modsaveonly=args.modsaveonly,
+                  donefrommod=args.donefrommod)
