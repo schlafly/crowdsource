@@ -337,7 +337,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                     if hdu.name == 'PRIMARY':
                         continue
                     ext, exttype = hdu.name.split('_')
-                    if exttype != 'MOD':
+                    if exttype != 'SKY':
                         continue
                     extnamesdone.append(ext)
                 hdulist.close()
