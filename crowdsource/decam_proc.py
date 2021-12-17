@@ -255,7 +255,8 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                   extnamelist=None, plot=False, profile=False, miniter=4,
                   maxiter=10, titer_thresh=2, pixsz=9, wcutoff=0.0,
                   nthreads=1,
-                  inject = 0, injextnamelist = None, injectfrac = 0.1, modsaveonly=False):
+                  inject = 0, injextnamelist = None, injectfrac = 0.1,
+                  modsaveonly=False, donefrommod=False):
     if profile:
         import cProfile
         import pstats
@@ -326,6 +327,18 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
             outmodelfn = os.path.join(outdirm, outmodelfn)
         if (not resume or not os.path.exists(outmodelfn)):
             fits.writeto(outmodelfn, None, prihdr, overwrite=overwrite)
+        else:
+            if donefrommod:
+                hdulist = fits.open(outmodelfn)
+                extnamesdone = []
+                for hdu in hdulist:
+                    if hdu.name == 'PRIMARY':
+                        continue
+                    ext, exttype = hdu.name.split('_')
+                    if exttype != 'MOD':
+                        continue
+                    extnamesdone.append(ext)
+                hdulist.close()
     # fwhm scrape all the ccds
     fwhms = []
     for name in extnames:
@@ -563,6 +576,8 @@ if __name__ == "__main__":
                         type=str, default=None)
     parser.add_argument('--modsaveonly', action='store_true',
                         help="saves only the model")
+    parser.add_argument('--donefrommod', action='store_true',
+                        help="reads done extensions from mod, not cat")
     # Run options
     parser.add_argument('--verbose', '-v', action='store_true',
                         help="prints lots of nice info to cmd line")
