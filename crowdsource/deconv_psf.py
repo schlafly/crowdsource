@@ -3,7 +3,7 @@ import pdb
 import numpy
 from skimage import restoration
 from astropy.io import fits
-import psf as psf
+import crowdsource.psf as psf
 
 filt = 'ugrizY'
 deconv = {'u': 0.8, 'g': 0.75, 'r': 0.7, 'i': 0.6, 'z': 0.65, 'Y': 0.65}

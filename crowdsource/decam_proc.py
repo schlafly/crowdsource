@@ -6,7 +6,7 @@ import pdb
 import argparse
 import numpy
 import numpy as np
-import psf as psfmod
+import crowdsource.psf as psfmod
 from astropy.io import fits
 from astropy import wcs
 from functools import partial
@@ -443,7 +443,8 @@ def save_fxn(res, bigdict):
         print('Writing %s %s, found %d sources.' % (outfn, name, len(cat)))
         sys.stdout.flush()
     # primary extension includes only header.
-    fits.append(outfn, numpy.zeros(0), hdr)
+    if not modsaveonly:
+        fits.append(outfn, numpy.zeros(0), hdr)
     hdupsf = fits.BinTableHDU(psf.serialize())
     hdupsf.name = hdr['EXTNAME'][:-4] + '_PSF'
     hducat = fits.BinTableHDU(cat)
@@ -579,10 +580,10 @@ if __name__ == "__main__":
     parser.add_argument('--outdirm', '-e', help='mod output directory',
                         type=str, default=None)
     parser.add_argument('--modsaveonly', action='store_true',
-                        help="saves only the model")
+                        help="saves only the model") #not recommended
     parser.add_argument('--donefrommod', action='store_true',
                         help="reads done extensions from mod, not cat")
-    parser.add_argument('--noModsave', action='store_true',
+    parser.add_argument('--noModsave', action='store_true',  #not recommended
                         help="save all model files other than _MOD")
     # Run options
     parser.add_argument('--verbose', '-v', action='store_true',

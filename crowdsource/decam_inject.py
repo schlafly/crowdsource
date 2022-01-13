@@ -3,8 +3,8 @@ from scipy.interpolate import interp1d
 import copy
 import numpy as np
 from functools import partial
-import psf as psfmod
-import decam_proc as decam_proc
+import crowdsource.psf as psfmod
+import crowdsource.decam_proc as decam_proc
 from collections import OrderedDict
 import os
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import argparse, os, numpy, pdb
-import psf as psfmod
+import crowdsource.psf as psfmod
 from astropy.io import fits
 import crowdsource
 import mosaic
@@ -46,11 +46,9 @@ if __name__ == "__main__":
     im = fits.getdata(imagefn)
     sqivar = numpy.sqrt(fits.getdata(ivarfn))
     flag = fits.getdata(flagfn)
-    res = process(im, sqivar, flag, psf, refit_psf=args.refit_psf, 
+    res = process(im, sqivar, flag, psf, refit_psf=args.refit_psf,
                   verbose=args.verbose, nx=4, ny=4, satlimit=args.satlimit)
     outfn = args.outfn[0]
     fits.writeto(outfn, res[0])
     fits.append(outfn, res[1])
     fits.append(outfn, res[2])
-
-    
