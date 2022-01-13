@@ -12,7 +12,7 @@ import crowdsource
 from unwise_psf import unwise_psf
 # implicit dependency for WISE runs only
 # https://github.com/legacysurvey/unwise_psf
-import unwise_primary as unwise_primary
+import crowdsource.unwise_primary as unwise_primary
 from astropy import wcs
 from collections import OrderedDict
 from pkg_resources import resource_filename
