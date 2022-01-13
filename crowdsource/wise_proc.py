@@ -6,7 +6,7 @@ import time
 import pdb
 import argparse
 import numpy
-import psf as psfmod
+import crowdsource.psf as psfmod
 from astropy.io import fits
 import crowdsource
 from unwise_psf import unwise_psf

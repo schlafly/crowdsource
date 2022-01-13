@@ -9,7 +9,7 @@ from collections import OrderedDict
 import os
 
 def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixsz,
-                   wcutoff, verbose, resume, date, overwrite, injectfrac=0.1):
+                   wcutoff, verbose, resume, date, overwrite, injectfrac=0.1,extadd=None):
     # Updated the completed ccds
     hdulist = fits.open(outfn)
     extnamesdone = []
@@ -17,22 +17,17 @@ def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixs
     for hdu in hdulist:
         if hdu.name == 'PRIMARY':
             continue
-        ext, exttype = hdu.name.split('_')
-        if exttype != 'CAT':
+        extfull = hdu.name.split('_')
+        ext = "_".join(extfull[:-1])
+        if extfull[-1] != 'CAT':
             continue
-        if ext[-1] == 'I':
+        if "I" in ext:
             injnamescat.append(ext)
         else:
             extnamesdone.append(ext)
     hdulist.close()
 
     # Prepare injection CCD for loop ext list
-    if injextnamelist is not None:
-        if verbose:
-            s = ("Only injecting CCD subset: [%s]" %
-                 ', '.join(injextnamelist))
-            print(s)
-
     if extnamesdone is not None:
         injextnames = [n for n in extnamesdone]
     else:
@@ -43,6 +38,9 @@ def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixs
     if inject != -1:
         rng = np.random.default_rng(int(date))
         injextnames = rng.choice(injextnames, inject, replace=False)
+    if verbose:
+        s = 'Injecting sources into [%s]' %', '.join(injextnames)
+        print(s)
 
     # create files with injected sources in the decapsi directory
     ## this might need to be more robust if we port to a different cluster/user
@@ -86,13 +84,15 @@ def write_injFiles(imfn, ivarfn, dqfn, outfn, inject, injextnamelist, filt, pixs
 
     rng = np.random.default_rng(int(date))
     for key in injextnames:
-        scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, rng, injectfrac=injectfrac)
+        scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, rng, injectfrac=injectfrac,extadd=extadd)
 
     return imfnI, ivarfnI, dqfnI, injextnamesI
 
 #seed on date here too
-def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, rng, injectfrac=0.1):
-
+def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose, rng, injectfrac=0.1, extadd=None):
+    keyadd = "I"
+    if extadd is not None:
+        keyadd+=("_"+str(extadd).zfill(3))
     ## imports
     hdr = fits.getheader(outfn,key+"_HDR")
     gain = hdr['GAINCRWD']
@@ -120,8 +120,20 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     nx, ny = im.shape
 
     # this requres stars to be "good" and in a reasonable flux range (0 flux to 17th mag)
-    maskf = ((flags_stars==1) | (flags_stars==2097153)) & (flux_stars>0) & (flux_stars<158489.3192461114);
-    nstars=np.round(injectfrac*flux_stars[maskf].shape[0]).astype(int)
+    badflags = 2**1+2**3+2**4+2**5+2**7+2**20+2**23+2**24
+    maskf = ((flags_stars & badflags) == 0) & (flux_stars>0) & (flux_stars<158489.3192461114);
+    nstars_tot=flux_stars.shape[0]
+    nstarg=flux_stars[maskf].shape[0]
+    nstars=np.round(injectfrac*nstarg).astype(int)
+    if nstarg < 2:
+        if verbose:
+            print("skipping injection, %d good stars out of %d total stars" % (nstarg, nstars_tot))
+        return
+    if nstars == 0:
+        if verbose:
+            print("skipping injection, 0 stars would have been injected")
+            print("for the record, based on %d good stars out of %d total stars" % (nstarg, nstars_tot))
+        return
 
     flux_samples = sample_stars(flux_stars[maskf],nstars,rng)
     nstars = flux_samples.shape[0]
@@ -160,9 +172,10 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
     imfnI = injectRename(imfn)
     ivarfnI = injectRename(ivarfn)
     dqfnI = injectRename(dqfn)
+
     with warnings.catch_warnings(record=True) as wlist:
         hdr = fits.getheader(dqfn, extname=key)
-        hdr['EXTNAME'] = hdr['EXTNAME'] + 'I'
+        hdr['EXTNAME'] = hdr['EXTNAME'] + keyadd
         compkw = {'quantize_method': 1,
                   'quantize_level': 4,
                  }
@@ -171,20 +184,26 @@ def scatter_stars(outfn, imfn, ivarfn, dqfn, key, filt, pixsz, wcutoff, verbose,
         f.close(closed=True)
 
         hdr = fits.getheader(ivarfn, extname=key)
-        hdr['EXTNAME'] = hdr['EXTNAME'] + 'I'
+        new_seed = hdr["ZDITHER0"]+1
+        if new_seed > 10000:
+            new_seed -= 10000
+        hdr['EXTNAME'] = hdr['EXTNAME'] + keyadd
         compkw = {'quantize_method': 1,
                   'quantize_level': 4,
-                  'dither_seed': hdr["ZDITHER0"]+1,
+                  'dither_seed': new_seed,
                  }
         f = fits.open(ivarfnI, mode='append')
         f.append(fits.CompImageHDU(wt, hdr, **compkw))
         f.close(closed=True)
 
         hdr = fits.getheader(imfn, extname=key)
-        hdr['EXTNAME'] = hdr['EXTNAME'] + 'I'
+        new_seed = hdr["ZDITHER0"]+1
+        if new_seed > 10000:
+            new_seed -= 10000
+        hdr['EXTNAME'] = hdr['EXTNAME'] + keyadd
         compkw = {'quantize_method': 1,
                   'quantize_level': 4,
-                  'dither_seed': hdr["ZDITHER0"]+1,
+                  'dither_seed': new_seed,
                  }
         f = fits.open(imfnI, mode='append')
         f.append(fits.CompImageHDU(im, hdr, **compkw))
@@ -236,6 +255,6 @@ def load_psfmodel(outfn, key, filter, pixsz=9):
 
 def injectRename(fname):
     spltname = fname.split("/")
-    spltname[3] = "decapsi"
+    spltname[-2] = "decapsi"
     fname = "/".join(spltname)
     return fname[:-7]+"I.fits.fz"

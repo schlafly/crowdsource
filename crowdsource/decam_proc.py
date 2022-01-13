@@ -75,8 +75,9 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
     if badpixmask is None:
         badpixmask = os.path.join(os.environ['DECAM_DIR'], 'data',
                                   'badpixmasksefs_comp.fits')
-    if extname[-1] == 'I':
-        bextname = extname[:-1]
+    if "I" in extname:
+        extidx = extname.index("I")
+        bextname = extname[:extidx]
     else:
         bextname = extname
     badmask = fits.getdata(badpixmask, extname=bextname)
@@ -84,7 +85,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
     mzerowt = mzerowt | (badmask != 0)
     imdew[mzerowt] = 0.
     imdew[:] = numpy.sqrt(imdew)
-    if corrects7 and ((extname == 'S7') or (extname == 'S7I')):
+    if corrects7 and (extname[:2] == 'S7'):
         imdei = correct_sky_offset(imdei, weight=imdew)
         half = imded.shape[1] // 2
         imded[:, half:] |= extrabits['s7unstable']
@@ -255,7 +256,8 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                   extnamelist=None, plot=False, profile=False, miniter=4,
                   maxiter=10, titer_thresh=2, pixsz=9, wcutoff=0.0,
                   nthreads=1,
-                  inject = 0, injextnamelist = None, injectfrac = 0.1):
+                  inject = 0, injextnamelist = None, injectfrac = 0.1,
+                  modsaveonly=False, donefrommod=False,noModsave=False):
     if profile:
         import cProfile
         import pstats
@@ -311,8 +313,9 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
         for hdu in hdulist:
             if hdu.name == 'PRIMARY':
                 continue
-            ext, exttype = hdu.name.split('_')
-            if exttype != 'CAT':
+            extfull = hdu.name.split('_')
+            ext = "_".join(extfull[:-1])
+            if extfull[-1] != 'CAT':
                 continue
             extnamesdone.append(ext)
         hdulist.close()
@@ -326,6 +329,18 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
             outmodelfn = os.path.join(outdirm, outmodelfn)
         if (not resume or not os.path.exists(outmodelfn)):
             fits.writeto(outmodelfn, None, prihdr, overwrite=overwrite)
+        else:
+            if donefrommod:
+                hdulist = fits.open(outmodelfn)
+                extnamesdone = []
+                for hdu in hdulist:
+                    if hdu.name == 'PRIMARY':
+                        continue
+                    ext, exttype = hdu.name.split('_')
+                    if exttype != 'SKY':
+                        continue
+                    extnamesdone.append(ext)
+                hdulist.close()
     # fwhm scrape all the ccds
     fwhms = []
     for name in extnames:
@@ -363,7 +378,8 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                    bmask_deblend=bmask_deblend, plot=plot, miniter=miniter,
                    maxiter=maxiter, titer_thresh=titer_thresh,
                    expnum=prihdr['EXPNUM'],outmodel=outmodel,
-                   outfn=outfn, outmodelfn=outmodelfn)
+                   outfn=outfn, outmodelfn=outmodelfn, modsaveonly=modsaveonly,
+                   noModsave=noModsave)
 
     run_fxn(bigdict, extnames, nthreads)
 
@@ -418,7 +434,8 @@ def save_fxn(res, bigdict):
     contmask = bigdict['contmask']
     outfn=bigdict['outfn']
     outmodelfn=bigdict['outmodelfn']
-
+    modsaveonly=bigdict['modsaveonly']
+    noModsave=bigdict['noModsave']
     cat, modelim, skyim, psf, hdr, msk, prbexport, name = res
     hdr = fits.Header.fromstring(hdr)
     # Data Saving
@@ -426,15 +443,17 @@ def save_fxn(res, bigdict):
         print('Writing %s %s, found %d sources.' % (outfn, name, len(cat)))
         sys.stdout.flush()
     # primary extension includes only header.
-    fits.append(outfn, numpy.zeros(0), hdr)
+    if not modsaveonly:
+        fits.append(outfn, numpy.zeros(0), hdr)
     hdupsf = fits.BinTableHDU(psf.serialize())
     hdupsf.name = hdr['EXTNAME'][:-4] + '_PSF'
     hducat = fits.BinTableHDU(cat)
     hducat.name = hdr['EXTNAME'][:-4] + '_CAT'
-    hdulist = fits.open(outfn, mode='append')
-    hdulist.append(hdupsf)  # append the psf field for the ccd
-    hdulist.append(hducat)  # append the cat field for the ccd
-    hdulist.close(closed=True)
+    if not modsaveonly:
+        hdulist = fits.open(outfn, mode='append')
+        hdulist.append(hdupsf)  # append the psf field for the ccd
+        hdulist.append(hducat)  # append the cat field for the ccd
+        hdulist.close(closed=True)
     if outmodel:
         hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_MOD'
         # RICE should be significantly better here and supported in
@@ -444,7 +463,8 @@ def save_fxn(res, bigdict):
                   'quantize_method': 1, 'quantize_level': -4,
                   'tile_size': modelim.shape}
         modhdulist = fits.open(outmodelfn, mode='append')
-        modhdulist.append(fits.CompImageHDU(modelim, hdr, **compkw))
+        if not noModsave:
+            modhdulist.append(fits.CompImageHDU(modelim, hdr, **compkw))
         hdr['EXTNAME'] = hdr['EXTNAME'][:-4] + '_SKY'
         modhdulist.append(fits.CompImageHDU(skyim, hdr, **compkw))
         if msk is not None:
@@ -559,6 +579,12 @@ if __name__ == "__main__":
                         type=str, default=None)
     parser.add_argument('--outdirm', '-e', help='mod output directory',
                         type=str, default=None)
+    parser.add_argument('--modsaveonly', action='store_true',
+                        help="saves only the model") #not recommended
+    parser.add_argument('--donefrommod', action='store_true',
+                        help="reads done extensions from mod, not cat")
+    parser.add_argument('--noModsave', action='store_true',  #not recommended
+                        help="save all model files other than _MOD")
     # Run options
     parser.add_argument('--verbose', '-v', action='store_true',
                         help="prints lots of nice info to cmd line")
@@ -622,5 +648,5 @@ if __name__ == "__main__":
                   wcutoff=args.wcutoff,
                   nthreads=args.nthreads,
                   inject=args.inject, injextnamelist=args.injccdlist,
-                  injectfrac=args.injectfrac
-                  )
+                  injectfrac=args.injectfrac,modsaveonly=args.modsaveonly,
+                  donefrommod=args.donefrommod,noModsave=args.noModsave)
