@@ -535,7 +535,7 @@ def correct_sky_offset(im, weight=None):
                         weight[:, half-bdy:half]], axis=0)
 
     def objective(par):
-        return psf.damper(((delta - par[0] - par[1]*xx)*weight)[use], 5)
+        return psfmod.damper(((delta - par[0] - par[1]*xx)*weight)[use], 5)
     guessoff = numpy.median(delta[use])
     from scipy.optimize import leastsq
     par = leastsq(objective, [guessoff, 0.])[0]
