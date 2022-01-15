@@ -3,7 +3,7 @@ from setuptools import setup
 setup(
     name = 'crowdsourcephoto',
     packages = ['crowdsource'],
-    version = '0.5.3',
+    version = '0.5.4',
     description = 'Crowded field photometry pipeline',
     author = 'Andrew Saydjari',
     author_email = 'aksaydjari@gmail.com',

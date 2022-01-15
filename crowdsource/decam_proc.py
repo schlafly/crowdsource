@@ -529,7 +529,7 @@ def correct_sky_offset(im, weight=None):
            (weight[:, half-bdy:half] > 0))
     if numpy.sum(use) == 0:
         return im
-    import psf
+    import crowdsource.psf
     delta = im[:, half+bdy:half:-1] - im[:, half-bdy:half]
     weight = numpy.min([weight[:, half+bdy:half:-1],
                         weight[:, half-bdy:half]], axis=0)
