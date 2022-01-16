@@ -13,7 +13,7 @@ setup(
     install_requires=[
         'astropy',
         'numpy',
-        'scipy',
+        'scipy >= 1.5',
         'scikit-image',
         'guppy3',
         'matplotlib',
