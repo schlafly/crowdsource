@@ -2,7 +2,7 @@
 
 import os
 import sys
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append('/n/home12/saydjari/finksage/ExtSoftware/crowdsource_new/crowdsource')
 import pdb
 import argparse
 import numpy
