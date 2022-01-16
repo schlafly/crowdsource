@@ -15,7 +15,7 @@ entirely simultaneously.
 
 import sys
 import os
-sys.path.append('/n/home12/saydjari/finksage/ExtSoftware/crowdsource_new/crowdsource/')
+sys.path.append('/n/home12/saydjari/finksage/ExtSoftware/crowdsource_new/crowdsource')
 import numpy
 import pdb
 import crowdsource.psf as psfmod
