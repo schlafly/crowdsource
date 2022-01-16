@@ -13,13 +13,12 @@ See mosaic.py for how to use this on a large image that is too big to be fit
 entirely simultaneously.
 """
 
-
+import sys
 import numpy
 import pdb
 import crowdsource.psf as psfmod
 import scipy.ndimage.filters as filters
 from collections import OrderedDict
-import sys
 
 nodeblend_maskbit = 2**30
 sharp_maskbit = 2**31
