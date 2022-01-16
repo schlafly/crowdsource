@@ -8,7 +8,7 @@ import argparse
 import numpy
 import crowdsource.psf as psfmod
 from astropy.io import fits
-import crowdsource
+from crowdsource import crowdsource_base
 from unwise_psf import unwise_psf
 # implicit dependency for WISE runs only
 # https://github.com/legacysurvey/unwise_psf

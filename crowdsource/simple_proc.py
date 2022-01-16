@@ -3,7 +3,7 @@
 import argparse, os, numpy, pdb
 import crowdsource.psf as psfmod
 from astropy.io import fits
-import crowdsource
+from crowdsource import crowdsource_base
 import mosaic
 
 

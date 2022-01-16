@@ -8,7 +8,7 @@ import sys
 import time
 import pdb
 import numpy
-import crowdsource
+from crowdsource import crowdsource_base
 
 
 def in_bounds(x, y, xbound, ybound):

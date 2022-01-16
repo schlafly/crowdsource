@@ -10,7 +10,7 @@ import crowdsource.psf as psfmod
 from astropy.io import fits
 from astropy import wcs
 from functools import partial
-import crowdsource
+from crowdsource import crowdsource_base
 from scipy.ndimage import zoom
 
 import os
@@ -532,7 +532,6 @@ def correct_sky_offset(im, weight=None):
            (weight[:, half-bdy:half] > 0))
     if numpy.sum(use) == 0:
         return im
-    import crowdsource.psf
     delta = im[:, half+bdy:half:-1] - im[:, half-bdy:half]
     weight = numpy.min([weight[:, half+bdy:half:-1],
                         weight[:, half-bdy:half]], axis=0)
