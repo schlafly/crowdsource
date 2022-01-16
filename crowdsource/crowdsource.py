@@ -969,7 +969,7 @@ def spread_model(impsfstack, psfstack, weightstack):
     # little.  So this is really more like the significance of the derivative
     # of the PSF with radius, which I would compute a bit differently.
     # still, other people compute spread_model, and it's well defined, so...
-    import galconv
+    import crowdsource.galconv as galconv
     fwhm = psfmod.neff_fwhm(psfstack)
     sigma = fwhm/16.
     re = sigma * 1.67834699

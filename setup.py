@@ -8,7 +8,7 @@ setup(
     author = 'Andrew Saydjari',
     author_email = 'aksaydjari@gmail.com',
     url = 'https://github.com/schlafly/crowdsource',
-    download_url = 'https://github.com/schlafly/crowdsource/archive/refs/tags/v0.5.3.tar.gz',
+    download_url = 'https://github.com/schlafly/crowdsource/archive/refs/tags/v0.5.5.tar.gz',
     license = 'MIT',
     install_requires=[
         'astropy',

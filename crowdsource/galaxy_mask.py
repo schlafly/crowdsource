@@ -6,6 +6,11 @@ from astropy.wcs import Wcsprm, WCS
 from astropy.coordinates import SkyCoord
 import numpy as np
 
+import os
+if 'DECAM_DIR' not in os.environ:
+    decam_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),"decam_dir")
+    os.environ['DECAM_DIR'] = decam_dir
+
 def galaxy_mask(header,leda):
 
     ra, dec, theta, diam, ba = leda
@@ -119,7 +124,8 @@ def tan_unit_vectors(rain,decin,l0,p0):
     ue = np.array([dx_dlambda/norm_lambda, dy_dlambda/norm_lambda])
     return un, ue
 
-def read_leda_decaps(fname = "/n/home12/saydjari/finksage/Working/2021_09_01/leda_decaps.fits"):
+def read_leda_decaps():
+    fname = os.path.join(os.environ['DECAM_DIR'],'data','galmask','leda_decaps.fits')
     leda = fits.getdata(fname,1)
     ra = leda["ra"]
     dec = leda["dec"]
@@ -128,7 +134,8 @@ def read_leda_decaps(fname = "/n/home12/saydjari/finksage/Working/2021_09_01/led
     ba = leda["ba"]
     return [ra, dec, theta, diam, ba]
 
-def read_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
+def read_leda():
+    fname = os.path.join(os.environ['DECAM_DIR'],'data','galmask','leda-logd25-0.05.fits.gz')
     leda = fits.getdata(fname,1)
     ra = leda["RA"]
     dec = leda["DEC"]
@@ -141,13 +148,13 @@ def read_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
     theta[theta == -999] = 0.0 #default is to assume no orientation
     return ra, dec, theta, diam, ba
 
-def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
-    ra, dec, theta, diam, ba = read_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz")
+def clean_leda():
+    ra, dec, theta, diam, ba = read_leda()
     import csv
     from astropy import units as u
 
     ## hand removed galaxy list
-    frm = '/n/home12/saydjari/finksage/Working/2021_09_01/hyperleda_to_remove.csv'
+    frm = os.path.join(os.environ['DECAM_DIR'],'data','galmask','hyperleda_to_remove.csv')
     with open(frm, newline='') as csvfile:
         data_rm = np.array(list(csv.reader(csvfile,quoting=csv.QUOTE_NONNUMERIC)))
 
@@ -171,7 +178,7 @@ def clean_leda(fname = "/n/home13/schlafly/misc/leda-logd25-0.05.fits.gz"):
     ba = ba[mask1d]
 
     ## by eye modified galaxy sizes list
-    fmod = '/n/home12/saydjari/finksage/Working/2021_07_15/hyperleda_custom_sizes.csv'
+    fmod = os.path.join(os.environ['DECAM_DIR'],'data','galmask','hyperleda_custom_sizes.csv')
     with open(fmod, newline='') as csvfile:
         data_mod = np.array(list(csv.reader(csvfile,quoting=csv.QUOTE_NONNUMERIC)))
 

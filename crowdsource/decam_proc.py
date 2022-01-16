@@ -13,7 +13,10 @@ from functools import partial
 import crowdsource
 from scipy.ndimage import zoom
 
-badpixmaskfn = '/n/fink2/www/eschlafly/decam/badpixmasksefs_comp.fits'
+import os
+if 'DECAM_DIR' not in os.environ:
+    decam_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),"decam_dir")
+    os.environ['DECAM_DIR'] = decam_dir
 
 extrabits = ({'badpix': 2**20,
               'diffuse': 2**21,
