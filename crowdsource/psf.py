@@ -8,6 +8,11 @@ Intended usage is:
 
 import pdb
 import numpy
+import os
+
+if 'DECAM_DIR' not in os.environ:
+    decam_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),"decam_dir")
+    os.environ['DECAM_DIR'] = decam_dir
 
 
 def shift(im, offset, **kw):

@@ -13,7 +13,10 @@ from functools import partial
 import crowdsource
 from scipy.ndimage import zoom
 
-badpixmaskfn = '/n/fink2/www/eschlafly/decam/badpixmasksefs_comp.fits'
+import os
+if 'DECAM_DIR' not in os.environ:
+    decam_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),"decam_dir")
+    os.environ['DECAM_DIR'] = decam_dir
 
 extrabits = ({'badpix': 2**20,
               'diffuse': 2**21,
@@ -529,13 +532,13 @@ def correct_sky_offset(im, weight=None):
            (weight[:, half-bdy:half] > 0))
     if numpy.sum(use) == 0:
         return im
-    import psf
+    import crowdsource.psf
     delta = im[:, half+bdy:half:-1] - im[:, half-bdy:half]
     weight = numpy.min([weight[:, half+bdy:half:-1],
                         weight[:, half-bdy:half]], axis=0)
 
     def objective(par):
-        return psf.damper(((delta - par[0] - par[1]*xx)*weight)[use], 5)
+        return psfmod.damper(((delta - par[0] - par[1]*xx)*weight)[use], 5)
     guessoff = numpy.median(delta[use])
     from scipy.optimize import leastsq
     par = leastsq(objective, [guessoff, 0.])[0]

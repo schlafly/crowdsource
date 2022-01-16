@@ -5,6 +5,11 @@ from skimage import restoration
 from astropy.io import fits
 import crowdsource.psf as psf
 
+import os
+if 'DECAM_DIR' not in os.environ:
+    decam_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),"decam_dir")
+    os.environ['DECAM_DIR'] = decam_dir
+
 filt = 'ugrizY'
 deconv = {'u': 0.8, 'g': 0.75, 'r': 0.7, 'i': 0.6, 'z': 0.65, 'Y': 0.65}
 
