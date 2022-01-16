@@ -2,7 +2,6 @@
 
 import os
 import sys
-sys.path.append('/n/home12/saydjari/finksage/ExtSoftware/crowdsource_new/crowdsource')
 import pdb
 import argparse
 import numpy
@@ -103,7 +102,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
             gmsk = galaxy_mask.galaxy_mask(hdr, leda)
             if numpy.any(gmsk):
                 imded |= (gmsk * extrabits['galaxy'])
-                imded |= (gmsk * crowdsource.nodeblend_maskbit)
+                imded |= (gmsk * crowdsource_base.nodeblend_maskbit)
         else:
             if verbose:
                 print("WCSCAL Unsucessful, Skipping galaxy masking...")
@@ -125,8 +124,8 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
 
         if numpy.any(nebmask):
             imded |= (nebmask * extrabits['diffuse'])
-            imded |= (nebmask * (crowdsource.nodeblend_maskbit |
-                                 crowdsource.sharp_maskbit))
+            imded |= (nebmask * (crowdsource_base.nodeblend_maskbit |
+                                 crowdsource_base.sharp_maskbit))
             if verbose:
                 print('Masking nebulosity fraction, %5.2f' % (
                     numpy.sum(nebmask)/1./numpy.sum(numpy.isfinite(nebmask))))
@@ -205,7 +204,7 @@ def process_one_ccd(name, bigdict):
         blist = None
 
     # the actual fit (which has a nested iterative fit)
-    res = crowdsource.fit_im(
+    res = crowdsource_base.fit_im(
         im, psf, ntilex=4, ntiley=2, weight=wt, dq=dq, psfderiv=True,
         refit_psf=True, verbose=verbose, blist=blist, maxstars=320000,
         ccd=name, plot=plot, miniter=miniter, maxiter=maxiter,
@@ -235,7 +234,7 @@ def process_one_ccd(name, bigdict):
     gain = hdr['GAINCRWD']*numpy.ones(len(cat), dtype='f4')
     if prb is not None:
         prnebdat = [
-            crowdsource.extract_im(cat['x'], cat['y'], prb[:, :, i])
+            crowdsource_base.extract_im(cat['x'], cat['y'], prb[:, :, i])
             for i in range(prb.shape[2])]
         prnebnames = ['prN', 'prL', 'prR', 'prE']
         prbexport = zoom(prb, (1/8, 1/8, 1), order=1)
@@ -560,8 +559,8 @@ def mask_very_bright_stars(dq, blist):
         yl, yr = numpy.clip([y-maskrad, y+maskrad], 0,
                             dq.shape[1]-1).astype('i4')
         dq[xl:xr, yl:yr] |= extrabits['brightstar']
-        dq[xl:xr, yl:yr] |= (crowdsource.nodeblend_maskbit |
-                             crowdsource.sharp_maskbit)
+        dq[xl:xr, yl:yr] |= (crowdsource_base.nodeblend_maskbit |
+                             crowdsource_base.sharp_maskbit)
     return dq
 
 

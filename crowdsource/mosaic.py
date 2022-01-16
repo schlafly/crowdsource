@@ -73,7 +73,7 @@ def fit_sections(im, psf, nx, ny, overlap=50, weight=None, dq=None,
                 # offset X & Y to new positions
             else:
                 blist0 = None
-            res0 = crowdsource.fit_im(im[sall].copy(), tpsf,
+            res0 = crowdsource_base.fit_im(im[sall].copy(), tpsf,
                                       weight=weight[sall].copy(),
                                       dq=dq[sall].copy(),
                                       fixedstars=fixedstars,

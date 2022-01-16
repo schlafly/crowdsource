@@ -13,7 +13,7 @@ def process(im, sqivar, flag, psf, nx=1, ny=1, satlimit=numpy.inf, **kw):
         m = im > satlimit
         m = morphology.binary_dilation(m, numpy.ones((5, 5)))
         sqivar[m] = 0  # should also change the DQ image?
-    res = crowdsource.fit_im(im, psf, weight=sqivar, dq=flag,
+    res = crowdsource_base.fit_im(im, psf, weight=sqivar, dq=flag,
                              ntilex=nx, ntiley=ny, **kw)
     return res
 

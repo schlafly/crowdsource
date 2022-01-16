@@ -114,12 +114,12 @@ def massage_isig_and_dim(isig, im, flag, band, nm, nu, fac=None):
     isig[msat] = 0
     flag = flag.astype('i8')
     # zero out these bits; we claim them for our own purposes.
-    massagebits = (extrabits['crowdsat'] | crowdsource.nodeblend_maskbit |
-                   crowdsource.sharp_maskbit | extrabits['nebulosity'])
+    massagebits = (extrabits['crowdsat'] | crowdsource_base.nodeblend_maskbit |
+                   crowdsource_base.sharp_maskbit | extrabits['nebulosity'])
     flag &= ~massagebits
     flag[msat] |= extrabits['crowdsat']
-    flag[(flag & nodeblend_bits) != 0] |= crowdsource.nodeblend_maskbit
-    flag[(flag & sharp_bits) != 0] |= crowdsource.sharp_maskbit
+    flag[(flag & nodeblend_bits) != 0] |= crowdsource_base.nodeblend_maskbit
+    flag[(flag & sharp_bits) != 0] |= crowdsource_base.sharp_maskbit
 
     sigma = numpy.sqrt(1./(isig + (isig == 0))**2 + floor**2 +
                        fac**2*numpy.clip(im, 0, numpy.inf))
@@ -304,8 +304,8 @@ def collapse_extraflags(bitmask, band):
                            ('possible_bright_star_centroid', 2**21),
                            ('crowdsat', extrabits['crowdsat']),
                            ('nebulosity', extrabits['nebulosity']),
-                           ('nodeblend', crowdsource.nodeblend_maskbit),
-                           ('sharp', crowdsource.sharp_maskbit)])
+                           ('nodeblend', crowdsource_base.nodeblend_maskbit),
+                           ('sharp', crowdsource_base.sharp_maskbit)])
 
     bits_w2 = OrderedDict([('bright_off_edge', 2**8),
                            ('resolved_galaxy', 2**9),
@@ -313,8 +313,8 @@ def collapse_extraflags(bitmask, band):
                            ('possible_bright_star_centroid', 2**22),
                            ('crowdsat', extrabits['crowdsat']),
                            ('nebulosity', extrabits['nebulosity']),
-                           ('nodeblend', crowdsource.nodeblend_maskbit),
-                           ('sharp', crowdsource.sharp_maskbit)])
+                           ('nodeblend', crowdsource_base.nodeblend_maskbit),
+                           ('sharp', crowdsource_base.sharp_maskbit)])
 
     bits = (bits_w1 if (band == 1) else bits_w2)
 
@@ -386,7 +386,7 @@ if __name__ == "__main__":
         nebmask = nebulosity_mask.gen_mask_wise(nebmod, im) == 2
         if numpy.any(nebmask):
             flag |= nebmask * extrabits['nebulosity']
-            flag |= nebmask * crowdsource.sharp_maskbit
+            flag |= nebmask * crowdsource_base.sharp_maskbit
             print('Masking nebulosity, %5.2f' % (
                 numpy.sum(nebmask)/1./numpy.sum(numpy.isfinite(nebmask))))
 
@@ -418,7 +418,7 @@ if __name__ == "__main__":
         sys.stdout.flush()
 
     if len(args.forcecat) == 0:
-        res = crowdsource.fit_im(
+        res = crowdsource_base.fit_im(
             im, psf, weight=sqivar, dq=flag, refit_psf=args.refit_psf,
             verbose=args.verbose, ntilex=4, ntiley=4, derivcentroids=True,
             maxstars=30000*16, fewstars=50*16, blist=blist,
@@ -427,7 +427,7 @@ if __name__ == "__main__":
     else:
         forcecat = fits.getdata(args.forcecat, 1)
         x, y = forcecat['x'], forcecat['y']
-        res = crowdsource.fit_im_force(
+        res = crowdsource_base.fit_im_force(
             im, x, y, psf, weight=sqivar, dq=flag, refit_psf=args.refit_psf,
             blist=blist, refit_sky=(not args.noskyfit),
             startsky=startsky, psfderiv=False, psfvalsharpcutfac=0.5,
@@ -457,11 +457,11 @@ if __name__ == "__main__":
     nmfn = wise_filename(basedir, coadd_id, band, 'n-m',
                          uncompressed=args.uncompressed, epoch=args.epoch)
     nmim = fits.getdata(nmfn)
-    nms = crowdsource.extract_im(cat['x'], cat['y'], nmim)
-    flags_unwise = crowdsource.extract_im(
+    nms = crowdsource_base.extract_im(cat['x'], cat['y'], nmim)
+    flags_unwise = crowdsource_base.extract_im(
         cat['x'], cat['y'], collapse_unwise_bitmask(flag_orig, band))
     flags_infoim = collapse_extraflags(flag, band)
-    flags_info = crowdsource.extract_im(cat['x'], cat['y'], flags_infoim)
+    flags_info = crowdsource_base.extract_im(cat['x'], cat['y'], flags_infoim)
     # cast to i2; astropy.io.fits seems to fail for bools?
     primary = unwise_primary.is_primary(coadd_id, ra, dec).astype('i2')
 
