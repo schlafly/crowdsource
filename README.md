@@ -31,7 +31,7 @@ The recommended installation uses conda-forge as
 conda install -c conda-forge crowdsourcephoto
 ```
 
-A conda-forge version of `crowdsourcephoto` is available on windows, but if there are issues with `tensorflow`, Windows users should fall back to pip (below).
+Due to some current version issues with the tensorflow feedstock, a conda-forge version of `crowdsourcephoto` is not available on windows. Windows users should fall back to pip (below).
 
 This package can also be installed using pip as
 
