@@ -15,7 +15,7 @@ deconv = {'u': 0.8, 'g': 0.75, 'r': 0.7, 'i': 0.6, 'z': 0.65, 'Y': 0.65}
 
 
 def make_new_psfs(write=False, **kw):
-    path = os.path.join(os.environ['DECAM_DIR'], 'data', 'psfs', 'includeu')
+    path = os.path.join(os.environ['DECAM_DIR'], 'data', 'psfs')
     res = {}
     for f in filt:
         tpsf = fits.getdata(os.path.join(path, 'psf_%s.fits.gz' % f))
@@ -37,7 +37,7 @@ def make_new_psfs(write=False, **kw):
 
 
 def make_new_model_psfs(write=False, **kw):
-    path = os.path.join(os.environ['DECAM_DIR'], 'data', 'psfs', 'includeu')
+    path = os.path.join(os.environ['DECAM_DIR'], 'data', 'psfs')
     res = {}
     for f in filt:
         tpsfd = fits.getdata(os.path.join(path, 'psf_%s_deconv.fits.gz' % f))

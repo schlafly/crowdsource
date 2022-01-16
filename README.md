@@ -38,6 +38,15 @@ This package can also be installed using pip as
 ```python
 pip install crowdsourcephoto
 ```
+#### Development Installations
+
+Development installations now require at least a local pip install in a development environment and survey processing scripts must be run within that environment to properly load modules and dependencies. Simply activate your test environment, `cd` to your development directory, and run:
+
+```python
+pip install -e .
+```
+
+Using conda to install the stable `crowdsourcephoto` package and then removing it in favor of the local pip package is probably the best way to manage dependency versioning issues.
 
 ## Developer Notes
 
