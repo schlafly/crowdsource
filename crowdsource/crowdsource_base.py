@@ -118,12 +118,13 @@ def significance_image_lbs(im, model, isig, psf, sz=19):
 
 
 def peakfind(im, model, isig, dq, psf, keepsat=False, threshold=5,
-             blendthreshold=0.3, psfvalsharpcutfac=0.7, psfsharpsat=0.7):
+             blendthreshold=0.3, psfvalsharpcutfac=0.7, psfsharpsat=0.7,
+             maxfiltershape=3, psfsz=59):
     psfstamp = psf(int(im.shape[0]/2.), int(im.shape[1]/2.), deriv=False,
                    stampsz=59)
     sigim, modelsigim = significance_image(im, model, isig, psfstamp,
-                                           sz=59)
-    sig_max = filters.maximum_filter(sigim, 3)
+                                           sz=psfsz)
+    sig_max = filters.maximum_filter(sigim, maxfiltershape)
     x, y = numpy.nonzero((sig_max == sigim) & (sigim > threshold) &
                          (keepsat | (isig > 0)))
     fluxratio = im[x, y]/numpy.clip(model[x, y], 0.01, numpy.inf)
@@ -179,21 +180,19 @@ def psfvalsharpcut(x, y, sigim, isig, psf, psfvalsharpcutfac=0.7,
     return res
 
 
-def build_model(x, y, flux, nx, ny, psf=None, psflist=None, psfderiv=False):
+def build_model(x, y, flux, nx, ny, psf=None, psflist=None, psfderiv=False,
+                stampsz=59):
     if psf is None and psflist is None:
         raise ValueError('One of psf and psflist must be set')
     if psf is not None and psflist is not None:
         raise ValueError('Only one of psf and psflist must be set')
     if psflist is None:
-        stampsz = 59
         psflist = build_psf_list(x, y, psf, stampsz, psfderiv=psfderiv)
         sz = numpy.ones(len(x), dtype='i4')*stampsz
     else:
         sz = numpy.array([tpsf[0].shape[-1] for tpsf in psflist[0]])
         if len(sz) > 0:
             stampsz = numpy.max(sz)
-        else:
-            stampsz = 59
 
     stampszo2 = stampsz//2
     im = numpy.zeros((nx, ny), dtype='f4')
@@ -217,7 +216,7 @@ def build_model(x, y, flux, nx, ny, psf=None, psflist=None, psfderiv=False):
 
 def build_psf_list(x, y, psf, sz, psfderiv=True):
     """Make a list of PSFs of the right size, hopefully efficiently."""
-
+    sz = numpy.broadcast_to(sz, x.shape)
     psflist = {}
     for tsz in numpy.unique(sz):
         m = sz == tsz
