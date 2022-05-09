@@ -51,6 +51,7 @@ def central_stamp(stamp, censize=19):
 def neff_fwhm(stamp):
     """FWHM-like quantity derived from N_eff = numpy.sum(PSF**2.)**-1"""
     norm = numpy.sum(stamp, axis=(-1, -2), keepdims=True)
+    norm += (norm == 0)
     return 1.18 * (numpy.pi*numpy.sum((stamp/norm)**2., axis=(-1, -2)))**(-0.5)
 
 

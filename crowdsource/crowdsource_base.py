@@ -503,7 +503,8 @@ def compute_centroids(x, y, psflist, flux, im, resid, weight,
     # stamps: 0: neighbor-subtracted images,
     # 1: images,
     # 2: psfs with shifts
-    # 3: psfs without shifts
+    # 3: weights
+    # 4: psfs without shifts
     res = (xcen, ycen, (modelst+residst, imst, modelst, weightst, psfst))
     return res
 
@@ -943,9 +944,9 @@ def compute_stats(xs, ys, impsfstack, psfstack, weightstack, imstack, flux):
     fracfluxd = fracfluxd + (fracfluxd == 0)*1e-20
     fracflux = (fracfluxn / fracfluxd).astype('f4')
     fluxlbs, dfluxlbs = compute_lbs_flux(impsfstack, psfstack, weightstack,
-                                         flux/norm)
+                                         flux/(norm+(norm == 0)))
     fluxiso, xiso, yiso = compute_iso_fit(impsfstack, psfstack, weightstack,
-                                          flux/norm, psfderiv)
+                                          flux/(norm+(norm == 0)), psfderiv)
     fluxlbs = fluxlbs.astype('f4')
     dfluxlbs = dfluxlbs.astype('f4')
     fwhm = psfmod.neff_fwhm(psfstack).astype('f4')
