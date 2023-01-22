@@ -582,7 +582,7 @@ def get_sizes(x, y, imbs, weight=None, blist=None, cutoffs=[1000, 2000],
     cutoff, cutoff2 = cutoffs
     psz1, psz2, psz3 = szs
     sz[peakbright > cutoff] = psz2
-    sz[peakbright <= cutoff] = pz1  # for the moment...
+    sz[peakbright <= cutoff] = psz1  # for the moment...
     # for very bright things, use a bigger PSF
     # but if there are too many of these, don't bother.
     if ((numpy.sum(peakbright > cutoff2) < numpy.sum(peakbright > cutoff)/2)
