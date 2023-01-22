@@ -13,9 +13,11 @@ See mosaic.py for how to use this on a large image that is too big to be fit
 entirely simultaneously.
 """
 
+import time
 import sys
 import os
 import numpy
+import numpy as np
 import pdb
 import crowdsource.psf as psfmod
 import scipy.ndimage.filters as filters
@@ -295,8 +297,10 @@ def fit_once(im, x, y, psfs, weight=None,
     repeat = 1 if not psfderiv else 3
     nskypar = nskyx * nskyy
     npixim = im.shape[0]*im.shape[1]
-    xloc = numpy.zeros(repeat*numpy.sum(sz*sz).astype('i4') +
-                       nskypar*npixim, dtype='i4')
+    zsz = (repeat*numpy.sum(sz*sz) + nskypar*npixim).astype('i4')
+    if zsz >= 2**32:
+        raise ValueError(f"zsz={zsz} is larger than {2**32}, which is too big")
+    xloc = numpy.zeros(zsz, dtype='i4')
     # yloc = numpy.zeros(len(xloc), dtype='i4')
     # no longer need yloc; csc entries are built directly.
     values = numpy.zeros(len(xloc), dtype='f4')
@@ -569,25 +573,26 @@ def sky_im(im, weight=None, npix=20, order=1):
     return bg
 
 
-def get_sizes(x, y, imbs, weight=None, blist=None):
+def get_sizes(x, y, imbs, weight=None, blist=None, cutoffs=[1000, 2000],
+              szs=[19, 59, 149], max_bigpsf=1000):
     x = numpy.round(x).astype('i4')
     y = numpy.round(y).astype('i4')
     peakbright = imbs[x, y]
     sz = numpy.zeros(len(x), dtype='i4')
-    cutoff = 1000
-    sz[peakbright > cutoff] = 59
-    sz[peakbright <= cutoff] = 19  # for the moment...
+    cutoff, cutoff2 = cutoffs
+    psz1, psz2, psz3 = szs
+    sz[peakbright > cutoff] = psz2
+    sz[peakbright <= cutoff] = pz1  # for the moment...
     # for very bright things, use a bigger PSF
     # but if there are too many of these, don't bother.
-    cutoff2 = 20000
     if ((numpy.sum(peakbright > cutoff2) < numpy.sum(peakbright > cutoff)/2)
             or (numpy.sum(peakbright > cutoff) < 100)):
-        sz[peakbright > cutoff2] = 149
+        sz[peakbright > cutoff2] = psz3
     else:
         print('Too many bright sources, using smaller PSF stamp size...')
 
-    if weight is not None:
-        sz[weight[x, y] == 0] = 149  # saturated/off edge sources get big PSF
+    if weight is not None and (weight[x, y] == 0).sum() < max_bigpsf:
+        sz[weight[x, y] == 0] = psz3  # saturated/off edge sources get big PSF
 
     # sources near listed sources get very big PSF
     if blist is not None and len(x) > 0:
@@ -809,8 +814,15 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         psfs = [numpy.zeros((len(xa), minsz, minsz), dtype='f4')
                 for i in range(repeat)]
         flux = numpy.zeros(len(xa)*repeat, dtype='f4')
+        if verbose:
+            subreg_iter = 0
+            t0 = time.time()
+            print("Starting subregion iterations", flush=True)
         for (bdxf, bdxl, bdxaf, bdxal, bdyf, bdyl, bdyaf, bdyal) in (
                 subregions(im.shape, ntilex, ntiley)):
+            if verbose:
+                print(f"Subregion iteration {subreg_iter} starting; dt={time.time()-t0}", flush=True)
+                subreg_iter += 1
             mbda = in_bounds(xa, ya, [bdxaf-0.5, bdxal-0.5],
                              [bdyaf-0.5, bdyal-0.5])
             mbd = in_bounds(xa, ya, [bdxf-0.5, bdxl-0.5],
@@ -831,6 +843,9 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
                 im[sall]-sky[sall], xa[mbda]-bdxaf, ya[mbda]-bdyaf, psfsbda,
                 psfderiv=tpsfderiv, weight=weightbda, guess=guessmbda,
                 nskyx=nskyx, nskyy=nskyy)
+            if np.all(np.isnan(tmodel)):
+                print(f"sall:{sall}, im[sall]={im[sall]}, sky[sall]={sky[sall]}, xa,ya={xa[mbda]-bdxaf, ya[mbda]-bdyaf},")
+                raise ValueError("Model is all NaNs")
             model[spri] = tmodel[sfit]
             msky[spri] = tmsky[sfit]
             ind = numpy.flatnonzero(mbd)
@@ -895,6 +910,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         passno = passno[keep]
         guessflux = guessflux[keep]
         if verbose:
+            print(f'titer={titer}', flush=True)
             print('Extension %s, iteration %2d, found %6d sources; %4d close and '
                   '%4d faint sources removed.' %
                   (ccd, titer+1, len(xn),
@@ -1029,7 +1045,7 @@ def compute_iso_fit(impsfstack, psfstack, weightstack, apcor, psfderiv):
 
 
 def sky_model_basis(i, j, nskyx, nskyy, nx, ny):
-    import basisspline
+    from crowdsource import basisspline
     if (nskyx < 3) or (nskyy < 3):
         raise ValueError('Invalid sky model.')
     expandx = (nskyx-1.)/(3-1)
