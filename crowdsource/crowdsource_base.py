@@ -17,7 +17,6 @@ import time
 import sys
 import os
 import numpy
-import numpy as np
 import pdb
 import crowdsource.psf as psfmod
 import scipy.ndimage.filters as filters
@@ -299,10 +298,11 @@ def fit_once(im, x, y, psfs, weight=None,
     npixim = im.shape[0]*im.shape[1]
     zsz = (repeat*numpy.sum(sz*sz) + nskypar*npixim).astype('i4')
     if zsz >= 2**32:
-        raise ValueError(f"zsz={zsz} is larger than {2**32}, which is too big")
+        raise ValueError(
+            'Number of pixels being fit is too large (>2**32); '
+            'failing early.  This usually indicates a problem with '
+            'the choice of PSF size & too many sources.')
     xloc = numpy.zeros(zsz, dtype='i4')
-    # yloc = numpy.zeros(len(xloc), dtype='i4')
-    # no longer need yloc; csc entries are built directly.
     values = numpy.zeros(len(xloc), dtype='f4')
     colnorm = numpy.zeros(len(x)*repeat+nskypar, dtype='f4')
     first = 0
@@ -573,26 +573,30 @@ def sky_im(im, weight=None, npix=20, order=1):
     return bg
 
 
-def get_sizes(x, y, imbs, weight=None, blist=None, cutoffs=[1000, 2000],
-              szs=[19, 59, 149], max_bigpsf=1000):
+def get_sizes(x, y, imbs, weight=None, blist=None, blistsz=299,
+              cutofflist=None):
+    if cutofflist is None:
+        cutofflist = [
+            (-numpy.inf, 19), (1000, 59), (20000, 149)]
     x = numpy.round(x).astype('i4')
     y = numpy.round(y).astype('i4')
     peakbright = imbs[x, y]
-    sz = numpy.zeros(len(x), dtype='i4')
-    cutoff, cutoff2 = cutoffs
-    psz1, psz2, psz3 = szs
-    sz[peakbright > cutoff] = psz2
-    sz[peakbright <= cutoff] = psz1  # for the moment...
-    # for very bright things, use a bigger PSF
-    # but if there are too many of these, don't bother.
-    if ((numpy.sum(peakbright > cutoff2) < numpy.sum(peakbright > cutoff)/2)
-            or (numpy.sum(peakbright > cutoff) < 100)):
-        sz[peakbright > cutoff2] = psz3
-    else:
-        print('Too many bright sources, using smaller PSF stamp size...')
 
-    if weight is not None and (weight[x, y] == 0).sum() < max_bigpsf:
-        sz[weight[x, y] == 0] = psz3  # saturated/off edge sources get big PSF
+    if weight is not None:
+        # treat saturated / off edge sources as very bright.
+        peakbright[weight[x, y] == 0] = cutofflist[-1][0] + 1
+
+    sz = numpy.zeros(len(x), dtype='i4')
+    nbright = list()
+    for cutoff, tsz in cutofflist:
+        m = peakbright > cutoff
+        sz[m] = tsz
+        nbright.append(numpy.sum(m))
+
+    if ((len(nbright) > 2) and (nbright[-1] > 100) and
+            (nbright[-1] > nbright[-2] / 2)):
+        print('Too many bright sources, using smaller PSF stamp size...')
+        sz[peakbright > cutofflist[-2][0]] = cutofflist[-2][1]
 
     # sources near listed sources get very big PSF
     if blist is not None and len(x) > 0:
@@ -600,7 +604,7 @@ def get_sizes(x, y, imbs, weight=None, blist=None, cutoffs=[1000, 2000],
             dist2 = (x-xb)**2 + (y-yb)**2
             indclose = numpy.argmin(dist2)
             if dist2[indclose] < 5**2:
-                sz[indclose] = 299
+                sz[indclose] = blistsz
     return sz
 
 
@@ -817,11 +821,12 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         if verbose:
             subreg_iter = 0
             t0 = time.time()
-            print("Starting subregion iterations", flush=True)
+            print("Starting subregion iterations")
         for (bdxf, bdxl, bdxaf, bdxal, bdyf, bdyl, bdyaf, bdyal) in (
                 subregions(im.shape, ntilex, ntiley)):
             if verbose:
-                print(f"Subregion iteration {subreg_iter} starting; dt={time.time()-t0}", flush=True)
+                print(f"Subregion iteration {subreg_iter} starting; "
+                      f"dt={time.time()-t0}", flush=True)
                 subreg_iter += 1
             mbda = in_bounds(xa, ya, [bdxaf-0.5, bdxal-0.5],
                              [bdyaf-0.5, bdyal-0.5])
@@ -843,8 +848,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
                 im[sall]-sky[sall], xa[mbda]-bdxaf, ya[mbda]-bdyaf, psfsbda,
                 psfderiv=tpsfderiv, weight=weightbda, guess=guessmbda,
                 nskyx=nskyx, nskyy=nskyy)
-            if np.all(np.isnan(tmodel)):
-                print(f"sall:{sall}, im[sall]={im[sall]}, sky[sall]={sky[sall]}, xa,ya={xa[mbda]-bdxaf, ya[mbda]-bdyaf},")
+            if numpy.all(numpy.isnan(tmodel)):
                 raise ValueError("Model is all NaNs")
             model[spri] = tmodel[sfit]
             msky[spri] = tmsky[sfit]
@@ -910,7 +914,6 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         passno = passno[keep]
         guessflux = guessflux[keep]
         if verbose:
-            print(f'titer={titer}', flush=True)
             print('Extension %s, iteration %2d, found %6d sources; %4d close and '
                   '%4d faint sources removed.' %
                   (ccd, titer+1, len(xn),
