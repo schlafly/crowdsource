@@ -1252,6 +1252,10 @@ class WrappedPSFModel(crowdsource.psf.SimplePSF):
         return self._deriv
 
     def __call__(self, col, row, stampsz=None, deriv=False):
+
+        parshape = numpy.broadcast(col, row).shape
+        tparshape = parshape if len(parshape) > 0 else (1,)
+
         if stampsz is not None:
             self.stampsz = stampsz
 
@@ -1265,11 +1269,14 @@ class WrappedPSFModel(crowdsource.psf.SimplePSF):
         cols = cols[:, :, None] + col[None, None, :]
 
         # photutils seems to use column, row notation
-        stamps = grid.evaluate(cols, rows, 1, col, row).T
+        ret = stamps = grid.evaluate(cols, rows, 1, col, row).T
         # it returns something in (nstamps, row, col) shape
         # pretty sure that ought to be (col, row, nstamps) for crowdsource
 
-        return stamps.squeeze()
+        if parshape != tparshape:
+            ret = ret.reshape(stampsz, stampsz)
+
+        return ret
 
 
     def render_model(self, col, row, stampsz=None):
