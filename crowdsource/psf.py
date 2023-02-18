@@ -1228,33 +1228,20 @@ class WrappedPSFModel(crowdsource.psf.SimplePSF):
     """
     wrapper for photutils GriddedPSFModel
     """
-    def __init__(self, psfgridmodel, shape):
+    def __init__(self, psfgridmodel, stampsz=19):
         self.psfgridmodel = psfgridmodel
-        self.stampsz = shape
-
-    @property
-    def stampsz(self):
-        return self.shape
-
-    @stampsz.setter
-    def stampsz(self, shape):
-        if np.isscalar(shape):
-            shape = [shape, shape]
-        for val in shape:
-            if val % 2 == 0:
-                raise ValueError("Use only odd-dimension PSF stamps")
-        self.shape = shape
+        self.default_stampsz = stampsz
 
     def __call__(self, col, row, stampsz=None, deriv=False):
+
+        if stampsz is None:
+            stampsz = self.default_stampsz
 
         parshape = numpy.broadcast(col, row).shape
         tparshape = parshape if len(parshape) > 0 else (1,)
 
-        if stampsz is not None:
-            self.stampsz = stampsz
-
         # numpy uses row, column notation
-        rows, cols = np.indices(self.stampsz) - (np.array(self.stampsz)-1)[:, None, None] / 2.
+        rows, cols = np.indices((stampsz, stampsz)) - (np.array([stampsz, stampsz])-1)[:, None, None] / 2.
 
         # explicitly broadcast
         col = np.atleast_1d(col)
@@ -1274,10 +1261,12 @@ class WrappedPSFModel(crowdsource.psf.SimplePSF):
 
         ret = stamps.T
         if parshape != tparshape:
-            ret = ret.reshape(self.stampsz)
+            ret = ret.reshape(stampsz, stampsz)
             if deriv:
-                dpsfdx = dpsfdx.reshape(self.stampsz)
-                dpsfdy = dpsfdy.reshape(self.stampsz)
+                dpsfdrow = dpsfdrow.reshape(stampsz, stampsz)
+                dpsfdcol = dpsfdcol.reshape(stampsz, stampsz)
+        if deriv:
+            ret = (ret, dpsfdcol, dpsfdrow)
 
         return ret
 
