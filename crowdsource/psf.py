@@ -1222,3 +1222,63 @@ def wise_psf_fit(x, y, xcen, ycen, stamp, imstamp, modstamp,
         return SimplePSF(newstamp)
     else:
         return GridInterpPSF(newstamp, psfstamp[1], psfstamp[2])
+
+
+class WrappedPSFModel(crowdsource.psf.SimplePSF):
+    """
+    wrapper for photutils GriddedPSFModel
+    """
+    def __init__(self, psfgridmodel, shape):
+        self.psfgridmodel = psfgridmodel
+        self.stampsz = shape
+
+    @property
+    def stampsz(self):
+        return self.shape
+
+    @stampsz.setter
+    def stampsz(self, shape):
+        if np.isscalar(shape):
+            shape = [shape, shape]
+        for val in shape:
+            if val % 2 == 0:
+                raise ValueError("Use only odd-dimension PSF stamps")
+        self.shape = shape
+
+    @property
+    @cache
+    def deriv(self):
+        self._deriv = np.gradient(-self.render_model(0, 0))
+        return self._deriv
+
+    def __call__(self, col, row, stampsz=None, deriv=False):
+        if stampsz is not None:
+            self.stampsz = stampsz
+
+        # numpy uses row, column notation
+        rows, cols = np.indices(self.stampsz) - (np.array(self.stampsz)-1)[:, None, None] / 2.
+
+        # explicitly broadcast
+        col = np.atleast_1d(col)
+        row = np.atleast_1d(row)
+        rows = rows[:, :, None] + row[None, None, :]
+        cols = cols[:, :, None] + col[None, None, :]
+
+        # photutils seems to use column, row notation
+        stamps = grid.evaluate(cols, rows, 1, col, row).T
+        # it returns something in (nstamps, row, col) shape
+        # pretty sure that ought to be (col, row, nstamps) for crowdsource
+
+        return stamps.squeeze()
+
+
+    def render_model(self, col, row, stampsz=None):
+        """
+        this function likely does nothing?
+        """
+        if stampsz is not None:
+            self.stampsz = stampsz
+
+        rows, cols = np.indices(self.stampsz, dtype=float) - (np.array(self.stampsz)-1)[:, None, None] / 2.
+
+        return self.psfgridmodel.evaluate(cols, rows, 1, col, row).T.squeeze()
