@@ -1245,12 +1245,6 @@ class WrappedPSFModel(crowdsource.psf.SimplePSF):
                 raise ValueError("Use only odd-dimension PSF stamps")
         self.shape = shape
 
-    @property
-    @cache
-    def deriv(self):
-        self._deriv = np.gradient(-self.render_model(0, 0))
-        return self._deriv
-
     def __call__(self, col, row, stampsz=None, deriv=False):
 
         parshape = numpy.broadcast(col, row).shape
@@ -1269,12 +1263,21 @@ class WrappedPSFModel(crowdsource.psf.SimplePSF):
         cols = cols[:, :, None] + col[None, None, :]
 
         # photutils seems to use column, row notation
-        ret = stamps = grid.evaluate(cols, rows, 1, col, row).T
+        stamps = grid.evaluate(cols, rows, 1, col, row)
         # it returns something in (nstamps, row, col) shape
         # pretty sure that ought to be (col, row, nstamps) for crowdsource
 
+        if deriv:
+            dpsfdrow, dpsfdcol = np.gradient(stamps, axis=(0, 1))
+            dpsfdrow = dpsfdrow.T
+            dpsfdcol = dpsfdcol.T
+
+        ret = stamps.T
         if parshape != tparshape:
-            ret = ret.reshape(stampsz, stampsz)
+            ret = ret.reshape(self.stampsz)
+            if deriv:
+                dpsfdx = dpsfdx.reshape(self.stampsz)
+                dpsfdy = dpsfdy.reshape(self.stampsz)
 
         return ret
 
