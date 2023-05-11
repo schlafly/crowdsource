@@ -1224,7 +1224,7 @@ def wise_psf_fit(x, y, xcen, ycen, stamp, imstamp, modstamp,
         return GridInterpPSF(newstamp, psfstamp[1], psfstamp[2])
 
 
-class WrappedPSFModel(crowdsource.psf.SimplePSF):
+class WrappedPSFModel(SimplePSF):
     """
     wrapper for photutils GriddedPSFModel
     """
