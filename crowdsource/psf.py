@@ -1250,7 +1250,7 @@ class WrappedPSFModel(SimplePSF):
         cols = cols[:, :, None] + col[None, None, :]
 
         # photutils seems to use column, row notation
-        stamps = grid.evaluate(cols, rows, 1, col, row)
+        stamps = self.psfgridmodel.evaluate(cols, rows, 1, col, row)
         # it returns something in (nstamps, row, col) shape
         # pretty sure that ought to be (col, row, nstamps) for crowdsource
 
