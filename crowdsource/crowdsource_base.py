@@ -910,7 +910,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         brightenough = (guessflux/fluxunc > threshold*3/5.) | (guessflux > 1e5)
         isolatedenough = cull_near(xa, ya, guessflux)
         if verbose:
-            print(f"threshold={threshold}, median fluxunc={np.nanmedian(fluxunc)}, median flux={np.nanmedian(guessflux)}")
+            print(f"threshold={threshold}, median fluxunc={numpy.nanmedian(fluxunc)}, median flux={numpy.nanmedian(guessflux)}")
 
         keep = brightenough & isolatedenough
         xa, ya = (c[keep] for c in (xa, ya))
