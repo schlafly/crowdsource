@@ -1253,10 +1253,12 @@ class WrappedPSFModel(SimplePSF):
         #stamps = self.psfgridmodel.evaluate(cols, rows, 1, col, row)
         # it returns something in (nstamps, row, col) shape
         # pretty sure that ought to be (col, row, nstamps) for crowdsource
+        stamps = []
         for i in range(len(col)):
             stamps.append(self.psfgridmodel.evaluate(cols+col[i], rows+row[i], 1, col[i], row[i]))
-        stampsS = np.stack(stamps,axis=0)
-        stamps = np.transpose(stampsS,axes=(0,2,1))
+
+        # swap (z,y,x) -> (z,x,y)
+        stamps = np.transpose(stamps, axes=(0,2,1))
 
         if deriv:
             dpsfdrow, dpsfdcol = np.gradient(stamps, axis=(1, 2))
