@@ -1262,8 +1262,6 @@ class WrappedPSFModel(SimplePSF):
 
         if deriv:
             dpsfdrow, dpsfdcol = np.gradient(stamps, axis=(1, 2))
-            dpsfdrow = dpsfdrow.T
-            dpsfdcol = dpsfdcol.T
 
         ret = stamps
         if parshape != tparshape:
