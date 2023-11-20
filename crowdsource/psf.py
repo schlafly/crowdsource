@@ -1259,7 +1259,7 @@ class WrappedPSFModel(SimplePSF):
         stamps = np.transpose(stampsS,axes=(0,2,1))
 
         if deriv:
-            dpsfdrow, dpsfdcol = np.gradient(stamps, axis=(0, 1))
+            dpsfdrow, dpsfdcol = np.gradient(stamps, axis=(1, 2))
             dpsfdrow = dpsfdrow.T
             dpsfdcol = dpsfdcol.T
 
