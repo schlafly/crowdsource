@@ -296,7 +296,7 @@ def fit_once(im, x, y, psfs, weight=None,
     repeat = 1 if not psfderiv else 3
     nskypar = nskyx * nskyy
     npixim = im.shape[0]*im.shape[1]
-    zsz = (repeat*numpy.sum(sz*sz) + nskypar*npixim).astype('i4')
+    zsz = (repeat*numpy.sum(sz*sz) + nskypar*npixim).astype('i8')
     if zsz >= 2**32:
         raise ValueError(
             'Number of pixels being fit is too large (>2**32); '
