@@ -302,6 +302,7 @@ def fit_once(im, x, y, psfs, weight=None,
             'Number of pixels being fit is too large (>2**32); '
             'failing early.  This usually indicates a problem with '
             'the choice of PSF size & too many sources.')
+    print(f"zsz = {zsz}, sz={sz}, nskypar={nskypar}, npixim={npixim}, repeat={repeat}")
     xloc = numpy.zeros(zsz, dtype='i4')
     values = numpy.zeros(len(xloc), dtype='f4')
     colnorm = numpy.zeros(len(x)*repeat+nskypar, dtype='f4')
@@ -908,6 +909,8 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         # i.e., 50k saturates, so we can cut there.
         brightenough = (guessflux/fluxunc > threshold*3/5.) | (guessflux > 1e5)
         isolatedenough = cull_near(xa, ya, guessflux)
+        if verbose:
+            print(f"threshold={threshold}, median fluxunc={numpy.nanmedian(fluxunc)}, median flux={numpy.nanmedian(guessflux)}")
 
         keep = brightenough & isolatedenough
         xa, ya = (c[keep] for c in (xa, ya))

@@ -1222,3 +1222,66 @@ def wise_psf_fit(x, y, xcen, ycen, stamp, imstamp, modstamp,
         return SimplePSF(newstamp)
     else:
         return GridInterpPSF(newstamp, psfstamp[1], psfstamp[2])
+
+
+class WrappedPSFModel(SimplePSF):
+    """
+    wrapper for photutils GriddedPSFModel
+    """
+    def __init__(self, psfgridmodel, stampsz=19):
+        self.psfgridmodel = psfgridmodel
+        self.default_stampsz = stampsz
+
+    def __call__(self, col, row, stampsz=None, deriv=False):
+
+        if stampsz is None:
+            stampsz = self.default_stampsz
+
+        parshape = numpy.broadcast(col, row).shape
+        tparshape = parshape if len(parshape) > 0 else (1,)
+
+        # numpy uses row, column notation
+        rows, cols = np.indices((stampsz, stampsz)) - (np.array([stampsz, stampsz])-1)[:, None, None] / 2.
+
+        # explicitly broadcast
+        col = np.atleast_1d(col)
+        row = np.atleast_1d(row)
+        #rows = rows[:, :, None] + row[None, None, :]
+        #cols = cols[:, :, None] + col[None, None, :]
+
+        # photutils seems to use column, row notation
+        #stamps = self.psfgridmodel.evaluate(cols, rows, 1, col, row)
+        # it returns something in (nstamps, row, col) shape
+        # pretty sure that ought to be (col, row, nstamps) for crowdsource
+        stamps = []
+        for i in range(len(col)):
+            stamps.append(self.psfgridmodel.evaluate(cols+col[i], rows+row[i], 1, col[i], row[i]))
+
+        # swap (z,y,x) -> (z,x,y)
+        stamps = np.transpose(stamps, axes=(0,2,1))
+
+        if deriv:
+            dpsfdrow, dpsfdcol = np.gradient(stamps, axis=(1, 2))
+
+        ret = stamps
+        if parshape != tparshape:
+            ret = ret.reshape(stampsz, stampsz)
+            if deriv:
+                dpsfdrow = dpsfdrow.reshape(stampsz, stampsz)
+                dpsfdcol = dpsfdcol.reshape(stampsz, stampsz)
+        if deriv:
+            ret = (ret, dpsfdcol, dpsfdrow)
+
+        return ret
+
+
+    def render_model(self, col, row, stampsz=None):
+        """
+        this function likely does nothing?
+        """
+        if stampsz is not None:
+            self.stampsz = stampsz
+
+        rows, cols = np.indices(self.stampsz, dtype=float) - (np.array(self.stampsz)-1)[:, None, None] / 2.
+
+        return self.psfgridmodel.evaluate(cols, rows, 1, col, row).T.squeeze()
