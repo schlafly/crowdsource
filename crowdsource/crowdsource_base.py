@@ -302,7 +302,7 @@ def fit_once(im, x, y, psfs, weight=None,
             'Number of pixels being fit is too large (>2**32); '
             'failing early.  This usually indicates a problem with '
             'the choice of PSF size & too many sources.')
-    print(f"zsz = {zsz}, sz={sz}, nskypar={nskypar}, npixim={npixim}, repeat={repeat}")
+    # DEBUG    print(f"zsz = {zsz}, sz={sz}, nskypar={nskypar}, npixim={npixim}, repeat={repeat}")
     xloc = numpy.zeros(zsz, dtype='i4')
     values = numpy.zeros(len(xloc), dtype='f4')
     colnorm = numpy.zeros(len(x)*repeat+nskypar, dtype='f4')
