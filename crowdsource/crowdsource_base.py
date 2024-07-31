@@ -297,9 +297,9 @@ def fit_once(im, x, y, psfs, weight=None,
     nskypar = nskyx * nskyy
     npixim = im.shape[0]*im.shape[1]
     zsz = (repeat*numpy.sum(sz*sz) + nskypar*npixim).astype('i8')
-    if zsz >= 2**32:
+    if zsz >= 2**33:
         raise ValueError(
-            'Number of pixels being fit is too large (>2**32); '
+            'Number of pixels being fit is too large (>2**33); '
             'failing early.  This usually indicates a problem with '
             'the choice of PSF size & too many sources.')
     # DEBUG    print(f"zsz = {zsz}, sz={sz}, nskypar={nskypar}, npixim={npixim}, repeat={repeat}")
@@ -747,7 +747,8 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
            maxstars=40000, derivcentroids=False,
            ntilex=1, ntiley=1, fewstars=100, threshold=5,
            ccd=None, plot=False, titer_thresh=2, blendthreshu=2,
-           psfvalsharpcutfac=0.7, psfsharpsat=0.7):
+           psfvalsharpcutfac=0.7, psfsharpsat=0.7,
+           add_new_peaks_every_other_iteration=False):
     if isinstance(weight, int):
         weight = numpy.ones_like(im)*weight
 
@@ -770,7 +771,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         titer += 1
         hsky = sky_im(im-model, weight=weight, npix=20)
         lsky = sky_im(im-model, weight=weight, npix=50*roughfwhm)
-        if titer != lastiter:
+        if titer != lastiter and not ((titer % 2 == 0) and add_new_peaks_every_other_iteration):
             # in first passes, do not split sources!
             blendthresh = blendthreshu if titer < titer_thresh else 0.2
             xn, yn = peakfind(im-model-hsky,
@@ -825,10 +826,6 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
             print("Starting subregion iterations")
         for (bdxf, bdxl, bdxaf, bdxal, bdyf, bdyl, bdyaf, bdyal) in (
                 subregions(im.shape, ntilex, ntiley)):
-            if verbose:
-                print(f"Subregion iteration {subreg_iter} starting; "
-                      f"dt={time.time()-t0}", flush=True)
-                subreg_iter += 1
             mbda = in_bounds(xa, ya, [bdxaf-0.5, bdxal-0.5],
                              [bdyaf-0.5, bdyal-0.5])
             mbd = in_bounds(xa, ya, [bdxf-0.5, bdxl-0.5],
@@ -871,6 +868,11 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
             import gc
             gc.collect()
 
+            if verbose:
+                print(f"Subregion iteration {subreg_iter} finished; "
+                      f"dt={time.time()-t0}", flush=True)
+                subreg_iter += 1
+
         centroids = compute_centroids(xa, ya, psfs, flux, im-(sky+msky),
                                       im-model-sky,
                                       weight, derivcentroids=derivcentroids)
@@ -910,7 +912,7 @@ def fit_im(im, psf, weight=None, dq=None, psfderiv=True,
         brightenough = (guessflux/fluxunc > threshold*3/5.) | (guessflux > 1e5)
         isolatedenough = cull_near(xa, ya, guessflux)
         if verbose:
-            print(f"threshold={threshold}, median fluxunc={numpy.nanmedian(fluxunc)}, median flux={numpy.nanmedian(guessflux)}")
+            print(f"threshold={threshold}, median fluxunc={numpy.nanmedian(fluxunc)}, median flux={numpy.nanmedian(guessflux)} time={time.time()-t0}")
 
         keep = brightenough & isolatedenough
         xa, ya = (c[keep] for c in (xa, ya))
