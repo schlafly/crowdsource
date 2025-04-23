@@ -51,7 +51,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
         hdr = fits.getheader(imfn, extname=extname)
         imdei = fits.getdata(imfn, extname=extname).copy()
         imdew = fits.getdata(ivarfn, extname=extname).copy()
-        imded = fits.getdata(dqfn, extname=extname).copy()
+        imded = fits.getdata(dqfn, extname=extname).copy().astype('u4')
     # suppress endless nonstandard keyword warnings on read
     for warning in wlist:
         if 'following header keyword' in str(warning.message):
@@ -73,7 +73,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
         # (interpolated, unused, unused)
     imded = 2**imded
     # flag 7 does not seem to indicate problems with the pixels.
-    mzerowt = (((imded & ~(2**0 | 2**7)) != 0) |
+    mzerowt = (((imded & ~(np.uint32(2**0 | 2**7))) != 0) |
                (imdew < wcutoff) | ~numpy.isfinite(imdew))
     if badpixmask is None:
         badpixmask = os.path.join(os.environ['DECAM_DIR'], 'data',
@@ -84,7 +84,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
     else:
         bextname = extname
     badmask = fits.getdata(badpixmask, extname=bextname)
-    imded |= ((badmask != 0) * extrabits['badpix'])
+    imded |= ((badmask != 0) * np.uint32(extrabits['badpix']))
     mzerowt = mzerowt | (badmask != 0)
     imdew[mzerowt] = 0.
     imdew[:] = numpy.sqrt(imdew)
@@ -101,8 +101,8 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
                 read_data.leda = leda
             gmsk = galaxy_mask.galaxy_mask(hdr, leda)
             if numpy.any(gmsk):
-                imded |= (gmsk * extrabits['galaxy'])
-                imded |= (gmsk * crowdsource_base.nodeblend_maskbit)
+                imded |= (gmsk * np.uint32(extrabits['galaxy']))
+                imded |= (gmsk * np.uint32(crowdsource_base.nodeblend_maskbit))
         else:
             if verbose:
                 print("WCSCAL Unsucessful, Skipping galaxy masking...")
@@ -171,7 +171,7 @@ def process_one_ccd(name, bigdict):
         fwhm = fwhmmn
     psf = decam_psf(filt[0], fwhm, pixsz=pixsz)
     wcs0 = wcs.WCS(hdr)
-    from astropy.coordinates.angle_utilities import angular_separation
+    from astropy.coordinates import angular_separation
     if brightstars is not None:
         raccdcen, decccdcen = wcs0.all_pix2world(
             im.shape[1]//2, im.shape[0]//2, 0)
@@ -280,7 +280,7 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
     bstarfn = os.path.join(os.environ['DECAM_DIR'], 'data',
                            'tyc2brighttrim.fits')
     brightstars = fits.getdata(bstarfn)
-    from astropy.coordinates.angle_utilities import angular_separation
+    from astropy.coordinates import angular_separation
     from astropy.coordinates import SkyCoord
     from astropy import units
     coordcen = SkyCoord(
@@ -344,6 +344,8 @@ def process_image(base, date, filtf, vers, outfn=None, overwrite=False,
                         continue
                     extnamesdone.append(ext)
                 hdulist.close()
+    else:
+        outmodelfn = None
     # fwhm scrape all the ccds
     fwhms = []
     for name in extnames:
@@ -464,7 +466,7 @@ def save_fxn(res, bigdict):
         # quantize_level to be ignored.
         compkw = {'compression_type': 'GZIP_1',
                   'quantize_method': 1, 'quantize_level': -4,
-                  'tile_size': modelim.shape}
+                  'tile_shape': modelim.shape}
         modhdulist = fits.open(outmodelfn, mode='append')
         if not noModsave:
             modhdulist.append(fits.CompImageHDU(modelim, hdr, **compkw))
@@ -498,7 +500,7 @@ def decam_psf(filt, fwhm, pixsz=9):
     # omitting central_stamp here places too much
     # emphasis on the wings relative to the pipeline estimate.
     tpsffwhm = psfmod.neff_fwhm(psfmod.central_stamp(tpsf))
-    from scipy.ndimage.filters import convolve
+    from scipy.ndimage import convolve
     if tpsffwhm < fwhm:
         convpsffwhm = numpy.sqrt(fwhm**2.-tpsffwhm**2.)
         convpsf = psfmod.moffat_psf(convpsffwhm, stampsz=39, deriv=False)
