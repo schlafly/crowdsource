@@ -5,8 +5,8 @@ import crowdsource.psf as psfmod
 from crowdsource import crowdsource_base
 from lsst.daf.butler import Butler
 from functools import partial
- 
- 
+
+
 def process(visitId, detector, nx = 4, ny = 4, maxstars = 10000000, fewstars = 60, threshold = 5, **kw):
     """
     Parameters
@@ -48,13 +48,16 @@ def process(visitId, detector, nx = 4, ny = 4, maxstars = 10000000, fewstars = 6
     #Getting the PSF    
     rubin_psf = visit_image.getPsf()
     visit_center = visit_image.getBBox().getCenter()
-    psf_stamp_visit = rubin_psf.computeImage(visit_center).array
+
+    psf_stamp_visit = rubin_psf.computeKernelImage(visit_center).array
     
     stamp = np.clip(np.array(psf_stamp_visit), 1e-10, np.inf)
     stamp = stamp / np.sum(stamp)
     
     psf = psfmod.SimplePSF(stamp)
-    psf.fitfun = partial(psfmod.wise_psf_fit, psfstamp=stamp)
+
+    print("Using fit_variable_moffat_psf")
+    psf.fitfun = psfmod.fit_variable_moffat_psf
 
     #crowdsource variables
     im = visit_image.image.array.astype(np.float32)
@@ -65,7 +68,7 @@ def process(visitId, detector, nx = 4, ny = 4, maxstars = 10000000, fewstars = 6
     mask = visit_image.mask
     
     bad_bits = 0
-    for plane in ("BAD", "SAT", "CR", "NO_DATA", "EDGE", "INTRP"):
+    for plane in ("BAD", "SAT", "CR", "NO_DATA", "EDGE", "INTRP", "STREAK"):
         if plane in mask.getMaskPlaneDict():
             bad_bits |= mask.getPlaneBitMask(plane)
             
@@ -79,7 +82,6 @@ def process(visitId, detector, nx = 4, ny = 4, maxstars = 10000000, fewstars = 6
     print("CROWDSOURCE is done!")
     
     return res
-
 
 if __name__ == "__main__":
     from astropy.io import fits
