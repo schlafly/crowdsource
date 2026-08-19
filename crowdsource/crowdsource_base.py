@@ -1086,7 +1086,7 @@ def fit_im(images, psfs, weights=None, dq=None, band_weights=None,
             # Append new detections
             xa = np.concatenate([xa, xn]).astype('f4')
             ya = np.concatenate([ya, yn]).astype('f4')
-            passno = np.concatenate([passno, np.zeros(len(xn)) + titer])
+            passno = np.concatenate([passno, np.zeros(len(xn), dtype='i4') + titer])
         else:
             xn, yn = np.zeros(0, dtype='f4'), np.zeros(0, dtype='f4')
 
@@ -1360,7 +1360,7 @@ def fit_im(images, psfs, weights=None, dq=None, band_weights=None,
 
     flux_b = [flux[b*N:(b+1)*N] for b in range(B)]
     stars = OrderedDict(
-        [('x', xa), ('y', ya)] +
+        [('x', xa.astype('f8')), ('y', ya.astype('f8'))] +
         [(f'flux_b{b}', flux_b[b].astype('f4')) for b in range(B)] +
         [('passno', passno)] +
         [(f, stats[f]) for f in stats]
@@ -1377,7 +1377,6 @@ def fit_im(images, psfs, weights=None, dq=None, band_weights=None,
             else:
                 compressed[k] = v
         stars = compressed
-    # ---------------------------------------
     
     dtype = np.dtype({'names': list(stars.keys()),
                       'formats': [stars[n].dtype for n in stars.keys()]})
@@ -1530,7 +1529,9 @@ def compute_stats(xs, ys, stamps, flux_flat):
             f"fluxlbs_b{b}": fluxlbs, f"dfluxlbs_b{b}": dfluxlbs,
             f"fwhm_b{b}": fwhm,
             f"spread_model_b{b}": spread, f"dspread_model_b{b}": dspread,
-            f"fluxiso_b{b}": fluxiso, f"xiso_b{b}": xiso, f"yiso_b{b}": yiso
+            f"fluxiso_b{b}": fluxiso.astype('f4'), 
+            f"xiso_b{b}":    xiso.astype('f4'), 
+            f"yiso_b{b}":    yiso.astype('f4')
         })
 
         # accumulate for joint metrics

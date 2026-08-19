@@ -361,7 +361,10 @@ def merge_per_band_fields(cat, bands):
     B = len(idx_bands)
     for base, band_dict in mapping.items():
         # Only merge if all internal indices appear
-        if all(i in band_dict for i in idx_bands): new_dtype.append((base, "f4", (B,)))
+        if all(i in band_dict for i in idx_bands):
+            dt = cat[band_dict[idx_bands[0]]].dtype
+            new_dtype.append((base, dt, (B,)))
+
     out = np.zeros(len(cat), dtype=new_dtype)
 
     # Copy non-per-band fields
@@ -370,12 +373,12 @@ def merge_per_band_fields(cat, bands):
 
     # fill merged arrays
     for base, band_dict in mapping.items():
-        if not all(i in band_dict for i in idx_bands): continue
-        merged = np.vstack([cat[band_dict[i]].astype("f4") for i in idx_bands]).T
+        if not all(i in band_dict for i in idx_bands):
+            continue
+        merged = np.vstack([cat[band_dict[i]] for i in idx_bands]).T
         out[base] = merged
 
     return out
-
 
 
 if __name__ == "__main__":
@@ -489,6 +492,7 @@ if __name__ == "__main__":
 
     flag_combined = np.bitwise_or.reduce(np.stack(flags, axis=0))
     # if len(args.forcecat) == 0:
+    
     res = crowdsource_base.fit_im(
         ims, psfs, weights=sqivars, dq=flag_combined,
         band_weights=args.bandweights,
@@ -541,30 +545,29 @@ if __name__ == "__main__":
     if len(args.release) == 0: ids = [f"{id_prefix}o{num:07d}" for num in range(len(ra))]
     else: ids = [f"{id_prefix}o{num:07d}r{args.release}" for num in range(len(ra))]
 
-
     nms_all, flags_unwise_all, flags_info_all = [], [], []
     for i, band in enumerate(args.bands):
         # nm per band
         nmfn = wise_filename(basedir, coadd_id, band, 'n-m', uncompressed=args.uncompressed, epoch=args.epoch)
         nmim = fits.getdata(nmfn)
-        nms_all.append(crowdsource_base.extract_im(cat['x'], cat['y'], nmim))
-
+        nms_all.append(crowdsource_base.extract_im(cat['x'], cat['y'], nmim).astype('i2'))
+    
         flag_orig = fits.getdata(wise_filename(basedir, coadd_id, band, 'msk',
                                                uncompressed=args.uncompressed,
                                                epoch=args.epoch))
-        
+    
         # unwise flags per band
-        fu = crowdsource_base.extract_im(cat['x'], cat['y'], collapse_unwise_bitmask(flag_orig, band))
+        fu = crowdsource_base.extract_im(cat['x'], cat['y'],collapse_unwise_bitmask(flag_orig, band)).astype('i2')
         flags_unwise_all.append(fu)
     
         # info flags per band
-        fi = crowdsource_base.extract_im(cat['x'], cat['y'], collapse_extraflags(flags[i], band))
+        fi = crowdsource_base.extract_im(cat['x'], cat['y'],collapse_extraflags(flags[i], band)).astype('i2')
         flags_info_all.append(fi)
     
-    # Stack into (nbands, nsource) arrays  
-    nms_all = np.array(nms_all)                  
-    flags_unwise_all = np.array(flags_unwise_all)
-    flags_info_all   = np.array(flags_info_all)
+    # Stack into (nbands, nsource) arrays
+    nms_all          = np.asarray(nms_all, dtype='i2')
+    flags_unwise_all = np.asarray(flags_unwise_all, dtype='i2')
+    flags_info_all   = np.asarray(flags_info_all, dtype='i2')
     
     # cast to i2; astropy.io.fits seems to fail for bools?
     primary = unwise_primary.is_primary(coadd_id, ra, dec).astype('i2')
