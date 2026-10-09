@@ -190,12 +190,20 @@ def wise_psf_stamp(band, nosmooth=False):
     return stamp
 
 
+def fixed_psf_fit(*args, **kw):
+    # there are too few bright stars to refit the W3 and W4 PSFs; returning
+    # None keeps the current model.
+    return None
+
+
 def wise_psf(band, coadd_id):
     stamp = wise_psf_stamp(band)
     stamp = unwise_psf.rotate_using_rd(stamp, coadd_id)
     psf = psfmod.SimplePSF(stamp)
     from functools import partial
     psf.fitfun = partial(psfmod.wise_psf_fit, psfstamp=stamp)
+    if band > 2:
+        psf.fitfun = fixed_psf_fit
     return psf
 
 
@@ -229,6 +237,8 @@ def wise_psf_grid(band, coadd_id, basedir, uncompressed=False,
     from functools import partial
     psf.fitfun = partial(psfmod.wise_psf_fit, psfstamp=(stamps, x, y),
                          grid=True)
+    if band > 2:
+        psf.fitfun = fixed_psf_fit
     return psf
 
 
