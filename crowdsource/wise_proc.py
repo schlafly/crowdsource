@@ -109,12 +109,17 @@ def massage_isig_and_dim(isig, im, flag, band, nm, nu, fac=None):
     or zero point...
     """
 
+    frac = 0.
     if fac is None:
-        # W3 and W4 values are in rescaled units (see bandscales) and are
-        # provisional.
-        bandfacs = {1: 0.15, 2: 0.3, 3: 0.25, 4: 0.4}
+        # in W3 and W4 the excess noise in bright pixels, measured from the
+        # std-m images, grows as a ~2.5% fractional error (see also Lang
+        # 2014) and not as sqrt(im).  The W3 and W4 floors are in rescaled
+        # units (see bandscales).
+        bandfacs = {1: 0.15, 2: 0.3, 3: 0., 4: 0.}
+        bandfracs = {1: 0., 2: 0., 3: 0.025, 4: 0.025}
         bandfloors = {1: 0.5, 2: 2, 3: 5, 4: 5}
         fac = bandfacs[band]
+        frac = bandfracs[band]
         floor = bandfloors[band]
 
     # the unWISE bitmask has no W3 or W4 saturation bits.
@@ -122,12 +127,12 @@ def massage_isig_and_dim(isig, im, flag, band, nm, nu, fac=None):
     # no flux limit in W3 and W4; rely on the coverage maps.
     satlimit = 85000 if band <= 2 else np.inf  # if band == 1 else 130000
     msat = ((flag & satbit) != 0) | (im > satlimit) | ((nm == 0) & (nu > 1))
-    from scipy.ndimage import morphology
-    # dilate = morphology.iterate_structure(
-    #     morphology.generate_binary_structure(2, 1), 3)
+    from scipy import ndimage
+    # dilate = ndimage.iterate_structure(
+    #     ndimage.generate_binary_structure(2, 1), 3)
     xx, yy = np.mgrid[-3:3+1, -3:3+1]
     dilate = xx**2+yy**2 <= 3**2
-    msat = morphology.binary_dilation(msat, dilate)
+    msat = ndimage.binary_dilation(msat, dilate)
     isig[msat] = 0
     flag = flag.astype('i8')
     # zero out these bits; we claim them for our own purposes.
@@ -139,7 +144,8 @@ def massage_isig_and_dim(isig, im, flag, band, nm, nu, fac=None):
     flag[(flag & sharp_bits) != 0] |= crowdsource_base.sharp_maskbit
 
     sigma = np.sqrt(1./(isig + (isig == 0))**2 + floor**2 +
-                       fac**2*np.clip(im, 0, np.inf))
+                       fac**2*np.clip(im, 0, np.inf) +
+                       frac**2*np.clip(im, 0, np.inf)**2)
     sigma[msat] = np.inf
     sigma[isig == 0] = np.inf
     return (1./sigma).astype('f4'), flag
@@ -601,7 +607,7 @@ if __name__ == "__main__":
     # ---- Now compute RA/Dec using hdr ----
     wcs0 = wcs.WCS(hdr)
     ra, dec = wcs0.all_pix2world(y, x, 0)
-    coadd_ids = np.full(len(ra), coadd_id, dtype='a8')
+    coadd_ids = np.full(len(ra), coadd_id, dtype='S8')
     
     # ---- Build bands_col ----
     if len(args.bands) == 1: bands_col = np.full(len(ra), band_val, dtype='i4')
@@ -688,9 +694,10 @@ if __name__ == "__main__":
                 sky_arr   = sky
                 tile_shape = model.shape
     
+            # one tile per band plane
             compkw = dict(compression_type='GZIP_1',
                           quantize_method=2, quantize_level=-0.5,
-                          tile_shape=tile_shape)
+                          tile_shape=(1,)*(model_arr.ndim-2) + tuple(tile_shape))
     
             h = hdr.copy(); h['EXTNAME'] = 'model'
             hdulist.append(fits.CompImageHDU(model_arr.astype('f4'), header=h, **compkw))
@@ -735,7 +742,7 @@ if __name__ == "__main__":
                 psffluxivar_to_write = psffluxivar_all
                 flags_to_write       = flags_infoim_all
                 psf_to_write         = psfstamp_all
-                tile_shape = psffluxivar_to_write.shape[-2:]
+                tile_shape = (1,) + psffluxivar_to_write.shape[-2:]
     
             compkw = dict(compression_type="GZIP_1",
                           quantize_method=2,
