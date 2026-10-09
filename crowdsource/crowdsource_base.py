@@ -20,7 +20,7 @@ import numpy as np
 from scipy import sparse
 import pdb
 import crowdsource.psf as psfmod
-import scipy.ndimage.filters as filters
+import scipy.ndimage as filters
 from collections import OrderedDict
 from scipy import sparse
 from typing import List, Tuple, Optional
@@ -32,7 +32,7 @@ sharp_maskbit = 2**31
 
 def shift(im, offset, **kw):
     """Wrapper for scipy.ndimage.interpolation.shift"""
-    from scipy.ndimage.interpolation import shift
+    from scipy.ndimage import shift
     if 'order' not in kw:
         kw['order'] = 4
         # 1" Gaussian: 60 umag; 0.75": 0.4 mmag; 0.5": 4 mmag
@@ -129,7 +129,7 @@ def significance_image_lbs(im, model, isig, psf, sz=19):
         return fftconvolve(im, kernel[::-1, ::-1], mode='same')
 
     def convolve_flat(im, sz):
-        from scipy.ndimage.filters import convolve
+        from scipy.ndimage import convolve
         filt = np.ones(sz, dtype='f4')
         c1 = convolve(im, filt.reshape(1, -1), mode='constant', origin=0)
         return convolve(c1, filt.reshape(-1, 1), mode='constant', origin=0)
@@ -189,7 +189,6 @@ def peakfind(ims, models, isigs, dq, psfs, *,
     modelsigim : 2D ndarray
         Model significance image. Useful for QA/debugging.
     """
-    from scipy.ndimage import filters
 
     # Detect single-band or multi-band
     if np.array(ims).ndim == 2:
@@ -866,7 +865,7 @@ def sky_im(im, weight=None, npix=20, order=1):
                     im[xg[i]:xg[i+1], yg[j]:yg[j+1]][use])
     val[usedpix < 20] = 0.
     usedpix[usedpix < 20] = 0.
-    from scipy.ndimage.filters import gaussian_filter
+    from scipy.ndimage import gaussian_filter
     count = 0
     while np.any(usedpix == 0):
         sig = 0.4
