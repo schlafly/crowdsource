@@ -31,7 +31,12 @@ sharp_bits = (extrabits['w1brightoffedge'] | extrabits['w2brightoffedge'])
 # The W3 and W4 sky noise is orders of magnitude larger in Vega nanomaggies,
 # so we divide those images by bandscales on input and multiply the fluxes,
 # models, and skies by bandscales on output.
-bandscales = {1: 1., 2: 1., 3: 100., 4: 2000.}
+bandscales = {1: 1., 2: 1., 3: 10., 4: 100.}
+# WISE binned the W4 images 2x2 on board, but the unWISE coadds are on the
+# same 2.75" pixel grid in all bands, so the W4 pixels are strongly
+# correlated.  Following legacypipe.unwise, we reduce the W4 inverse variance
+# by a factor of four.
+bandisigfacs = {1: 1., 2: 1., 3: 1., 4: 0.5}
 fluxfields = ['flux', 'dflux', 'fluxlbs', 'dfluxlbs', 'fluxiso', 'sky']
 
 def wise_filename(basedir, coadd_id, band, _type, uncompressed=False,
@@ -107,14 +112,15 @@ def massage_isig_and_dim(isig, im, flag, band, nm, nu, fac=None):
     if fac is None:
         # W3 and W4 values are in rescaled units (see bandscales) and are
         # provisional.
-        bandfacs = {1: 0.15, 2: 0.3, 3: 0.1, 4: 0.1}
-        bandfloors = {1: 0.5, 2: 2, 3: 0.5, 4: 0.5}
+        bandfacs = {1: 0.15, 2: 0.3, 3: 0.25, 4: 0.4}
+        bandfloors = {1: 0.5, 2: 2, 3: 5, 4: 5}
         fac = bandfacs[band]
         floor = bandfloors[band]
 
     # the unWISE bitmask has no W3 or W4 saturation bits.
     satbit = {1: 16, 2: 32}.get(band, 0)
-    satlimit = 85000  # if band == 1 else 130000
+    # no flux limit in W3 and W4; rely on the coverage maps.
+    satlimit = 85000 if band <= 2 else np.inf  # if band == 1 else 130000
     msat = ((flag & satbit) != 0) | (im > satlimit) | ((nm == 0) & (nu > 1))
     from scipy.ndimage import morphology
     # dilate = morphology.iterate_structure(
@@ -164,6 +170,15 @@ def wise_psf_stamp(band, nosmooth=False):
     stamp = signal.wiener(stamp.astype('f8'),  11, psfnoise)
     stamp = stamp.astype('f4')
     np.seterr(**olderr)
+    if band == 4:
+        # the W4 model is at the native 5.5" pixel scale; oversample it to
+        # the 2.75" pixel scale of the coadds and trim to the size of the
+        # other models.
+        from scipy.ndimage import map_coordinates
+        grid = np.arange(0, stamp.shape[0]-0.51, 0.5)
+        xx, yy = np.meshgrid(grid, grid, indexing='ij')
+        stamp = map_coordinates(stamp, [xx, yy], order=3).astype('f4')
+        stamp = psfmod.central_stamp(stamp, 325)
     # taper linearly over outer 60 pixels?
     stampszo2 = stamp.shape[0] // 2
     xx, yy = np.mgrid[-stampszo2:stampszo2+1, -stampszo2:stampszo2+1]
@@ -257,6 +272,7 @@ def read_wise(coadd_id, band, basedir, uncompressed=False,
     nm = fits.getdata(nmfn)
     nu = fits.getdata(nufn)
     sqivar, flag = massage_isig_and_dim(sqivar, im, flag, band, nm, nu)
+    sqivar = sqivar * np.float32(bandisigfacs[band])
     return im, sqivar, flag, hdr
 
 
