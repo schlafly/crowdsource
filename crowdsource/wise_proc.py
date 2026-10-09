@@ -15,7 +15,6 @@ from unwise_psf import unwise_psf
 import crowdsource.unwise_primary as unwise_primary
 from astropy import wcs
 from collections import OrderedDict
-from pkg_resources import resource_filename
 
 
 extrabits = {'crowdsat': 2**25,
@@ -26,6 +25,14 @@ extrabits = {'crowdsat': 2**25,
 
 nodeblend_bits = extrabits['hyperleda']
 sharp_bits = (extrabits['w1brightoffedge'] | extrabits['w2brightoffedge'])
+
+# crowdsource_base has several thresholds in absolute image units (PSF stamp
+# sizes, saturation, pruning of faint sources) that were tuned for W1 and W2.
+# The W3 and W4 sky noise is orders of magnitude larger in Vega nanomaggies,
+# so we divide those images by bandscales on input and multiply the fluxes,
+# models, and skies by bandscales on output.
+bandscales = {1: 1., 2: 1., 3: 100., 4: 2000.}
+fluxfields = ['flux', 'dflux', 'fluxlbs', 'dfluxlbs', 'fluxiso', 'sky']
 
 def wise_filename(basedir, coadd_id, band, _type, uncompressed=False,
                   drop_first_dir=False, epoch=-1):
@@ -59,7 +66,7 @@ def wise_filename(basedir, coadd_id, band, _type, uncompressed=False,
 
 
 def read_blist(brightstars, raim, decim, hdr, maxsep):
-    from astropy.coordinates.angle_utilities import angular_separation
+    from astropy.coordinates import angular_separation
     sep = angular_separation(np.radians(brightstars['ra']),
                              np.radians(brightstars['dec']),
                              np.radians(raim),
@@ -98,12 +105,15 @@ def massage_isig_and_dim(isig, im, flag, band, nm, nu, fac=None):
     """
 
     if fac is None:
-        bandfacs = {1: 0.15, 2: 0.3}
-        bandfloors = {1: 0.5, 2: 2}
+        # W3 and W4 values are in rescaled units (see bandscales) and are
+        # provisional.
+        bandfacs = {1: 0.15, 2: 0.3, 3: 0.1, 4: 0.1}
+        bandfloors = {1: 0.5, 2: 2, 3: 0.5, 4: 0.5}
         fac = bandfacs[band]
         floor = bandfloors[band]
 
-    satbit = 16 if band == 1 else 32
+    # the unWISE bitmask has no W3 or W4 saturation bits.
+    satbit = {1: 16, 2: 32}.get(band, 0)
     satlimit = 85000  # if band == 1 else 130000
     msat = ((flag & satbit) != 0) | (im > satlimit) | ((nm == 0) & (nu > 1))
     from scipy.ndimage import morphology
@@ -130,12 +140,11 @@ def massage_isig_and_dim(isig, im, flag, band, nm, nu, fac=None):
 
 
 def wise_psf_stamp(band, nosmooth=False):
-    # psf noise: ~roughly 0.1 count in outskirts of W1 and W2
-    if band >= 3:
-        raise ValueError('Need to stare at W3+ PSF more!')
-    psfnoise = 0.1
-    stampfn = resource_filename('unwise_psf',
-                                'data/psf_model_w'+str(band)+'.fits')
+    # psf noise: ~roughly 0.1 count in outskirts of W1, W2, and W3, and
+    # 0.7 count in outskirts of W4
+    psfnoise = {1: 0.1, 2: 0.1, 3: 0.1, 4: 0.7}[band]
+    stampfn = os.path.join(os.path.dirname(unwise_psf.__file__),
+                           'data', 'psf_model_w'+str(band)+'.fits')
     stamp = fits.getdata(stampfn)
     edges = np.concatenate([stamp[0, 1:-1], stamp[-1, 1:-1],
                                stamp[1:-1, 0], stamp[1:-1, -1]])
@@ -161,8 +170,7 @@ def wise_psf_stamp(band, nosmooth=False):
     edgedist = np.clip(stampszo2-np.abs(xx), 0,
                           stampszo2-np.abs(yy))
     stamp = stamp * np.clip(edgedist / 60., stamp < 10, 1)
-    import psf
-    stamp = psf.center_psf(stamp, censize=19)
+    stamp = psfmod.center_psf(stamp, censize=19)
     stamp = stamp / np.sum(stamp)
     return stamp
 
@@ -209,18 +217,26 @@ def wise_psf_grid(band, coadd_id, basedir, uncompressed=False,
     return psf
 
 
+def read_unwise_mask(maskdir, coadd_id, shape, uncompressed=False,
+                     drop_first_dir=False, epoch=-1):
+    flagfn = wise_filename(maskdir, coadd_id, 0, 'msk',
+                           uncompressed=uncompressed,
+                           drop_first_dir=drop_first_dir, epoch=epoch)
+    if not os.path.exists(flagfn):
+        print('No unWISE bitmask %s, using an empty mask.' % flagfn)
+        return np.zeros(shape, dtype='i4')
+    return fits.getdata(flagfn)
+
+
 def read_wise(coadd_id, band, basedir, uncompressed=False,
-              drop_first_dir=False, epoch=-1):
-    assert((band == 1) or (band == 2))
+              drop_first_dir=False, epoch=-1, maskdir=None):
+    assert(band in (1, 2, 3, 4))
     assert(len(coadd_id) == 8)
 
     imagefn = wise_filename(basedir, coadd_id, band, 'img-m',
                             uncompressed=uncompressed,
                             drop_first_dir=drop_first_dir, epoch=epoch)
     ivarfn = wise_filename(basedir, coadd_id, band, 'invvar-m',
-                           uncompressed=uncompressed,
-                           drop_first_dir=drop_first_dir, epoch=epoch)
-    flagfn = wise_filename(basedir, coadd_id, band, 'msk',
                            uncompressed=uncompressed,
                            drop_first_dir=drop_first_dir, epoch=epoch)
     nmfn = wise_filename(basedir, coadd_id, band, 'n-m',
@@ -232,7 +248,12 @@ def read_wise(coadd_id, band, basedir, uncompressed=False,
 
     im, hdr = fits.getdata(imagefn, header=True)
     sqivar = np.sqrt(fits.getdata(ivarfn))
-    flag = fits.getdata(flagfn)
+    im = im / bandscales[band]
+    sqivar = sqivar * bandscales[band]
+    # the bitmask is a W1+W2 product, but its tiling is band-independent.
+    flag = read_unwise_mask(basedir if maskdir is None else maskdir,
+                            coadd_id, im.shape, uncompressed=uncompressed,
+                            drop_first_dir=drop_first_dir, epoch=epoch)
     nm = fits.getdata(nmfn)
     nu = fits.getdata(nufn)
     sqivar, flag = massage_isig_and_dim(sqivar, im, flag, band, nm, nu)
@@ -265,7 +286,10 @@ def collapse_unwise_bitmask(bitmask, band):
     # 2^6 = bright star saturation
     # 2^7 = geometric diffraction spike
 
-    assert((band == 1) or (band == 2))
+    assert(band in (1, 2, 3, 4))
+    if band > 2:
+        # no W3 or W4 bits in the unWISE bitmask.
+        return (0*np.asarray(bitmask)).astype('i2')
 
     bits_w1 = OrderedDict([('core_wings', 2**0 + 2**1),
                            ('psf_spike', 2**27),
@@ -317,7 +341,12 @@ def collapse_extraflags(bitmask, band):
                            ('nodeblend', crowdsource_base.nodeblend_maskbit),
                            ('sharp', crowdsource_base.sharp_maskbit)])
 
-    bits = (bits_w1 if (band == 1) else bits_w2)
+    # only the band-independent bits apply to W3 and W4.
+    bits_w34 = bits_w1.copy()
+    bits_w34['bright_off_edge'] = 0
+    bits_w34['possible_bright_star_centroid'] = 0
+
+    bits = {1: bits_w1, 2: bits_w2}.get(band, bits_w34)
 
     # hack to handle both scalar and array inputs
     result = 0*bitmask
@@ -392,7 +421,8 @@ if __name__ == "__main__":
     parser.add_argument('bands', type=int, nargs='+', help='Bands to process, e.g. 1 2 or 1 2 3 4 ...')
     parser.add_argument('--bandweights', type=float, nargs='+', default=None)
     parser.add_argument('outdir', type=str, nargs=1, help='Base output directory (will create cat/, mod/, iminfo/, log/ subdirs)')
-    parser.add_argument('--basedir', type=str, nargs='?', default='/global/cfs/cdirs/cosmo/work/wise/outputs/merge/neo8/fulldepth', help='Input directory to images')
+    parser.add_argument('--basedir', type=str, nargs='+', default=['/global/cfs/cdirs/cosmo/work/wise/outputs/merge/neo8/fulldepth'], help='Input directory to images; either one, or one per band')
+    parser.add_argument('--maskdir', type=str, default=None, help='Input directory to unWISE bitmasks (default: first basedir)')
     parser.add_argument('--outfn', '-o', default=None, type=str, help='Catalog file path (default: auto-generated in outdir/cat/)')
     parser.add_argument('--modelfn', '-m', default=None, type=str, help='Model file path (default: auto-generated in outdir/mod/)')
     parser.add_argument('--infoimfn', '-i', default=None, type=str, help='Info image file path (default: auto-generated in outdir/iminfo/)')
@@ -413,7 +443,18 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     coadd_id = args.coadd_id[0]
-    basedir = args.basedir
+    basedirs = args.basedir
+    if len(basedirs) == 1:
+        basedirs = basedirs * len(args.bands)
+    if len(basedirs) != len(args.bands):
+        parser.error('--basedir must give one directory, or one per band')
+    maskdir = basedirs[0] if args.maskdir is None else args.maskdir
+    scales = np.array([bandscales[band] for band in args.bands])
+    # band weights refer to images in Vega nanomaggies.
+    bandweights = args.bandweights
+    if np.any(scales != 1):
+        bandweights = np.ones(len(scales)) if bandweights is None else np.array(bandweights)
+        bandweights = list(bandweights / scales)
     outdir = args.outdir[0]
     
     for subdir in ["", "cat", "mod", "iminfo", "log"]: os.makedirs(os.path.join(outdir, subdir), exist_ok=True)
@@ -433,13 +474,11 @@ if __name__ == "__main__":
     infoimfn = os.path.join(outdir, 'iminfo', infoimfn)
 
     ims, sqivars, psfs, flags, hdrs, blists = [], [], [], [], [], []
-    for band in args.bands:
-        im, sqivar, flag, hdr = read_wise(coadd_id, band, basedir, uncompressed=args.uncompressed, epoch=args.epoch)
+    for band, basedir in zip(args.bands, basedirs):
+        im, sqivar, flag, hdr = read_wise(coadd_id, band, basedir, uncompressed=args.uncompressed, epoch=args.epoch, maskdir=maskdir)
     
         if len(args.startsky) > 0: startsky = fits.getdata(args.startsky, 'SKY')
         else: startsky = np.nan
-    
-        flag_orig = fits.getdata(wise_filename(basedir, coadd_id, band, 'msk', uncompressed=args.uncompressed, epoch=args.epoch))
     
         if args.masknebulosity:
             import nebulosity_mask
@@ -487,7 +526,7 @@ if __name__ == "__main__":
         sys.stderr = sys.stdout
         t0 = time.time()
         print('Starting %s, bands %s, at %s' % (coadd_id, bands_str, time.ctime()))
-        print('Band weights:', args.bandweights)
+        print('Band weights:', bandweights)
         sys.stdout.flush()
 
     flag_combined = np.bitwise_or.reduce(np.stack(flags, axis=0))
@@ -495,7 +534,7 @@ if __name__ == "__main__":
     
     res = crowdsource_base.fit_im(
         ims, psfs, weights=sqivars, dq=flag_combined,
-        band_weights=args.bandweights,
+        band_weights=bandweights,
         refit_psf=args.refit_psf, verbose=args.verbose,
         ntilex=4, ntiley=4, maxstars=30000*16, fewstars=50*16,
         threshold=args.threshold,
@@ -503,8 +542,8 @@ if __name__ == "__main__":
     )
 
     cat = res["stars"]
-    model = res["model"]
-    sky = res["sky"]
+    model = [m * scale for m, scale in zip(res["model"], scales)]
+    sky = [s * scale for s, scale in zip(res["sky"], scales)]
     psf = res["psfs"]
     snapshots = res["iter_history"]
 
@@ -548,13 +587,13 @@ if __name__ == "__main__":
     nms_all, flags_unwise_all, flags_info_all = [], [], []
     for i, band in enumerate(args.bands):
         # nm per band
-        nmfn = wise_filename(basedir, coadd_id, band, 'n-m', uncompressed=args.uncompressed, epoch=args.epoch)
+        nmfn = wise_filename(basedirs[i], coadd_id, band, 'n-m', uncompressed=args.uncompressed, epoch=args.epoch)
         nmim = fits.getdata(nmfn)
         nms_all.append(crowdsource_base.extract_im(cat['x'], cat['y'], nmim).astype('i2'))
     
-        flag_orig = fits.getdata(wise_filename(basedir, coadd_id, band, 'msk',
-                                               uncompressed=args.uncompressed,
-                                               epoch=args.epoch))
+        flag_orig = read_unwise_mask(maskdir, coadd_id, nmim.shape,
+                                     uncompressed=args.uncompressed,
+                                     epoch=args.epoch)
     
         # unwise flags per band
         fu = crowdsource_base.extract_im(cat['x'], cat['y'],collapse_unwise_bitmask(flag_orig, band)).astype('i2')
@@ -570,7 +609,11 @@ if __name__ == "__main__":
     flags_info_all   = np.asarray(flags_info_all, dtype='i2')
     
     # cast to i2; astropy.io.fits seems to fail for bools?
-    primary = unwise_primary.is_primary(coadd_id, ra, dec).astype('i2')
+    try:
+        primary = unwise_primary.is_primary(coadd_id, ra, dec).astype('i2')
+    except FileNotFoundError as e:
+        print('Could not compute primary, setting to -1:', e)
+        primary = np.full(len(ra), -1, dtype='i2')
     
     import numpy.lib.recfunctions as rfn
     cat = rfn.drop_fields(cat, ['flags'])
@@ -596,6 +639,9 @@ if __name__ == "__main__":
     print(cat.dtype.names)
     #Merge the individual bands to have the output with the structure as objcat
     cat_out = merge_per_band_fields(cat, args.bands)
+    for name in fluxfields:
+        if name in cat_out.dtype.names:
+            cat_out[name] *= scales if cat_out[name].ndim > 1 else scales[0]
     print(cat_out.dtype.names)
     
 
@@ -640,7 +686,7 @@ if __name__ == "__main__":
                 flagmap = flags[ib]
     
                 psffluxivar_all.append(
-                    ivarmap(sqivar, psf_obj(1024, 1024, stampsz=59)).astype("f4")
+                    (ivarmap(sqivar, psf_obj(1024, 1024, stampsz=59)) / scales[ib]**2).astype("f4")
                 )
                 flags_infoim_all.append(
                     collapse_extraflags(flagmap, band).astype("u1")
