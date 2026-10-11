@@ -453,7 +453,7 @@ if __name__ == "__main__":
     parser.add_argument('bands', type=int, nargs='+', help='Bands to process, e.g. 1 2 or 1 2 3 4 ...')
     parser.add_argument('--bandweights', type=float, nargs='+', default=None)
     parser.add_argument('outdir', type=str, nargs=1, help='Base output directory (will create cat/, mod/, iminfo/, log/ subdirs)')
-    parser.add_argument('--basedir', type=str, nargs='+', default=['/global/cfs/cdirs/cosmo/work/wise/outputs/merge/neo8/fulldepth'], help='Input directory to images; either one, or one per band')
+    parser.add_argument('--basedir', type=str, nargs='+', default=['/dvs_ro/cfs/cdirs/cosmo/data/unwise/neo11/unwise-coadds/fulldepth'], help='Input directory to images; either one, or one per band; use "/dvs_ro/cfs/cdirs/cosmo/data/unwise/allwise/unwise-coadds/fulldepth" for W3 and W4')
     parser.add_argument('--maskdir', type=str, default=None, help='Input directory to unWISE bitmasks (default: first basedir)')
     parser.add_argument('--outfn', '-o', default=None, type=str, help='Catalog file path (default: auto-generated in outdir/cat/)')
     parser.add_argument('--modelfn', '-m', default=None, type=str, help='Model file path (default: auto-generated in outdir/mod/)')
