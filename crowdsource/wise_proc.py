@@ -8,6 +8,7 @@ import argparse
 import numpy as np
 import crowdsource.psf as psfmod
 from astropy.io import fits
+from importlib.resources import files
 from crowdsource import crowdsource_base
 from unwise_psf import unwise_psf
 # implicit dependency for WISE runs only
@@ -155,8 +156,8 @@ def wise_psf_stamp(band, nosmooth=False):
     # psf noise: ~roughly 0.1 count in outskirts of W1, W2, and W3, and
     # 0.7 count in outskirts of W4
     psfnoise = {1: 0.1, 2: 0.1, 3: 0.1, 4: 0.7}[band]
-    stampfn = os.path.join(os.path.dirname(unwise_psf.__file__),
-                           'data', 'psf_model_w'+str(band)+'.fits')
+    stampfn = str(files('unwise_psf') / 'data' /
+                  ('psf_model_w'+str(band)+'.fits'))
     stamp = fits.getdata(stampfn)
     edges = np.concatenate([stamp[0, 1:-1], stamp[-1, 1:-1],
                                stamp[1:-1, 0], stamp[1:-1, -1]])

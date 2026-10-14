@@ -3,7 +3,7 @@ import pdb
 import numpy
 from astropy.io import fits
 from astropy import wcs
-import unwise_psf
+from importlib.resources import files
 
 
 def get_overlaps(coadd_id):
@@ -11,8 +11,8 @@ def get_overlaps(coadd_id):
     if overlaps is None:
         fn = os.environ.get('UNWISE_OVERLAPS', None)
         if fn is None:
-            fn = os.path.join(os.path.dirname(unwise_psf.__file__),
-                              'data', 'tile_overlaps-atlas.fits')
+            fn = str(files('unwise_psf') / 'data' /
+                     'tile_overlaps-atlas.fits')
         overlaps = fits.getdata(fn)
         get_overlaps.overlaps = overlaps
     w = numpy.flatnonzero(overlaps['coadd_id'] == coadd_id)
@@ -26,8 +26,7 @@ def get_overlaps(coadd_id):
 def get_astr(coadd_id):
     astr = getattr(get_astr, 'astr', None)
     if astr is None:
-        fn = os.path.join(os.path.dirname(unwise_psf.__file__),
-                          'data', 'astrom-atlas.fits')
+        fn = str(files('unwise_psf') / 'data' / 'astrom-atlas.fits')
         astr = fits.getdata(fn)
         get_astr.astr = astr
     w = numpy.flatnonzero(astr['coadd_id'] == coadd_id)
