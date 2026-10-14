@@ -110,17 +110,14 @@ def massage_isig_and_dim(isig, im, flag, band, nm, nu, fac=None):
     or zero point...
     """
 
-    frac = 0.
     if fac is None:
         # in W3 and W4 the excess noise in bright pixels, measured from the
-        # std-m images, grows as a ~2.5% fractional error (see also Lang
-        # 2014) and not as sqrt(im).  The W3 and W4 floors are in rescaled
-        # units (see bandscales).
-        bandfacs = {1: 0.15, 2: 0.3, 3: 0., 4: 0.}
-        bandfracs = {1: 0., 2: 0., 3: 0.025, 4: 0.025}
+        # std-m images, grows faster than sqrt(im); fac matches it at ~15
+        # times the sky noise.  The W3 and W4 values are in rescaled units
+        # (see bandscales).
+        bandfacs = {1: 0.15, 2: 0.3, 3: 0.8, 4: 0.8}
         bandfloors = {1: 0.5, 2: 2, 3: 5, 4: 5}
         fac = bandfacs[band]
-        frac = bandfracs[band]
         floor = bandfloors[band]
 
     # the unWISE bitmask has no W3 or W4 saturation bits.
@@ -145,8 +142,7 @@ def massage_isig_and_dim(isig, im, flag, band, nm, nu, fac=None):
     flag[(flag & sharp_bits) != 0] |= crowdsource_base.sharp_maskbit
 
     sigma = np.sqrt(1./(isig + (isig == 0))**2 + floor**2 +
-                       fac**2*np.clip(im, 0, np.inf) +
-                       frac**2*np.clip(im, 0, np.inf)**2)
+                       fac**2*np.clip(im, 0, np.inf))
     sigma[msat] = np.inf
     sigma[isig == 0] = np.inf
     return (1./sigma).astype('f4'), flag
