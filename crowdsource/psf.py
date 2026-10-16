@@ -17,7 +17,7 @@ if 'DECAM_DIR' not in os.environ:
 
 def shift(im, offset, **kw):
     """Wrapper for scipy.ndimage.interpolation.shift"""
-    from scipy.ndimage.interpolation import shift
+    from scipy.ndimage import shift
     if 'order' not in kw:
         kw['order'] = 4
         # 1" Gaussian: 60 umag; 0.75": 0.4 mmag; 0.5": 4 mmag
