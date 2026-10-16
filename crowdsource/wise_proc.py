@@ -638,11 +638,7 @@ if __name__ == "__main__":
     flags_info_all   = np.asarray(flags_info_all, dtype='i2')
     
     # cast to i2; astropy.io.fits seems to fail for bools?
-    try:
-        primary = unwise_primary.is_primary(coadd_id, ra, dec).astype('i2')
-    except FileNotFoundError as e:
-        print('Could not compute primary, setting to -1:', e)
-        primary = np.full(len(ra), -1, dtype='i2')
+    primary = unwise_primary.is_primary(coadd_id, ra, dec).astype('i2')
     
     import numpy.lib.recfunctions as rfn
     cat = rfn.drop_fields(cat, ['flags'])
