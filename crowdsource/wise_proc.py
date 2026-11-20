@@ -511,7 +511,7 @@ if __name__ == "__main__":
     
         if args.masknebulosity:
             from crowdsource import nebulosity_mask
-            nebfn = os.path.join(os.environ['WISE_DIR'], 'dat', 'nebnet', 'weights1', '1st_try')
+            nebfn = nebulosity_mask.WISE_MODEL
             nebmod = nebulosity_mask.load_model(nebfn)
             nebmask = nebulosity_mask.gen_mask_wise(nebmod, im) == 2
             if np.any(nebmask):

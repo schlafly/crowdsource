@@ -17,7 +17,10 @@ setup(
         'scikit-image',
         'guppy3',
         'matplotlib',
-        'tf_keras',
-        'tensorflow >= 2'
-    ]
+        'onnxruntime'
+    ],
+    package_data={'crowdsource': [
+        'wise_dir/data/nebnet/*',
+        'decam_dir/data/nebmaskmod/weights/*',
+    ]},
 )
