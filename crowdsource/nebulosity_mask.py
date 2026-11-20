@@ -5,9 +5,7 @@ from __future__ import print_function, division
 import os
 import numpy as np
 from scipy.ndimage import gaussian_filter
-# quiet all of the annoying tensorflow compile model warnings
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-from keras import models as kmodels
+import onnxruntime as ort
 # import resource
 
 def equalize_histogram(img, n_bins=256, asinh_stretch=False):
@@ -51,14 +49,42 @@ def equalize_histogram_wise(img, n_bins=256, asinh_stretch=False):
     return img_equalized.reshape(img.shape), cdf
 
 
-def load_model(fname_base):
-    with open(fname_base + '.json', 'r') as f:
-        model_json = f.read()
+# The networks were trained with Keras 2.0.4 and are stored here as ONNX
+# (converted with tf2onnx), next to the original Keras json + h5 files.
+# <name>_ref.npz holds reference inputs and the original Keras outputs; see
+# check_model.
 
-    model = kmodels.model_from_json(model_json)
-    model.load_weights(fname_base + '.h5')
+WISE_MODEL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          'wise_dir', 'data', 'nebnet', '1st_try')
 
-    return model
+
+def load_model(fname_base, nthreads=1):
+    """Load the ONNX network fname_base + '.onnx'."""
+    opts = ort.SessionOptions()
+    opts.intra_op_num_threads = nthreads
+    opts.inter_op_num_threads = nthreads
+    return ort.InferenceSession(fname_base + '.onnx', opts,
+                                providers=['CPUExecutionProvider'])
+
+
+def input_shape(model):
+    _, h, w, _ = model.get_inputs()[0].shape
+    return h, w
+
+
+def predict(model, x):
+    """Class probabilities for one (1, h, w, 1) image."""
+    name = model.get_inputs()[0].name
+    return model.run(None, {name: x.astype('f4')})[0][0]
+
+
+def check_model(model, fname_base):
+    """Max |difference| from the original Keras outputs on reference
+    inputs (uint8, scaled to [0, 1])."""
+    ref = np.load(fname_base + '_ref.npz')
+    x = ref['x'].astype('f4') / 255.
+    pred = np.array([predict(model, xx[None, :, :, None]) for xx in x])
+    return np.max(np.abs(pred - ref['y']))
 
 
 def subimages(img, shape, shiftx=0, shifty=0):
@@ -75,7 +101,7 @@ def subimages(img, shape, shiftx=0, shifty=0):
 
 def gen_mask(model, img):
     img = np.pad(img, 1, mode='constant', constant_values=np.median(img))
-    _, h, w, _ = model.layers[0].input_shape
+    h, w = input_shape(model)
 
     mask = np.empty(img.shape, dtype='u1')
 
@@ -84,7 +110,7 @@ def gen_mask(model, img):
                                        asinh_stretch=True, n_bins=3000)
         subimg /= 255.
         subimg.shape = (1, subimg.shape[0], subimg.shape[1], 1)
-        pred = model.predict(subimg, batch_size=1)[0]
+        pred = predict(model, subimg)
         mask[j0:j0+h, k0:k0+w] = np.argmax(pred*[0.25, 1, 1, 1])
 
     return mask[1:-1, 1:-1]
@@ -92,7 +118,7 @@ def gen_mask(model, img):
 
 def gen_prob(model, img, return_prob=False):
     img = np.pad(img, 1, mode='constant', constant_values=np.median(img))
-    _, h, w, _ = model.layers[0].input_shape
+    h, w = input_shape(model)
 
     mask = np.zeros((img.shape[0]-2, img.shape[1]-2, 4),
                     dtype=np.float32)
@@ -110,7 +136,7 @@ def gen_prob(model, img, return_prob=False):
                     subimg.astype('f8'), asinh_stretch=True, n_bins=3000)
                 subimg /= 255.
                 subimg.shape = (1, subimg.shape[0], subimg.shape[1], 1)
-                pred = model.predict(subimg, batch_size=1)[0]
+                pred = predict(model, subimg)
 
                 x0, x1 = np.clip([j0, j0+h], 0, img.shape[0])
                 y0, y1 = np.clip([k0, k0+w], 0, img.shape[1])
@@ -140,7 +166,7 @@ def gen_prob(model, img, return_prob=False):
 
 
 def gen_mask_wise(model, img, return_prob=False):
-    _, h, w, _ = model.layers[0].input_shape
+    h, w = input_shape(model)
 
     mask = np.zeros(img.shape + (3,), dtype='f4')
     nn = np.zeros(img.shape, dtype='i4')
@@ -155,7 +181,7 @@ def gen_mask_wise(model, img, return_prob=False):
                     subimg.astype('f8'), asinh_stretch=True, n_bins=3000)
                 subimg /= 255.
                 subimg.shape = (1, subimg.shape[0], subimg.shape[1], 1)
-                pred = model.predict(subimg, batch_size=1)[0]
+                pred = predict(model, subimg)
                 x0, x1 = np.clip([j0, j0+h], 0, img.shape[0])
                 y0, y1 = np.clip([k0, k0+w], 0, img.shape[1])
                 mask[x0:x1, y0:y1, :] += pred
