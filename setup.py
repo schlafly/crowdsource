@@ -17,7 +17,7 @@ setup(
         'scikit-image',
         'guppy3',
         'matplotlib',
-        'keras',
+        'tf_keras',
         'tensorflow >= 2'
     ]
 )

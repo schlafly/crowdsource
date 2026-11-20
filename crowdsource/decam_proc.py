@@ -108,7 +108,7 @@ def read_data(imfn, ivarfn, dqfn, extname, badpixmask=None,
                 print("WCSCAL Unsucessful, Skipping galaxy masking...")
 
     if maskdiffuse:
-        import nebulosity_mask
+        from crowdsource import nebulosity_mask
         nebmod = getattr(read_data, 'nebmod', None)
         if nebmod is None:
             modfn = os.path.join(os.environ['DECAM_DIR'], 'data', 'nebmaskmod',

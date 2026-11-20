@@ -7,7 +7,12 @@ import numpy as np
 from scipy.ndimage import gaussian_filter
 # quiet all of the annoying tensorflow compile model warnings
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-from keras import models as kmodels
+import tensorflow as tf
+try:
+    # Keras 3 cannot read this Keras 2 model; tf_keras keeps the Keras 2 API.
+    from tf_keras import models as kmodels
+except ImportError:
+    from keras import models as kmodels
 # import resource
 
 def equalize_histogram(img, n_bins=256, asinh_stretch=False):
@@ -51,7 +56,13 @@ def equalize_histogram_wise(img, n_bins=256, asinh_stretch=False):
     return img_equalized.reshape(img.shape), cdf
 
 
-def load_model(fname_base):
+def load_model(fname_base, nthreads=1):
+    # Must run before TensorFlow initializes; afterwards it raises.
+    try:
+        tf.config.threading.set_intra_op_parallelism_threads(nthreads)
+        tf.config.threading.set_inter_op_parallelism_threads(nthreads)
+    except RuntimeError:
+        pass
     with open(fname_base + '.json', 'r') as f:
         model_json = f.read()
 
@@ -59,6 +70,11 @@ def load_model(fname_base):
     model.load_weights(fname_base + '.h5')
 
     return model
+
+
+def predict(model, x):
+    # model.predict ignores the thread limits and has per-call overhead.
+    return model(x, training=False).numpy()[0]
 
 
 def subimages(img, shape, shiftx=0, shifty=0):
@@ -84,7 +100,7 @@ def gen_mask(model, img):
                                        asinh_stretch=True, n_bins=3000)
         subimg /= 255.
         subimg.shape = (1, subimg.shape[0], subimg.shape[1], 1)
-        pred = model.predict(subimg, batch_size=1)[0]
+        pred = predict(model, subimg)
         mask[j0:j0+h, k0:k0+w] = np.argmax(pred*[0.25, 1, 1, 1])
 
     return mask[1:-1, 1:-1]
@@ -110,7 +126,7 @@ def gen_prob(model, img, return_prob=False):
                     subimg.astype('f8'), asinh_stretch=True, n_bins=3000)
                 subimg /= 255.
                 subimg.shape = (1, subimg.shape[0], subimg.shape[1], 1)
-                pred = model.predict(subimg, batch_size=1)[0]
+                pred = predict(model, subimg)
 
                 x0, x1 = np.clip([j0, j0+h], 0, img.shape[0])
                 y0, y1 = np.clip([k0, k0+w], 0, img.shape[1])
@@ -155,7 +171,7 @@ def gen_mask_wise(model, img, return_prob=False):
                     subimg.astype('f8'), asinh_stretch=True, n_bins=3000)
                 subimg /= 255.
                 subimg.shape = (1, subimg.shape[0], subimg.shape[1], 1)
-                pred = model.predict(subimg, batch_size=1)[0]
+                pred = predict(model, subimg)
                 x0, x1 = np.clip([j0, j0+h], 0, img.shape[0])
                 y0, y1 = np.clip([k0, k0+w], 0, img.shape[1])
                 mask[x0:x1, y0:y1, :] += pred
